@@ -1,0 +1,7 @@
+*DS_Store
+src/.o
+src/.moc*
+src/.obj*
+src/raymini.app*
+src/raymini
+src/Makefile
