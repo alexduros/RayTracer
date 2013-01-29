@@ -1,5 +1,6 @@
 *DS_Store
-src/.o
+src/*.o
+src/moc_*
 src/.moc*
 src/.obj*
 src/raymini.app*
