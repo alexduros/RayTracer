@@ -16,8 +16,8 @@
 
 struct Edge {
 public:
-  inline Edge (unsigned int v0, unsigned int v1) { 
-    if (v0 < v1) {v[0] = v0; v[1] = v1; } else {v[0] = v1; v[1] = v0; }  
+  inline Edge (unsigned int v0, unsigned int v1) {
+    if (v0 < v1) {v[0] = v0; v[1] = v1; } else {v[0] = v1; v[1] = v0; }
   }
   inline Edge (const Edge & e) { v[0] = e.v[0]; v[1] = e.v[1]; }
   inline virtual ~Edge () {}
@@ -29,7 +29,7 @@ public:
 };
 
 struct compareEdge {
-  inline bool operator()(const Edge e1, const Edge e2) const { 
+  inline bool operator()(const Edge e1, const Edge e2) const {
     if (e1.v[0] < e2.v[0])
       return true;
     if (e1.v[0] > e2.v[0])

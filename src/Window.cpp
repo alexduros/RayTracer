@@ -40,27 +40,28 @@ using namespace std;
 Window::Window () : QMainWindow (NULL) {
     try {
         viewer = new GLViewer;
-    } catch (GLViewer::Exception e) {
-        cerr << e.getMessage () << endl;
+    } catch (GLViewer::Exception *e) {
+        cerr << e->getMessage () << endl;
         exit (1);
     }
+
     QGroupBox * renderingGroupBox = new QGroupBox (this);
     QHBoxLayout * renderingLayout = new QHBoxLayout (renderingGroupBox);
-    
+
     imageLabel = new QLabel;
     imageLabel->setBackgroundRole (QPalette::Base);
     imageLabel->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Ignored);
     imageLabel->setScaledContents (true);
     imageLabel->setPixmap (QPixmap::fromImage (rayImage));
-    
+
     renderingLayout->addWidget (viewer);
     renderingLayout->addWidget (imageLabel);
 
     setCentralWidget (renderingGroupBox);
-    
+
     QDockWidget * controlDockWidget = new QDockWidget (this);
     initControlWidget ();
-    
+
     controlDockWidget->setWidget (controlWidget);
     controlDockWidget->adjustSize ();
     addDockWidget (Qt::RightDockWidgetArea, controlDockWidget);
@@ -95,7 +96,7 @@ void Window::renderRayImage () {
     rayImage = rayTracer->render (camPos, viewDirection, upVector, rightVector,
                                   fieldOfView, aspectRatio, screenWidth, screenHeight);
     imageLabel->setPixmap (QPixmap::fromImage (rayImage));
-    
+
 }
 
 void Window::calculAO(){
@@ -152,19 +153,18 @@ void Window::exportRayImage () {
 }
 
 void Window::about () {
-    
-    QMessageBox::about (this, 
-                        "About This Program", 
+    QMessageBox::about (this,
+                        "About This Program",
                         "<b>RayMini</b> <br> by <i>Tamy Boubekeur</i>.");
 }
 
 void Window::initControlWidget () {
     controlWidget = new QGroupBox ();
     QVBoxLayout * layout = new QVBoxLayout (controlWidget);
-    
+
     QGroupBox * previewGroupBox = new QGroupBox ("Preview", controlWidget);
     QVBoxLayout * previewLayout = new QVBoxLayout (previewGroupBox);
-    
+
     QCheckBox * wireframeCheckBox = new QCheckBox ("Wireframe", previewGroupBox);
     connect (wireframeCheckBox, SIGNAL (toggled (bool)), viewer, SLOT (setWireframe (bool)));
     previewLayout->addWidget (wireframeCheckBox);
@@ -178,13 +178,13 @@ void Window::initControlWidget () {
     connect (modeButtonGroup, SIGNAL (buttonClicked (int)), viewer, SLOT (setRenderingMode (int)));
     previewLayout->addWidget (flatButton);
     previewLayout->addWidget (smoothButton);
-    
+
     QPushButton * snapshotButton  = new QPushButton ("Save preview", previewGroupBox);
     connect (snapshotButton, SIGNAL (clicked ()) , this, SLOT (exportGLImage ()));
     previewLayout->addWidget (snapshotButton);
 
     layout->addWidget (previewGroupBox);
-    
+
     QGroupBox * rayGroupBox = new QGroupBox ("Ray Tracing", controlWidget);
     QVBoxLayout * rayLayout = new QVBoxLayout (rayGroupBox);
     QPushButton * rayButton = new QPushButton ("Render", rayGroupBox);
@@ -273,18 +273,18 @@ void Window::initControlWidget () {
     rayLayout->addWidget (saveButton);
 
     layout->addWidget (rayGroupBox);
-    
+
     QGroupBox * globalGroupBox = new QGroupBox ("Global Settings", controlWidget);
     QVBoxLayout * globalLayout = new QVBoxLayout (globalGroupBox);
-    
+
     QPushButton * bgColorButton  = new QPushButton ("Background Color", globalGroupBox);
     connect (bgColorButton, SIGNAL (clicked()) , this, SLOT (setBGColor()));
     globalLayout->addWidget (bgColorButton);
-    
+
     QPushButton * aboutButton  = new QPushButton ("About", globalGroupBox);
     connect (aboutButton, SIGNAL (clicked()) , this, SLOT (about()));
     globalLayout->addWidget (aboutButton);
-    
+
     QPushButton * quitButton  = new QPushButton ("Quit", globalGroupBox);
     connect (quitButton, SIGNAL (clicked()) , qApp, SLOT (closeAllWindows()));
     globalLayout->addWidget (quitButton);

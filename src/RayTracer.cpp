@@ -31,6 +31,7 @@ inline int clamp (float f, int inf, int sup) {
     return (v < inf ? inf : (v > sup ? sup : v));
 }
 
+// @TBoubekeur
 // POINT D'ENTREE DU PROJET.
 // Le code suivant ray trace uniquement la boite englobante de la scene.
 // Il faut remplacer ce code par une veritable raytracer
@@ -45,7 +46,7 @@ QImage RayTracer::render (const Vec3Df & camPos,
     QImage image (QSize (screenWidth, screenHeight), QImage::Format_RGB888);
 
     clock_t start, finish;
-    //cout << "Rendering started..." << endl;
+    cout << "Rendering started..." << endl;
     start = clock();
 
     Scene * scene = Scene::getInstance ();
@@ -58,7 +59,6 @@ QImage RayTracer::render (const Vec3Df & camPos,
     const BoundingBox & bbox = scene->getBoundingBox ();
     const Vec3Df & minBb = bbox.getMin ();
     const Vec3Df & maxBb = bbox.getMax ();
-
 
 
     //on creer un arbre par object de la scene
@@ -137,8 +137,6 @@ QImage RayTracer::render (const Vec3Df & camPos,
 //Parcours dans un arbre
 /////////////////////////
 bool RayTracer::recParcoursArbre_v(KdTree * n, Ray & r, const Object & object, Vertex & intersectionPoint, float & distance){
-    bool resultat_parcours_gauche;
-    bool resultat_parcours_droit;
     Vec3Df neSertaRien;
 
     //Cas triviaux
@@ -155,28 +153,24 @@ bool RayTracer::recParcoursArbre_v(KdTree * n, Ray & r, const Object & object, V
 
     }
 
+    //on test l'intersection avec la boite englobante des sous arbres
+    Vec3Df t_split_min, t_split_max;
+    bool intersect_Tg = r.intersect(n->bbox_n, t_split_min);
+    bool intersect_Td = r.intersect(n->bbox_n, t_split_max);
 
-
-    else{
-        //on test l'intersection avec la boite englobante des sous arbres
-        Vec3Df t_split_min, t_split_max;
-        bool intersect_Tg = r.intersect(n->bbox_n, t_split_min);
-        bool intersect_Td = r.intersect(n->bbox_n, t_split_max);
-
-        if(intersect_Tg && !intersect_Td){
-            return recParcoursArbre_v(n->Tg, r, object, intersectionPoint, distance);
-        }
-        else if(!intersect_Tg && intersect_Td){
-            return recParcoursArbre_v(n->Td, r, object, intersectionPoint, distance);
-        }
-        else{
-            resultat_parcours_droit = recParcoursArbre_v(n->Td, r, object, intersectionPoint, distance);
-            resultat_parcours_gauche = recParcoursArbre_v(n->Tg, r, object, intersectionPoint, distance);
-
-            return resultat_parcours_droit || resultat_parcours_gauche ;
-        }
+    if(intersect_Tg && !intersect_Td){
+        return recParcoursArbre_v(n->Tg, r, object, intersectionPoint, distance);
     }
+    else if(!intersect_Tg && intersect_Td){
+        return recParcoursArbre_v(n->Td, r, object, intersectionPoint, distance);
+    } else {
+        bool resultat_parcours_gauche;
+        bool resultat_parcours_droit;
+        resultat_parcours_droit = recParcoursArbre_v(n->Td, r, object, intersectionPoint, distance);
+        resultat_parcours_gauche = recParcoursArbre_v(n->Tg, r, object, intersectionPoint, distance);
 
+        return resultat_parcours_droit || resultat_parcours_gauche ;
+    }
 };
 
 ////////////////////////////////////////

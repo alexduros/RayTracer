@@ -29,7 +29,7 @@ GLViewer::~GLViewer () {
 
 void GLViewer::setWireframe (bool b) {
     wireframe = b;
-    if (wireframe) 
+    if (wireframe)
         glPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
     else
         glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
@@ -70,7 +70,7 @@ QString GLViewer::helpString() const {
 }
 
 void GLViewer::keyPressEvent (QKeyEvent * /*event*/) {
-    
+
 }
 
 void GLViewer::keyReleaseEvent (QKeyEvent * /*event*/) {
@@ -92,7 +92,7 @@ void GLViewer::init() {
     Scene * scene = Scene::getInstance ();
 
     glLoadIdentity ();
-    
+
     glEnable (GL_LIGHTING);
     for (unsigned int i = 0; i < scene->getLights ().size () && i < 8; i++) {
         GLuint glID = OpenGLLightID[i];
@@ -106,7 +106,7 @@ void GLViewer::init() {
         glLightfv (glID, GL_POSITION, glPos);
         glLightfv (glID, GL_DIFFUSE, glColor);
     }
-    
+
     const BoundingBox & sceneBBox = scene->getBoundingBox ();
     Vec3Df c = sceneBBox.getCenter ();
     float r = sceneBBox.getRadius ();
@@ -123,7 +123,7 @@ void GLViewer::draw () {
         const Vec3Df & color = mat.getColor ();
         float dif = mat.getDiffuse ();
         float spec = mat.getSpecular ();
-        static GLfloat glMatDiff[4]; 
+        static GLfloat glMatDiff[4];
         static GLfloat glMatSpec[4];
         static const GLfloat glMatAmb[4] = {0.f, 0.f, 0.f, 1.f};
         for (unsigned int j = 0; j < 3; j++) {
