@@ -1,205 +1,70 @@
+// Copyright (C) 2013 Alexandre Duros.
+// All rights reserved.
+// ---------------------------------------------------------
+
+
 #include "KdTree.h"
+#include "Vertex.h"
+#include "Triangle.h"
 
-///////////////
-//Constructeur
-///////////////
-KdTree::KdTree(const vector<Vertex> & vertices, const vector<Triangle> & triangles, unsigned int _profondeur, int _precision, const Mesh & mesh){
+using namespace std;
 
-    //Racine
-    this->profondeur = _profondeur;
-    this->triangles_n = triangles;
-    this->vertices_n = vertices;
-    this->bbox_n = BoundingBox::computeBoundingBoxTriangles( triangles, mesh);
+void build () {
+    const vector<Triangle> & triangles = mesh.getTrianges();
+    const vector<Vertex> & vertices = mesh.getVertices();
+    bbox = BoundingBox::computeBoundingBoxTriangles(triangles, mesh);
 
-    this->Tg = NULL;
-    this->Td = NULL;
+    if(step > triangles.size() &&  maxDepth <= MAX_DEPTH){
+        isLeaf = false;
 
+        int direction = bbox.getDirection();
+        const Vertex & median = Vertex::getMedian(vertices, direction);
 
+        Vertex::sortByDirection(direction);
+        std::vector<Vertex> leftVertices;
+        std::vector<Vertex> rightVertices;
+        Vertex::split(vertices, leftVertices, rightVertices);
 
-    //Construction des sous arbres
-    //condition d'arret
-    if((triangles_n.size() > _precision) && (_profondeur <= 15)){
-        isFeuille = false;
-        //determine le vertex median selon l'axe
-        int axe = determine_axe(bbox_n);
-        axe_n = axe;
-        median_n = determine_median(vertices_n, axe);
+        std::vector<Triangle> leftTriangles;
+        vector<Triangle> rightTriangles;
+        Triangle::split(median, triangles, mesh, axe,
+                        leftTriangles, rightTriangles);
 
-        //mise à jour des vertex
-        vector<Vertex> vertices_n_trie = sort_a(axe);
-        vector<Vertex> vertices_n_g;
-        vector<Vertex> vertices_n_d;
-        decoupe(vertices_n_trie, vertices_n_g, vertices_n_d);
-
-        //mise à jour des triangles
-        //on ne garde que les triangles qui ont un sommet dans le voxel
-        vector<Triangle> triangles_n_g;
-        vector<Triangle> triangles_n_d;
-        partage_triangles(median_n,triangles_n, mesh, axe,
-                          triangles_n_g,
-                          triangles_n_d);
-
-        //création des sous arbres
-        if(vertices_n_g.size() !=0 && triangles_n_g.size() != 0){
-            Tg = new KdTree(vertices_n_g, triangles_n_g, profondeur + 1, _precision, mesh);
+        if(leftVertices.size() != 0 && leftTriangles.size() != 0){
+            Mesh * leftMesh = new Mesh(leftTriangles, leftVertices);
+            leftTree = KdTree(&leftMesh, maxDepth + 1, step);
         }
-        if(vertices_n_d.size() !=0 && triangles_n_d.size() != 0){
-            Td = new KdTree(vertices_n_d, triangles_n_d, profondeur + 1, _precision, mesh);
+        if(rightVertices.size() !=0 && rightTriangles.size() != 0){
+            Mesh * rightMesh = new Mesh(rightTriangles, rightVertices);
+            rightTree = KdTree(&rightMesh, maxDepth + 1, step);
         }
-
-    }
-    else{
-        isFeuille = true;
+    } else {
+        isLeaf = true;
     }
 
-};
+}
 
-/////////////////
-//Les 3 tris possibles
-//////////////////////
-//width
-bool tri_x(Vertex v1, Vertex v2){
-    return v1.getPos()[0] < v2.getPos()[0] ;
-};
-//height
-bool tri_y(Vertex v1, Vertex v2){
-    return v1.getPos()[1] < v2.getPos()[1] ;
-};
-//length
-bool tri_z(Vertex v1, Vertex v2){
-    return v1.getPos()[2] < v2.getPos()[2] ;
-};
-
-///////////////
-//tri selon l'axe
-//////////////////
-inline vector<Vertex> KdTree::sort_a(int axe){
-    vector<Vertex> vertices_n_fils = vertices_n;
-    if(axe == 0)
-        sort (vertices_n_fils.begin(), vertices_n_fils.end(), tri_x);
-    if(axe == 1)
-        sort (vertices_n_fils.begin(), vertices_n_fils.end(), tri_y);
-    if(axe == 2)
-        sort (vertices_n_fils.begin(), vertices_n_fils.end(), tri_z);
-
-    return vertices_n_fils ;
-
-
-};
-
-///////////
-//milieu
-//////////
-inline Vertex KdTree::milieu(){
-    int b = vertices_n.size()/2;
-    return vertices_n[b];
-};
-
-///////////
-//découpe
-///////////
-inline void KdTree::decoupe(const vector<Vertex> & n, vector<Vertex>  & n_g, vector<Vertex> & n_d){
-    if(n.size() != 0){
-        int median = n.size()/2;
-        if(n.size()%2 != 0){
-            median += 1 ;
-        }
-
-        for(int i=0; i<median; i++)n_g.push_back(n[i]);
-        for(int i=median; i<n.size();i++)n_d.push_back(n[i]);
-
+void KdTree::recDrawBoundingBox(unsigned int depth){
+    if(maxDepth == depth){
+        bbox.renderGL();
+    } else {
+        TdrecDrawBoundingBox(depth);
+        this->Tg->recDrawBoundingBox(depth);
     }
-};
+}
 
-inline int KdTree::determine_axe(const BoundingBox & bbox){
-    float max = 0;
-    int axe =0;
-    for(int i=0;i<3;i++){
-        if(bbox.getWHL(i)>max){
-            axe = i;
-            max = bbox.getWHL(i);
-        }
+void KdTree::renderGL (unsigned int depth) const {
+    if (maxDepth <= depth) {
+        bbox.renderGL();
+    } else if(Tg != NULL && Td != NULL) {
+        Tg.renderGL(depth);
+        Td->renderGL(depth);
+    } else if(Tg == NULL && Td == NULL){
+        bbox.renderGL();
     }
-    return axe;
-};
+}
 
-///////////////////////////////////////////////
-//Determine le vertex median pour un axe donné
-///////////////////////////////////////////////
-inline Vertex KdTree::determine_median(vector<Vertex> n, int axe){
-    vector<Vertex> vertices_n_fils = n;
-    if(axe == 0)
-        sort (vertices_n_fils.begin(), vertices_n_fils.end(), tri_x);
-    if(axe == 1)
-        sort (vertices_n_fils.begin(), vertices_n_fils.end(), tri_y);
-    if(axe == 2)
-        sort (vertices_n_fils.begin(), vertices_n_fils.end(), tri_z);
-
-    int milieu = vertices_n_fils.size()/2;
-    return vertices_n_fils[milieu] ;
-};
-
-////////////////////////////////////////////////////////////////////////
-//Partage les triangles en fonction du vertex median trouvé précédemment
-////////////////////////////////////////////////////////////////////////
-inline void KdTree::partage_triangles(Vertex & median, vector<Triangle> & triangles_n, const Mesh & mesh, int axe,
-                                      vector<Triangle> & triangles_n_g,
-                                      vector<Triangle> & triangles_n_d){
-
-    vector<Vertex> m = mesh.getVertices();
-    for(unsigned int i=0;i<triangles_n.size();i++){
-        bool appartient_a_g = false;
-        bool appartient_a_d = false;
-
-        for(int k =0;k<3;k++){
-            //si un des vertex du triangle est dans le voxel on le garde
-            if(m[triangles_n[i].getVertex(k)].getPos()[axe] < median.getPos()[axe]){
-                if(!appartient_a_g){
-                    triangles_n_g.push_back(triangles_n[i]);
-                    appartient_a_g = true;
-                }
-            }
-            else{
-                if(!appartient_a_d){
-                    triangles_n_d.push_back(triangles_n[i]);
-                    appartient_a_d = true;
-                }
-            }
-
-        }
-
-    } //fin du parcours des triangles
-};
-
-////////////////
-//Profondeur
-//////////////////
-int KdTree::getProfondeurArbre(){
-    if(this == NULL){
-        return 0;
-    }
-    return (1 + this->Td->getProfondeurArbre() );
-};
-
-/////////////
-//DrawBoundingBox
-///////////////
-void KdTree::recDrawBoundingBox(unsigned int _profondeur){
-
-    if(this->profondeur == _profondeur){
-        this->bbox_n.renderGL();
-    }
-    else{
-        this->Td->recDrawBoundingBox(_profondeur);
-        this->Tg->recDrawBoundingBox(_profondeur);
-    }
-};
-
-
-
-/////////////////////////////////
-//
-////////////////////////////////////////////////////////////////////////////////
+//TODO
 bool KdTree::recParcoursArbreExistence_v(Ray & r, const Mesh & mesh){
 
     Vec3Df neSertaRien;
@@ -239,8 +104,7 @@ bool KdTree::recParcoursArbreExistence_v(Ray & r, const Mesh & mesh){
 
 
 
-};
-
+}
 
 bool KdTree::recParcoursArbre_v(Ray & r, const Mesh & mesh, Vertex & intersectionPoint, float & distance){
     bool resultat_parcours_gauche;
@@ -282,7 +146,6 @@ bool KdTree::recParcoursArbre_v(Ray & r, const Mesh & mesh, Vertex & intersectio
             return resultat_parcours_droit || resultat_parcours_gauche ;
         }
     }
+}
 
 
-
-};

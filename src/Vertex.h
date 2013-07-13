@@ -57,7 +57,9 @@ public:
     static void scaleToUnitBox (std::vector<Vertex> & vertices, 
                                 Vec3Df & center, float & scaleToUnitBox);
     static void normalizeNormals (std::vector<Vertex> & vertices);
-
+    static void sortByDirection  (std::vector<Vertex> & vertices);
+    static const Vertex & getMedian  (std::vector<Vertex> & vertices, int direction);
+    static void  split (const std::vector<Vertex> & vertices, std::vector<Vertex> & left, std::vector<Vertex> & right);
 
 
 private:

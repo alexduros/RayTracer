@@ -20,9 +20,8 @@
 class Object {
 public:
     inline Object () {}
-    inline Object (const Mesh & mesh, const Material & mat) :mesh (mesh), mat (mat) {
+    inline Object (const Mesh & mesh, const Material & mat, const KdTree & kdTree) :mesh (mesh), mat (mat), kdTree (kdTree) {
         updateBoundingBox ();
-        kdTree = new KdTree(mesh.getVertices(), mesh.getTriangles(),0,5,mesh);
     }
     virtual ~Object () {}
 
@@ -39,20 +38,20 @@ public:
     inline const Material & getMaterial () const { return mat; }
     inline Material & getMaterial () { return mat; }
 
-    inline KdTree * getKdTree () const{ return kdTree; }
-    inline KdTree * getKdTree () { return kdTree; }
+    inline const KdTree & getKdTree () const{ return kdTree; }
+    inline KdTree & getKdTree () { return kdTree; }
 
     inline const BoundingBox & getBoundingBox () const { return bbox; }
     void updateBoundingBox ();
     inline void parcoursObject(Ray r, Vertex & intersectionPoint, float & distance){
-        kdTree->recParcoursArbre_v(r,mesh,intersectionPoint,distance);
+        kdTree.recParcoursArbre_v(r,mesh,intersectionPoint,distance);
     }
     
 private:
     Mesh mesh;
     Material mat;
     BoundingBox bbox;
-    KdTree * kdTree;
+    KdTree kdTree;
 };
 
 

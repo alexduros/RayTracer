@@ -63,3 +63,47 @@ void Vertex::normalizeNormals (vector<Vertex> & vertices) {
     }    
 }
 
+inline bool sortX(Vertex v1, Vertex v2){
+    return v1.getPos()[0] < v2.getPos()[0] ;
+}
+
+inline bool sortY(Vertex v1, Vertex v2){
+    return v1.getPos()[1] < v2.getPos()[1] ;
+}
+
+inline bool sortZ(Vertex v1, Vertex v2){
+    return v1.getPos()[2] < v2.getPos()[2] ;
+}
+
+void Vertex::sortByDirection(std::vector<Vertex> & vertices, int direction){
+    switch(direction){
+        case 0:
+            sort (vertices.begin(), vertices.end(), sortX);
+            break;
+        case 1:
+            sort (vertices.begin(), vertices.end(), sortY);
+            break;
+        case 3:
+            sort (vertices.begin(), vertices.end(), sortZ);
+            break;
+    }
+}
+
+Vertex Vertex::determine_median(const std::vector<Vertex> & vertices, int direction){
+    sortByDirection(vertices);
+    return vertices[vertices.size()/2] ;
+}
+
+void Vertex::split(const std::vector<Vertex> & vertices, std::vector<Vertex> & left, std::vector<Vertex> & right) {
+    if(vertices.size() != 0){
+        int median = vertices.size()/2;
+        if(vertices.size()%2 != 0){
+            median += 1 ;
+        }
+        for(int i=0; i<median; i++) left.push_back(vertices[i]);
+        for(int i=median; i<vertices.size();i++) right.push_back(vertices[i]);
+    }
+}
+
+
+

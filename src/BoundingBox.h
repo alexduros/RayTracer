@@ -144,6 +144,18 @@ public:
         return (maxBb[i] - minBb[i]);
     }
 
+    inline int getDirection() {
+        float max = 0;
+        int axe = 0;
+        for(int i=0; i<3; i++){
+            if(bbox.getWHL(i) > max){
+                axe = i;
+                max = bbox.getWHL(i);
+            }
+        }
+        return axe;
+    }
+
     static inline BoundingBox computeBoundingBox(const std::vector<Vertex> & vertices){
         BoundingBox bbox = BoundingBox(vertices[0].getPos());
 
