@@ -44,7 +44,7 @@ public:
     inline const BoundingBox & getBoundingBox () const { return bbox; }
     void updateBoundingBox ();
     inline void parcoursObject(Ray r, Vertex & intersectionPoint, float & distance){
-        kdTree.recParcoursArbre_v(r,mesh,intersectionPoint,distance);
+        kdTree.searchHit(r,mesh,intersectionPoint,distance);
     }
     
 private:

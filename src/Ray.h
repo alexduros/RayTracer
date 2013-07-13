@@ -38,12 +38,14 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
     bool intersect (const BoundingBox & bbox, Vec3Df & intersectionPoint) const;
-    bool intersect_v (const Mesh & mesh, Vertex & intersectionPoint , float distance);
-    bool intersect_ray_triangle_v (const Triangle & t, const Mesh & mesh, Vertex & intersectionPoint );
+    inline bool intersect (const BoundingBox & bbox) const {
+        const Vec3Df & v;
+        return intersect(bbox, v);
+    }
+    bool hit (const Mesh & mesh, Vertex & intersectionPoint , float distance);
+    bool hit (const Triangle & t, const Mesh & mesh, Vertex & intersectionPoint );
 
     bool existeIntersection_v (const Mesh & mesh, const std::vector<Triangle> & triangles);
-    //donne l'existence et la valeur
-    bool intersectVecteurDeTriangles_v (const Mesh & mesh, const std::vector<Triangle> & triangles, Vertex & intersectionPoint, float & distance);
     bool existeIntersectionVecteur (const Mesh & mesh, const std::vector<Triangle> & triangles);
 private:
     Vec3Df origin;

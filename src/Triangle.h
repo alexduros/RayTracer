@@ -8,6 +8,7 @@
 #ifndef TRIANGLE_H
 #define TRIANGLE_H
 
+#include "Mesh.h"
 #include <iostream>
 #include <vector>
 
@@ -25,7 +26,7 @@ public:
     inline bool contains (unsigned int vertex) const { return (v[0] == vertex || v[1] == vertex || v[2] == vertex); }
 
     static void split (int median, const std::vector<Triangle> & triangles,
-                       const Mesh & mesh, int axe,
+                       const Mesh & mesh, int direction,
                        std::vector<Triangle> & left, std::vector<Triangle> & right);
 
 protected:

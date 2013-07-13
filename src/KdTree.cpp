@@ -64,88 +64,51 @@ void KdTree::renderGL (unsigned int depth) const {
     }
 }
 
-//TODO
-bool KdTree::recParcoursArbreExistence_v(Ray & r, const Mesh & mesh){
+bool KdTree::hasHit(const Ray & ray){
 
-    Vec3Df neSertaRien;
-
-    //Cas triviaux
     if(this==NULL){
         return false;
-    }
-    if(!r.intersect(this->bbox_n,neSertaRien)){
+    } else if(!ray.intersect(bbox)){
         return false;
-    }
-    if(this->isFeuille){
-        //donne juste l'existence (plus rapide)
-        return r.existeIntersectionVecteur(mesh, this->triangles_n);
-
+    } else if(isLeaf()){
+        return ray.hasHit(triangles);
     }
 
-    else{
-        //on test l'intersection avec la boite englobante des sous arbres
-        Vec3Df t_split_min, t_split_max;
-        bool intersect_Tg = r.intersect(this->bbox_n, t_split_min);
-        bool intersect_Td = r.intersect(this->bbox_n, t_split_max);
+    Vec3Df hitMin, hitMax;
+    r.intersect(leftTree.bbox, hitMin);
+    r.intersect(rightTree.bbox, hitMax);
 
-        if(intersect_Tg && !intersect_Td){
-            return this->Tg->recParcoursArbreExistence_v( r, mesh);
-        }
-        else if(!intersect_Tg && intersect_Td){
-            return this->Td->recParcoursArbreExistence_v( r, mesh);
-        }
-        else{
-
-            //seul le premier est calculé si il trouve une intersection
-            return this->Td->recParcoursArbreExistence_v( r, mesh) ||
-                    this->Tg->recParcoursArbreExistence_v( r, mesh) ;
-        }
+    if(hitMin && !hitMax){
+        return leftTree.hasHit(r);
+    } else if(!hitMin && hitMax){
+        return rightTree.hasHit(r);
     }
 
-
-
+    return leftTree.hasHit(r) ||
+            rightTree.hasHit(r) ;
 }
 
-bool KdTree::recParcoursArbre_v(Ray & r, const Mesh & mesh, Vertex & intersectionPoint, float & distance){
-    bool resultat_parcours_gauche;
-    bool resultat_parcours_droit;
-    Vec3Df neSertaRien;
+bool KdTree::searchHit(Ray & ray, Vertex & hit, float & distance){
 
-    //Cas triviaux
     if(this==NULL){
         return false;
-    }
-    if(!r.intersect(this->bbox_n,neSertaRien)){
+    } else if(!ray.intersect(bbox)){
         return false;
-    }
-    if(this->isFeuille){
-        //retourne le point d'intersection le plus proche pour le vecteur de triangles !
-        //met à jour la valeur de distance;
-        return r.intersectVecteurDeTriangles_v(mesh, this->triangles_n, intersectionPoint, distance);
-
+    } else if(isLeaf()){
+        return ray.intersectVecteurDeTriangles_v(mesh, triangles, hit, distance);
     }
 
+    Vec3Df hitMin, hitMax;
+    r.intersect(leftTree.bbox, hitMin);
+    r.intersect(rightTree.bbox, hitMax);
 
 
-    else{
-        //on test l'intersection avec la boite englobante des sous arbres
-        Vec3Df t_split_min, t_split_max;
-        bool intersect_Tg = r.intersect(this->bbox_n, t_split_min);
-        bool intersect_Td = r.intersect(this->bbox_n, t_split_max);
-
-        if(intersect_Tg && !intersect_Td){
-            return this->Tg->recParcoursArbre_v( r, mesh, intersectionPoint, distance);
-        }
-        else if(!intersect_Tg && intersect_Td){
-            return this->Td->recParcoursArbre_v( r, mesh, intersectionPoint, distance);
-        }
-        else{
-            resultat_parcours_droit = this->Td->recParcoursArbre_v( r, mesh, intersectionPoint, distance);
-            resultat_parcours_gauche = this->Tg->recParcoursArbre_v( r, mesh, intersectionPoint, distance);
-
-            return resultat_parcours_droit || resultat_parcours_gauche ;
-        }
+    if(hitMin && !hitMax){
+        return leftTree.searchHit(ray, hit, distance);
+    } else if(!hitMin && hitMax){
+        return rightTree.searchHit(ray, hit, distance);
     }
+
+    return leftTree.searchHit(ray, hit, distance) ||
+            rightTree.searchHit(ray, hit, distance) ;
 }
-
-

@@ -31,6 +31,7 @@ public :
     inline virutal ~KdTree(){}
     Mesh & getMesh() { return mesh; }
     BoundingBox & getBoundingBox() { return bbox; }
+    bool isLeaf() { return isLeaf; }
     inline Vertex getMiddle() { return vertices[vertices.size()/2]; }
     inline int getDepth(){
         if(this == NULL){
@@ -39,8 +40,8 @@ public :
         return (1 + this->Td->getDepth() );
     };
 
-    bool recParcoursArbreExistence_v(Ray & r, const Mesh & mesh);
-    bool recParcoursArbre_v(Ray & r, const Mesh & mesh, Vertex & intersectionPoint, float & distance);
+    bool hasHit(const Ray & r);
+    bool searchHit(Ray & r, Vertex & intersectionPoint, float & distance);
 
     void recDrawBoundingBox(unsigned int profondeur);
     void renderGL (unsigned int depth) const;
@@ -49,6 +50,7 @@ private :
     Mesh mesh;
     unsigned int maxDepth;
     int step;
+    bool isLeaf;
 
     BoundingBox bbox;
     KdTree leftTree;

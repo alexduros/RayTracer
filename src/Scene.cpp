@@ -94,7 +94,7 @@ void Scene::calculAmbientOcclusion(){
 
 
                 //!! ce n'est pas tout a fait ça il faut regarder la scene et pas seulement l'arbre de l'object
-                if(kdTree.recParcoursArbre_v(r,mesh,intersectionPoint,rayon_sphere)){
+                if(kdTree.searchHit(r,mesh,intersectionPoint,rayon_sphere)){
                     //cout<<"test intersection réussi"<<endl;
                     AO[i] += 1.0;
                     float a = mesh.getVertices()[i].getAmbientOcclusionCoeff() + 1;

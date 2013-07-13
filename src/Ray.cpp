@@ -11,22 +11,16 @@ using namespace std;
 
 static const unsigned int NUMDIM = 3, RIGHT = 0, LEFT = 1, MIDDLE = 2;
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-//	intersection avec la normale
-//
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-bool Ray::intersect_ray_triangle_v (const Triangle & triangle, const Mesh & mesh, Vertex & intersectionPoint){
-    const vector<Vertex> & vertices = mesh.getVertices();
+bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit){
     Vec3Df uvw;
+    const vector<Vertex> & vertices = mesh.getVertices();
     const Vec3Df & A = vertices[triangle.getVertex(0)].getPos(),
-    & B = vertices[triangle.getVertex(1)].getPos(),
-    & C = vertices[triangle.getVertex(2)].getPos();
+                 & B = vertices[triangle.getVertex(1)].getPos(),
+                 & C = vertices[triangle.getVertex(2)].getPos();
 
     const Vec3Df & An = vertices[triangle.getVertex(0)].getNormal(),
-    & Bn = vertices[triangle.getVertex(1)].getNormal(),
-    & Cn = vertices[triangle.getVertex(2)].getNormal();
+                 & Bn = vertices[triangle.getVertex(1)].getNormal(),
+                 & Cn = vertices[triangle.getVertex(2)].getNormal();
 
     float Ac = vertices[triangle.getVertex(0)].getAmbientOcclusionCoeff();
     float Bc = vertices[triangle.getVertex(1)].getAmbientOcclusionCoeff();
@@ -57,89 +51,45 @@ bool Ray::intersect_ray_triangle_v (const Triangle & triangle, const Mesh & mesh
         uvw[2] = u;
         uvw[1] = v;
         uvw[0] = 1 - u - v;
-        intersectionPoint.setPos(A * uvw[0] + B * uvw[1] + C * uvw[2]);
-        intersectionPoint.setNormal(An * uvw[0] + Bn * uvw[1] + Cn * uvw[2]);
-        intersectionPoint.setAmbientOcclusionCoeff((Ac * uvw[0] + Bc * uvw[1] + Cc * uvw[2]));
+        hit.setPos(A * uvw[0] + B * uvw[1] + C * uvw[2]);
+        hit.setNormal(An * uvw[0] + Bn * uvw[1] + Cn * uvw[2]);
+        hit.setAmbientOcclusionCoeff((Ac * uvw[0] + Bc * uvw[1] + Cc * uvw[2]));
 
         return true;
-    }
-    else
+    } else {
         return false;
-
-}
-
-bool Ray::intersect_v (const Mesh & mesh, Vertex & intersectionPoint , float distance){
-    int nb_triangles = mesh.getTriangles().size();
-    Vertex intersectionPointTemp = Vertex();
-    float distance_min_cam = distance;
-    bool resultat = false;
-
-    //on parcourt tout le mesh
-    for(int i=0;i<nb_triangles;i++){
-        if(intersect_ray_triangle_v (mesh.getTriangles()[i], mesh, intersectionPointTemp)){
-
-            resultat = true;
-            //Test intersection plus proche
-            if(Vec3Df::squaredDistance(origin, intersectionPointTemp.getPos()) < distance_min_cam ){
-                distance_min_cam = Vec3Df::squaredDistance(origin, intersectionPointTemp.getPos());
-                intersectionPoint = intersectionPointTemp ;
-
-            }
-
-        }
     }
-    //cout<<"resultat ="<<resultat<<endl;
-    distance = distance_min_cam ;
-    return resultat;
 }
 
+bool Ray::hit (const Mesh & mesh, Vertex & hit , float & distance){
+    bool hasHit = false;
 
-//Donne l'existence de l'intersection et l'intersection la plus proche de la caméra
-bool Ray::intersectVecteurDeTriangles_v (const Mesh & mesh, const std::vector<Triangle> & triangles, Vertex & intersectionPoint, float & distance){
-
-    int nb_triangles = triangles.size();
-    Vertex intersectionPointTemp = Vertex();
-    float distance_min_cam = distance;
-    bool resultat = false;
-
-    if(triangles.size()==0){ return false;}
-    //on parcourt tout le mesh
-    for(int i=0;i<nb_triangles;i++){
-
-        if(intersect_ray_triangle_v (triangles[i], mesh, intersectionPointTemp)){
-
+    for(int i=0;i<mesh.getTriangles().size();i++){
+        if(hit(mesh.getTriangles()[i], mesh, hit)){
             resultat = true;
-            //Test intersection plus proche
-            if(Vec3Df::squaredDistance(origin, intersectionPointTemp.getPos()) < distance_min_cam ){
-                distance_min_cam = Vec3Df::squaredDistance(origin, intersectionPointTemp.getPos());
-                intersectionPoint = intersectionPointTemp ;
-
+            if(Vec3Df::squaredDistance(origin, hit.getPos()) < distance){
+                distance = Vec3Df::squaredDistance(origin, hit.getPos());
+                hasHit = true;
             }
-
         }
     }
 
-    distance = distance_min_cam; //VERIFIER LE PASSAGE MODIFIE LA VALEUR EXTERIEUR ET QU IL NE FAUT PAS UN &
-    return resultat;
-};
+    return hasHit;
+}
 
 
-//Donne juste l'existence (beaucoup plus rapide)
-bool Ray::existeIntersectionVecteur (const Mesh & mesh, const std::vector<Triangle> & triangles){
-    int nb_triangles = triangles.size();
+bool Ray::hasHit (const Mesh & mesh, const std::vector<Triangle> & triangles){
+    triangles.size();
     Vertex intersectionPointTemp;
-    if(triangles.size()==0){ return false;}
-    //on parcourt tout le mesh
-    for(int i=0;i<nb_triangles;i++){
-
+    if(triangles.size() == 0){ return false; }
+    for(int i=0;i<triangles.size();i++){
         if(intersect_ray_triangle_v (triangles[i], mesh, intersectionPointTemp)){
-
             return true;
         }
     }
 
     return false;
-};
+}
 
 bool Ray::intersect (const BoundingBox & bbox, Vec3Df & intersectionPoint) const {
     const Vec3Df & minBb = bbox.getMin ();
