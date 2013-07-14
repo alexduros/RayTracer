@@ -31,10 +31,6 @@ inline int clamp (float f, int inf, int sup) {
     return (v < inf ? inf : (v > sup ? sup : v));
 }
 
-// @TBoubekeur
-// POINT D'ENTREE DU PROJET.
-// Le code suivant ray trace uniquement la boite englobante de la scene.
-// Il faut remplacer ce code par une veritable raytracer
 QImage RayTracer::render (const Vec3Df & camPos,
                           const Vec3Df & direction,
                           const Vec3Df & upVector,
@@ -60,8 +56,6 @@ QImage RayTracer::render (const Vec3Df & camPos,
     const Vec3Df & minBb = bbox.getMin ();
     const Vec3Df & maxBb = bbox.getMax ();
 
-
-    //on creer un arbre par object de la scene
     vector<KdTree *> arbresScene;
     creerArbres(scene, arbresScene);
     arbresScene[1]->recDrawBoundingBox(2);

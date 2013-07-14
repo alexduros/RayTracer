@@ -16,11 +16,11 @@
 #include "BoundingBox.h"
 #include "KdTree.h"
 
-
 class Object {
 public:
     inline Object () {}
-    inline Object (const Mesh & mesh, const Material & mat, const KdTree & kdTree) :mesh (mesh), mat (mat), kdTree (kdTree) {
+    inline Object (const Mesh & mesh, const Material & mat, const KdTree & kdTree)
+        : mesh (mesh), mat (mat), kdTree (kdTree) {
         updateBoundingBox ();
     }
     virtual ~Object () {}

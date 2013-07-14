@@ -58,7 +58,7 @@ void Scene::buildDefaultScene (bool HD) {
     else
         ramMesh.loadOFF ("models/ram.off");
     Material ramMat (1.f, 1.f, Vec3Df (1.f, .6f, .2f));
-    KdTree kdTree (ramMesh.getVertices(), ramMesh.getTriangles(), 0, 5,ramMesh);
+    KdTree kdTree (ramMesh, 0, 5);
     Object ram (ramMesh, ramMat, kdTree);
     objects.push_back (ram);
     Light l (Vec3Df (3.0f, 3.0f, 3.0f), Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, 3.0f);
@@ -94,7 +94,7 @@ void Scene::calculAmbientOcclusion(){
 
 
                 //!! ce n'est pas tout a fait ça il faut regarder la scene et pas seulement l'arbre de l'object
-                if(kdTree.searchHit(r,mesh,intersectionPoint,rayon_sphere)){
+                if(kdTree.searchHit(r, intersectionPoint, rayon_sphere)){
                     //cout<<"test intersection réussi"<<endl;
                     AO[i] += 1.0;
                     float a = mesh.getVertices()[i].getAmbientOcclusionCoeff() + 1;

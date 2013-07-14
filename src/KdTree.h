@@ -11,8 +11,8 @@
 #define MAX_DEPTH = 15;
 
 #include <vector>
+#include "Mesh.h"
 #include "Ray.h"
-#include "Object.h"
 #include "BoundingBox.h"
 
 
@@ -38,8 +38,7 @@ public :
             return 0;
         }
         return (1 + rightTree->getDepth() );
-    };
-
+    }
     bool hasHit(const Ray & r);
     bool searchHit(Ray & r, Vertex & hit, float & distance);
 
