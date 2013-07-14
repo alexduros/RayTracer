@@ -15,7 +15,7 @@ void build () {
     bbox = BoundingBox::computeBoundingBoxTriangles(triangles, mesh);
 
     if(step > triangles.size() &&  maxDepth <= MAX_DEPTH){
-        isLeaf = false;
+        leaf = false;
 
         int direction = bbox.getDirection();
         const Vertex & median = Vertex::getMedian(vertices, direction);
@@ -31,15 +31,15 @@ void build () {
                         leftTriangles, rightTriangles);
 
         if(leftVertices.size() != 0 && leftTriangles.size() != 0){
-            Mesh * leftMesh = new Mesh(leftTriangles, leftVertices);
+            Mesh leftMesh = Mesh(leftTriangles, leftVertices);
             leftTree = KdTree(&leftMesh, maxDepth + 1, step);
         }
         if(rightVertices.size() !=0 && rightTriangles.size() != 0){
-            Mesh * rightMesh = new Mesh(rightTriangles, rightVertices);
-            rightTree = KdTree(&rightMesh, maxDepth + 1, step);
+            Mesh rightMesh = Mesh(rightTriangles, rightVertices);
+            rightTree = new KdTree(&rightMesh, maxDepth + 1, step);
         }
     } else {
-        isLeaf = true;
+        leaf = true;
     }
 
 }
@@ -75,17 +75,17 @@ bool KdTree::hasHit(const Ray & ray){
     }
 
     Vec3Df hitMin, hitMax;
-    r.intersect(leftTree.bbox, hitMin);
-    r.intersect(rightTree.bbox, hitMax);
+    r.intersect(leftTree->bbox, hitMin);
+    r.intersect(rightTree->bbox, hitMax);
 
     if(hitMin && !hitMax){
-        return leftTree.hasHit(r);
+        return leftTree->hasHit(r);
     } else if(!hitMin && hitMax){
-        return rightTree.hasHit(r);
+        return rightTree->hasHit(r);
     }
 
-    return leftTree.hasHit(r) ||
-            rightTree.hasHit(r) ;
+    return leftTree->hasHit(r) ||
+            rightTree->hasHit(r) ;
 }
 
 bool KdTree::searchHit(Ray & ray, Vertex & hit, float & distance){
@@ -99,16 +99,16 @@ bool KdTree::searchHit(Ray & ray, Vertex & hit, float & distance){
     }
 
     Vec3Df hitMin, hitMax;
-    r.intersect(leftTree.bbox, hitMin);
-    r.intersect(rightTree.bbox, hitMax);
+    r.intersect(leftTree->bbox, hitMin);
+    r.intersect(rightTree->bbox, hitMax);
 
 
     if(hitMin && !hitMax){
-        return leftTree.searchHit(ray, hit, distance);
+        return leftTree->searchHit(ray, hit, distance);
     } else if(!hitMin && hitMax){
-        return rightTree.searchHit(ray, hit, distance);
+        return rightTree->searchHit(ray, hit, distance);
     }
 
-    return leftTree.searchHit(ray, hit, distance) ||
-            rightTree.searchHit(ray, hit, distance) ;
+    return leftTree->searchHit(ray, hit, distance) ||
+            rightTree->searchHit(ray, hit, distance) ;
 }

@@ -208,3 +208,43 @@ void Mesh::loadOFF (const std::string & filename) {
     input.close ();
     recomputeSmoothVertexNormals (0);
 }
+
+void Mesh::split (const int & direction, Mesh & rightMesh, Mesh & leftMesh) {
+    std::vector<Vertex> leftVertices, rightVertices;
+    std::vector<Triangle> leftTriangles, rightTriangles;
+
+    Vertex median;
+
+    if(vertices.size() != 0){
+        int medianIdx = vertices.size()/2;
+        if(vertices.size()%2 != 0){
+            medianIdx+= 1 ;
+        }
+        median = vertices[medianIdx];
+        for(int i=0; i<medianIdx; i++) leftVertices.push_back(vertices[i]);
+        for(int i=medianIdx; i<vertices.size();i++) rightVertices.push_back(vertices[i]);
+    }
+
+    for(unsigned int i=0;i<triangles.size();i++){
+        bool inLeft = false;
+        bool inRight = false;
+
+        for(int k=0;k<3;k++){
+            if(triangles[i].getVertex(k).getPos()[direction] < median.getPos()[direction]){
+                if(!inLeft){
+                    leftTriangles.push_back(triangles[i]);
+                    inLeft = true;
+                }
+            } else {
+                if(!inRight){
+                    rightTriangles.push_back(triangles[i]);
+                    inRight = true;
+                }
+            }
+        }
+    }
+
+    rightMesh = Mesh(rightVertices, rightTriangles);
+    leftMesh = Mesh(leftVertices, leftTriangles);
+
+}

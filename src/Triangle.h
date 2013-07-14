@@ -8,7 +8,6 @@
 #ifndef TRIANGLE_H
 #define TRIANGLE_H
 
-#include "Mesh.h"
 #include <iostream>
 #include <vector>
 
@@ -24,10 +23,6 @@ public:
     inline unsigned int getVertex (unsigned int i) const { return v[i]; }
     inline void setVertex (unsigned int i, unsigned int vertex) { v[i] = vertex; }
     inline bool contains (unsigned int vertex) const { return (v[0] == vertex || v[1] == vertex || v[2] == vertex); }
-
-    static void split (int median, const std::vector<Triangle> & triangles,
-                       const Mesh & mesh, int direction,
-                       std::vector<Triangle> & left, std::vector<Triangle> & right);
 
 protected:
     inline void init (unsigned int v0, unsigned int v1, unsigned int v2) {

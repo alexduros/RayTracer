@@ -89,20 +89,9 @@ void Vertex::sortByDirection(std::vector<Vertex> & vertices, int direction){
     }
 }
 
-Vertex Vertex::determine_median(const std::vector<Vertex> & vertices, int direction){
-    sortByDirection(vertices);
+const Vertex & Vertex::getMedian(std::vector<Vertex> & vertices, int direction){
+    Vertex::sortByDirection(vertices, direction);
     return vertices[vertices.size()/2] ;
-}
-
-void Vertex::split(const std::vector<Vertex> & vertices, std::vector<Vertex> & left, std::vector<Vertex> & right) {
-    if(vertices.size() != 0){
-        int median = vertices.size()/2;
-        if(vertices.size()%2 != 0){
-            median += 1 ;
-        }
-        for(int i=0; i<median; i++) left.push_back(vertices[i]);
-        for(int i=median; i<vertices.size();i++) right.push_back(vertices[i]);
-    }
 }
 
 

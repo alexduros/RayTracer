@@ -15,9 +15,6 @@
 #include "BoundingBox.h"
 #include "Triangle.h"
 #include "Mesh.h"
-//#include "Object.h"
-
-
 
 class Ray {
 public:
@@ -31,22 +28,16 @@ public:
     inline const Vec3Df & getDirection () const { return direction; }
     inline Vec3Df & getDirection () { return direction; }
 
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //	    Point d'intersection avec la normale
-    //
-    ////////////////////////////////////////////////////////////////////////////
-    bool intersect (const BoundingBox & bbox, Vec3Df & intersectionPoint) const;
+    inline bool intersect (const BoundingBox & bbox, Vec3Df & intersect) const {
+        return bbox.intersectRay(origin, direction, intersect);
+    }
     inline bool intersect (const BoundingBox & bbox) const {
-        const Vec3Df & v;
+        Vec3Df v;
         return intersect(bbox, v);
     }
-    bool hit (const Mesh & mesh, Vertex & intersectionPoint , float distance);
-    bool hit (const Triangle & t, const Mesh & mesh, Vertex & intersectionPoint );
+    bool hit (const Mesh & mesh, Vertex & hit , float & distance);
+    bool hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit);
 
-    bool existeIntersection_v (const Mesh & mesh, const std::vector<Triangle> & triangles);
-    bool existeIntersectionVecteur (const Mesh & mesh, const std::vector<Triangle> & triangles);
 private:
     Vec3Df origin;
     Vec3Df direction;

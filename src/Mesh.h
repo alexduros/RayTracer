@@ -51,9 +51,8 @@ public:
     void collectOrderedOneRing (std::vector<std::vector<unsigned int> > & oneRing) const;
     void computeDualEdgeMap (EdgeMapIndex & dualVMap1, EdgeMapIndex & dualVMap2);
     void markBorderEdges (EdgeMapIndex & edgeMap);
-    void setMeshAO(int numVertex, float ao){
-        vertices[numVertex].setAmbientOcclusionCoeff(ao);
-    }
+    void setMeshAO(int numVertex, float ao){ vertices[numVertex].setAmbientOcclusionCoeff(ao); }
+    void split (const int & direction, Mesh & rightMesh, Mesh & leftMesh);
 
     void renderGL (bool flat) const;
 

@@ -148,9 +148,9 @@ public:
         float max = 0;
         int axe = 0;
         for(int i=0; i<3; i++){
-            if(bbox.getWHL(i) > max){
+            if(getWHL(i) > max){
                 axe = i;
-                max = bbox.getWHL(i);
+                max = getWHL(i);
             }
         }
         return axe;
@@ -196,10 +196,8 @@ private:
 
 
 
-public :
-
-
-        Vec3Df minBb, maxBb;
+public :    
+    Vec3Df minBb, maxBb;
 };
 
 

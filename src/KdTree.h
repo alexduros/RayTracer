@@ -28,20 +28,20 @@ public :
                   int s)
         :mesh(m), maxDepth(d), step(s) {}
 
-    inline virutal ~KdTree(){}
+    inline virtual ~KdTree(){}
     Mesh & getMesh() { return mesh; }
     BoundingBox & getBoundingBox() { return bbox; }
-    bool isLeaf() { return isLeaf; }
-    inline Vertex getMiddle() { return vertices[vertices.size()/2]; }
+    bool isLeaf() { return leaf; }
+    inline Vertex getMiddle() { return mesh.getVertices()[mesh.getVertices().size()/2]; }
     inline int getDepth(){
         if(this == NULL){
             return 0;
         }
-        return (1 + this->Td->getDepth() );
+        return (1 + rightTree->getDepth() );
     };
 
     bool hasHit(const Ray & r);
-    bool searchHit(Ray & r, Vertex & intersectionPoint, float & distance);
+    bool searchHit(Ray & r, Vertex & hit, float & distance);
 
     void recDrawBoundingBox(unsigned int profondeur);
     void renderGL (unsigned int depth) const;
@@ -50,11 +50,11 @@ private :
     Mesh mesh;
     unsigned int maxDepth;
     int step;
-    bool isLeaf;
+    bool leaf;
 
     BoundingBox bbox;
-    KdTree leftTree;
-    KdTree rightTree;
+    KdTree* leftTree;
+    KdTree* rightTree;
 };
 
 #endif // KDTREE_H
