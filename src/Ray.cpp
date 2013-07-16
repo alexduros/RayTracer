@@ -61,12 +61,11 @@ bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit){
     }
 }
 
-bool Ray::hit (const Mesh & mesh, Vertex & hit , float & distance){
+bool Ray::nearestHit (const Mesh & mesh, Vertex & hit , float & distance){
     bool hasHit = false;
-    for(int i=0;i<mesh.getTriangles().size();i++){
-        if(hit(mesh.getTriangles()[i], mesh, hit)){
-            resultat = true;
-            if(Vec3Df::squaredDistance(origin, hit.getPos()) < distance){
+    for(unsigned int i=0;i<mesh.getTriangles().size();i++){
+        if(this->hit(mesh.getTriangles()[i], mesh, hit)){
+            if(!distance || Vec3Df::squaredDistance(origin, hit.getPos()) < distance){
                 distance = Vec3Df::squaredDistance(origin, hit.getPos());
                 hasHit = true;
             }

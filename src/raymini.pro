@@ -42,10 +42,10 @@ QT_VERSION = $$[QT_VERSION]
 QMAKE_FLAGS += -F/Library/Frameworks
 LIBS += -framework QGLViewer
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets \
+QT += widgets \
     xml \
     opengl
-else:CONFIG *= thread
+
 
 
 

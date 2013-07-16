@@ -35,8 +35,13 @@ public:
         Vec3Df v;
         return intersect(bbox, v);
     }
-    bool hit (const Mesh & mesh, Vertex & hit , float & distance);
+    bool nearestHit (const Mesh & mesh, Vertex & hit , float & distance);
     bool hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit);
+    inline bool hasHit(const Mesh & mesh) {
+        Vertex hit;
+        float distance;
+        return nearestHit(mesh, hit, distance);
+    }
 
 private:
     Vec3Df origin;

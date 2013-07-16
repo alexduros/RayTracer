@@ -9,35 +9,22 @@
 
 using namespace std;
 
-void build () {
-    const vector<Triangle> & triangles = mesh.getTrianges();
-    const vector<Vertex> & vertices = mesh.getVertices();
+void KdTree::build () {
+    const vector<Triangle> & triangles = mesh.getTriangles();
+    vector<Vertex> & vertices = mesh.getVertices();
     bbox = BoundingBox::computeBoundingBoxTriangles(triangles, mesh);
 
-    if(step > triangles.size() &&  maxDepth <= MAX_DEPTH){
+    if(step > triangles.size() && maxDepth <= MAX_DEPTH){
         leaf = false;
 
         int direction = bbox.getDirection();
-        const Vertex & median = Vertex::getMedian(vertices, direction);
-
-        Vertex::sortByDirection(direction);
-        std::vector<Vertex> leftVertices;
-        std::vector<Vertex> rightVertices;
-        Vertex::split(vertices, leftVertices, rightVertices);
-
-        std::vector<Triangle> leftTriangles;
-        vector<Triangle> rightTriangles;
-        Triangle::split(median, triangles, mesh, axe,
-                        leftTriangles, rightTriangles);
-
-        if(leftVertices.size() != 0 && leftTriangles.size() != 0){
-            Mesh leftMesh = Mesh(leftTriangles, leftVertices);
-            leftTree = KdTree(&leftMesh, maxDepth + 1, step);
-        }
-        if(rightVertices.size() !=0 && rightTriangles.size() != 0){
-            Mesh rightMesh = Mesh(rightTriangles, rightVertices);
-            rightTree = new KdTree(&rightMesh, maxDepth + 1, step);
-        }
+        Vertex::getMedian(vertices, direction);
+        Vertex::sortByDirection(vertices, direction);
+        Mesh leftMesh, rightMesh;
+        KdTree leftTree, rightTree;
+        mesh.split(direction, rightMesh, leftMesh);
+        leftTree = KdTree(leftMesh, maxDepth + 1, step);
+        rightTree = KdTree(rightMesh, maxDepth + 1, step);
     } else {
         leaf = true;
     }
@@ -48,67 +35,67 @@ void KdTree::recDrawBoundingBox(unsigned int depth){
     if(maxDepth == depth){
         bbox.renderGL();
     } else {
-        TdrecDrawBoundingBox(depth);
-        this->Tg->recDrawBoundingBox(depth);
+        rightTree->recDrawBoundingBox(depth);
+        leftTree->recDrawBoundingBox(depth);
     }
 }
 
 void KdTree::renderGL (unsigned int depth) const {
     if (maxDepth <= depth) {
         bbox.renderGL();
-    } else if(Tg != NULL && Td != NULL) {
-        Tg.renderGL(depth);
-        Td->renderGL(depth);
-    } else if(Tg == NULL && Td == NULL){
+    } else if(leftTree != NULL && rightTree != NULL) {
+        leftTree->renderGL(depth);
+        rightTree->renderGL(depth);
+    } else if(leftTree == NULL && rightTree == NULL){
         bbox.renderGL();
     }
 }
 
 bool KdTree::hasHit(const Ray & ray){
+    Ray theRay = ray;
 
     if(this==NULL){
         return false;
     } else if(!ray.intersect(bbox)){
         return false;
     } else if(isLeaf()){
-        return ray.hasHit(triangles);
+        return theRay.hasHit(mesh);
     }
 
     Vec3Df hitMin, hitMax;
-    r.intersect(leftTree->bbox, hitMin);
-    r.intersect(rightTree->bbox, hitMax);
+    ray.intersect(leftTree->bbox, hitMin);
+    ray.intersect(rightTree->bbox, hitMax);
 
-    if(hitMin && !hitMax){
-        return leftTree->hasHit(r);
-    } else if(!hitMin && hitMax){
-        return rightTree->hasHit(r);
+    if(hitMin.getLength() > 0 && hitMax.getLength() == 0){
+        return leftTree->hasHit(ray);
+    } else if(hitMin.getLength() == 0 && hitMax.getLength() > 0){
+        return rightTree->hasHit(ray);
     }
 
-    return leftTree->hasHit(r) ||
-            rightTree->hasHit(r) ;
+    return leftTree->hasHit(ray) || rightTree->hasHit(ray) ;
 }
 
-bool KdTree::searchHit(Ray & ray, Vertex & hit, float & distance){
+bool KdTree::searchHit(const Ray & ray, Vertex & hit, float & distance){
+    Ray theRay;
 
     if(this==NULL){
         return false;
     } else if(!ray.intersect(bbox)){
         return false;
     } else if(isLeaf()){
-        return ray.intersectVecteurDeTriangles_v(mesh, triangles, hit, distance);
+        return theRay.nearestHit(mesh, hit, distance);
     }
 
     Vec3Df hitMin, hitMax;
-    r.intersect(leftTree->bbox, hitMin);
-    r.intersect(rightTree->bbox, hitMax);
+    ray.intersect(leftTree->bbox, hitMin);
+    ray.intersect(rightTree->bbox, hitMax);
 
 
-    if(hitMin && !hitMax){
+    if(hitMin.getLength() > 0 && hitMax.getLength() == 0){
         return leftTree->searchHit(ray, hit, distance);
-    } else if(!hitMin && hitMax){
+    } else if(hitMin.getLength() == 0 && hitMax.getLength() > 0){
         return rightTree->searchHit(ray, hit, distance);
     }
 
-    return leftTree->searchHit(ray, hit, distance) ||
-            rightTree->searchHit(ray, hit, distance) ;
+    return leftTree->searchHit(ray, hit, distance) || rightTree->searchHit(ray, hit, distance) ;
 }

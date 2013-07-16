@@ -8,7 +8,7 @@
 #ifndef KDTREE_H
 #define KDTREE_H
 
-#define MAX_DEPTH = 15;
+#define MAX_DEPTH 15
 
 #include <vector>
 #include "Mesh.h"
@@ -39,8 +39,11 @@ public :
         }
         return (1 + rightTree->getDepth() );
     }
+
+    void build();
+
     bool hasHit(const Ray & r);
-    bool searchHit(Ray & r, Vertex & hit, float & distance);
+    bool searchHit(const Ray & r, Vertex & hit, float & distance);
 
     void recDrawBoundingBox(unsigned int profondeur);
     void renderGL (unsigned int depth) const;
@@ -48,7 +51,7 @@ public :
 private :
     Mesh mesh;
     unsigned int maxDepth;
-    int step;
+    unsigned int step;
     bool leaf;
 
     BoundingBox bbox;
