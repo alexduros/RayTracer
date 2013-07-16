@@ -137,8 +137,6 @@ public:
         splitBoundingBoxArray[6] = BoundingBox (minBb + Vec3Df (0.0, y_2, z_2), med + Vec3Df (0.0, y_2, z_2));
         splitBoundingBoxArray[7] = BoundingBox (minBb + Vec3Df (x_2, y_2, z_2), med + Vec3Df (x_2, y_2, z_2));
     }
-    bool intersectRay (const Vec3Df & origin, const Vec3Df & direction, Vec3Df & intersection) const;
-
 
     inline float getWHL (unsigned int i) const {
         return (maxBb[i] - minBb[i]);

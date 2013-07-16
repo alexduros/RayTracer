@@ -28,9 +28,7 @@ public:
     inline const Vec3Df & getDirection () const { return direction; }
     inline Vec3Df & getDirection () { return direction; }
 
-    inline bool intersect (const BoundingBox & bbox, Vec3Df & intersect) const {
-        return bbox.intersectRay(origin, direction, intersect);
-    }
+    bool intersect (const BoundingBox & bbox, Vec3Df & intersect) const;
     inline bool intersect (const BoundingBox & bbox) const {
         Vec3Df v;
         return intersect(bbox, v);

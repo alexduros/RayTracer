@@ -38,13 +38,12 @@ using namespace std;
 
 
 Window::Window () : QMainWindow (NULL) {
-    try {
-        viewer = new GLViewer;
-    } catch (GLViewer::Exception *e) {
-        cerr << e->getMessage () << endl;
-        exit (1);
-    }
+    cout << "Entering window" << endl;
 
+    cout << "Create a new GLViewer" << endl;
+    viewer = new GLViewer();
+
+    cout << "Creates Layout" << endl;
     QGroupBox * renderingGroupBox = new QGroupBox (this);
     QHBoxLayout * renderingLayout = new QHBoxLayout (renderingGroupBox);
 
@@ -54,6 +53,7 @@ Window::Window () : QMainWindow (NULL) {
     imageLabel->setScaledContents (true);
     imageLabel->setPixmap (QPixmap::fromImage (rayImage));
 
+    cout << "Adding imageLabel" << endl;
     renderingLayout->addWidget (viewer);
     renderingLayout->addWidget (imageLabel);
 
@@ -200,96 +200,93 @@ void Window::initControlWidget () {
     connect(kdTreeSlider, SIGNAL(valueChanged (int)), viewer, SLOT (setKDTreeDepth (int)));
     previewLayout->addWidget(kdTreeSlider);
 
+//    QCheckBox * shadowMode = new QCheckBox ("Soft Shadow", rayGroupBox);
+//    QLabel *rayLabel = new QLabel("Ray Per Light", rayGroupBox);
+
+//    //Soft Shadows
+//    QSpinBox * rayPerLight = new QSpinBox(rayGroupBox);
+//    rayPerLight->setValue(10);
+//    rayPerLight->setMinimum(10);
+//    rayPerLight->setMaximum(100);
+//    connect(rayPerLight, SIGNAL (valueChanged(int)), this, SLOT (setRayPerLight(int)));
+
+//    rayLabel->setVisible(false);
+//    rayPerLight->setVisible(false);
+
+//    connect (shadowMode, SIGNAL (toggled (bool)), this, SLOT (setShadowMode(bool)));
+//    connect (shadowMode, SIGNAL (toggled (bool)), rayPerLight, SLOT (setVisible(bool)));
+//    connect (shadowMode, SIGNAL (toggled (bool)), rayLabel, SLOT (setVisible(bool)));
+
+//    rayLayout->addWidget (shadowMode);
+//    rayLayout->addWidget (rayLabel);
+//    rayLayout->addWidget (rayPerLight);
+//    //
+
+//    QCheckBox * ambientOcclusion = new QCheckBox ("AmbientOcclusion", rayGroupBox);
+//    connect (ambientOcclusion, SIGNAL (toggled (bool)), this, SLOT (setAmbientOcclusion(bool)));
+//    rayLayout->addWidget (ambientOcclusion);
+
+//    //AntiAliasing
+//    QCheckBox * antialias = new QCheckBox ("AntiAliasing", rayGroupBox);
+//    QButtonGroup *mode = new QButtonGroup(rayGroupBox);
+//    mode->setExclusive(true);
+
+//    QRadioButton *modeRegular = new QRadioButton("Regular", rayGroupBox);
+//    QRadioButton *modeStoch = new QRadioButton("Stochastic", rayGroupBox);
+
+//    modeRegular->setVisible(false);
+//    modeStoch->setVisible(false);
+
+//    connect(mode, SIGNAL(buttonPressed(int)), this, SLOT(setAliasingMode(int)));
+
+//    mode->addButton(modeRegular,0);
+//    mode->addButton(modeStoch, 1);
+
+//    QLabel *numLabel = new QLabel("Directions", rayGroupBox);
+//    numLabel->setVisible(false);
+
+//    QSpinBox * numDir = new QSpinBox(rayGroupBox);
+//    numDir->setVisible(false);
+//    numDir->setValue(10);
+//    numDir->setMinimum(10);
+//    numDir->setMaximum(100);
+
+//    connect(numDir, SIGNAL (valueChanged(int)), this, SLOT (setNumDir(int)));
+//    connect(antialias, SIGNAL(toggled(bool)), numDir, SLOT (setVisible(bool)));
+//    connect(antialias, SIGNAL(toggled(bool)), numLabel, SLOT (setVisible(bool)));
+//    connect (antialias, SIGNAL (toggled (bool)), this, SLOT (setAntiAliasing(bool)));
+//    connect (antialias, SIGNAL (toggled (bool)), modeRegular, SLOT (setVisible(bool)));
+//    connect (antialias, SIGNAL (toggled (bool)), modeStoch, SLOT (setVisible(bool)));
 
 
-    QCheckBox * shadowMode = new QCheckBox ("Soft Shadow", rayGroupBox);
-    QLabel *rayLabel = new QLabel("Ray Per Light", rayGroupBox);
+//    rayLayout->addWidget (antialias);
+//    rayLayout->addWidget (modeRegular);
+//    rayLayout->addWidget (modeStoch);
+//    rayLayout->addWidget (numLabel);
+//    rayLayout->addWidget (numDir);
 
-    //Soft Shadows
-    QSpinBox * rayPerLight = new QSpinBox(rayGroupBox);
-    rayPerLight->setValue(10);
-    rayPerLight->setMinimum(10);
-    rayPerLight->setMaximum(100);
-    connect(rayPerLight, SIGNAL (valueChanged(int)), this, SLOT (setRayPerLight(int)));
+//    //
+//    QPushButton * saveButton  = new QPushButton ("Save", rayGroupBox);
+//    connect (saveButton, SIGNAL (clicked ()) , this, SLOT (exportRayImage ()));
+//    rayLayout->addWidget (saveButton);
 
-    rayLabel->setVisible(false);
-    rayPerLight->setVisible(false);
+//    layout->addWidget (rayGroupBox);
 
-    connect (shadowMode, SIGNAL (toggled (bool)), this, SLOT (setShadowMode(bool)));
-    connect (shadowMode, SIGNAL (toggled (bool)), rayPerLight, SLOT (setVisible(bool)));
-    connect (shadowMode, SIGNAL (toggled (bool)), rayLabel, SLOT (setVisible(bool)));
+//    QGroupBox * globalGroupBox = new QGroupBox ("Global Settings", controlWidget);
+//    QVBoxLayout * globalLayout = new QVBoxLayout (globalGroupBox);
 
-    rayLayout->addWidget (shadowMode);
-    rayLayout->addWidget (rayLabel);
-    rayLayout->addWidget (rayPerLight);
-    //
+//    QPushButton * bgColorButton  = new QPushButton ("Background Color", globalGroupBox);
+//    connect (bgColorButton, SIGNAL (clicked()) , this, SLOT (setBGColor()));
+//    globalLayout->addWidget (bgColorButton);
 
-    QCheckBox * ambientOcclusion = new QCheckBox ("AmbientOcclusion", rayGroupBox);
-    connect (ambientOcclusion, SIGNAL (toggled (bool)), this, SLOT (setAmbientOcclusion(bool)));
-    rayLayout->addWidget (ambientOcclusion);
+//    QPushButton * aboutButton  = new QPushButton ("About", globalGroupBox);
+//    connect (aboutButton, SIGNAL (clicked()) , this, SLOT (about()));
+//    globalLayout->addWidget (aboutButton);
 
-    //AntiAliasing
-    QCheckBox * antialias = new QCheckBox ("AntiAliasing", rayGroupBox);
-    QButtonGroup *mode = new QButtonGroup(rayGroupBox);
-    mode->setExclusive(true);
+//    QPushButton * quitButton  = new QPushButton ("Quit", globalGroupBox);
+//    connect (quitButton, SIGNAL (clicked()) , qApp, SLOT (closeAllWindows()));
+//    globalLayout->addWidget (quitButton);
 
-    QRadioButton *modeRegular = new QRadioButton("Regular", rayGroupBox);
-    QRadioButton *modeStoch = new QRadioButton("Stochastic", rayGroupBox);
-
-    modeRegular->setVisible(false);
-    modeStoch->setVisible(false);
-
-    connect(mode, SIGNAL(buttonPressed(int)), this, SLOT(setAliasingMode(int)));
-
-    mode->addButton(modeRegular,0);
-    mode->addButton(modeStoch, 1);
-
-    QLabel *numLabel = new QLabel("Directions", rayGroupBox);
-    numLabel->setVisible(false);
-
-    QSpinBox * numDir = new QSpinBox(rayGroupBox);
-    numDir->setVisible(false);
-    numDir->setValue(10);
-    numDir->setMinimum(10);
-    numDir->setMaximum(100);
-
-    connect(numDir, SIGNAL (valueChanged(int)), this, SLOT (setNumDir(int)));
-    connect(antialias, SIGNAL(toggled(bool)), numDir, SLOT (setVisible(bool)));
-    connect(antialias, SIGNAL(toggled(bool)), numLabel, SLOT (setVisible(bool)));
-    connect (antialias, SIGNAL (toggled (bool)), this, SLOT (setAntiAliasing(bool)));
-    connect (antialias, SIGNAL (toggled (bool)), modeRegular, SLOT (setVisible(bool)));
-    connect (antialias, SIGNAL (toggled (bool)), modeStoch, SLOT (setVisible(bool)));
-
-
-    rayLayout->addWidget (antialias);
-    rayLayout->addWidget (modeRegular);
-    rayLayout->addWidget (modeStoch);
-    rayLayout->addWidget (numLabel);
-    rayLayout->addWidget (numDir);
-
-    //
-    QPushButton * saveButton  = new QPushButton ("Save", rayGroupBox);
-    connect (saveButton, SIGNAL (clicked ()) , this, SLOT (exportRayImage ()));
-    rayLayout->addWidget (saveButton);
-
-    layout->addWidget (rayGroupBox);
-
-    QGroupBox * globalGroupBox = new QGroupBox ("Global Settings", controlWidget);
-    QVBoxLayout * globalLayout = new QVBoxLayout (globalGroupBox);
-
-    QPushButton * bgColorButton  = new QPushButton ("Background Color", globalGroupBox);
-    connect (bgColorButton, SIGNAL (clicked()) , this, SLOT (setBGColor()));
-    globalLayout->addWidget (bgColorButton);
-
-    QPushButton * aboutButton  = new QPushButton ("About", globalGroupBox);
-    connect (aboutButton, SIGNAL (clicked()) , this, SLOT (about()));
-    globalLayout->addWidget (aboutButton);
-
-    QPushButton * quitButton  = new QPushButton ("Quit", globalGroupBox);
-    connect (quitButton, SIGNAL (clicked()) , qApp, SLOT (closeAllWindows()));
-    globalLayout->addWidget (quitButton);
-
-    layout->addWidget (globalGroupBox);
-
+//    layout->addWidget (globalGroupBox);
     layout->addStretch (0);
 }

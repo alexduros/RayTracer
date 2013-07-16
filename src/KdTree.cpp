@@ -90,7 +90,6 @@ bool KdTree::searchHit(const Ray & ray, Vertex & hit, float & distance){
     ray.intersect(leftTree->bbox, hitMin);
     ray.intersect(rightTree->bbox, hitMax);
 
-
     if(hitMin.getLength() > 0 && hitMax.getLength() == 0){
         return leftTree->searchHit(ray, hit, distance);
     } else if(hitMin.getLength() == 0 && hitMax.getLength() > 0){

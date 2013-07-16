@@ -23,32 +23,32 @@
 class Window : public QMainWindow {
     Q_OBJECT
 
-    public:
-        Window();
-        virtual ~Window();
+public:
+    Window();
+    virtual ~Window();
 
-        static void showStatusMessage (const QString & msg);
+    static void showStatusMessage (const QString & msg);
 
-    public slots :
-        void renderRayImage ();
-        void setBGColor ();
-        void setShadowMode(bool mode);
-        void setAmbientOcclusion(bool ao);
-        void setAntiAliasing(bool aa);
-        void setAliasingMode(int mode);
-        void setRayPerLight(int rpl);
-        void setNumDir(int numdir);
-        void exportGLImage ();
-        void exportRayImage ();
-        void about ();
-        void calculAO ();
+public slots :
+    void renderRayImage ();
+    void setBGColor ();
+    void setShadowMode(bool mode);
+    void setAmbientOcclusion(bool ao);
+    void setAntiAliasing(bool aa);
+    void setAliasingMode(int mode);
+    void setRayPerLight(int rpl);
+    void setNumDir(int numdir);
+    void exportGLImage ();
+    void exportRayImage ();
+    void about ();
+    void calculAO ();
 
     RayTracer * getRayTracer(){ return rayTracer; }
 
-    public :
-            RayTracer * rayTracer;
-    private :
-            void initControlWidget ();
+public :
+    RayTracer * rayTracer;
+private :
+    void initControlWidget ();
 
     QActionGroup * actionGroup;
     QGroupBox * controlWidget;
