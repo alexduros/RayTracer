@@ -6,3 +6,5 @@ src/.obj*
 src/raymini.app*
 src/raymini
 src/Makefile
+**/*.pdf
+**/*.off
