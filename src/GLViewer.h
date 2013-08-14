@@ -13,10 +13,7 @@
 #include <vector>
 #include <string>
 
-#include "Scene.h"
-
 class GLViewer : public QGLViewer  {
-    Q_OBJECT
 public:
     
     typedef enum {Flat=0, Smooth=1} RenderingMode;
@@ -37,23 +34,23 @@ public:
     }; 
 
 public slots :
-        void setWireframe (bool b);
-void setRenderingMode (int m);
-void setKDTreeDepth (int value);
+  void setWireframe (bool b);
+  void setRenderingMode (int m);
+//  void setKDTreeDepth (int value);
 
 
 protected :
-        void init();
-void draw ();
-QString helpString() const;
+    void init();
+    void draw ();
+    QString helpString() const;
 
-virtual void keyPressEvent ( QKeyEvent * event );
-virtual void keyReleaseEvent ( QKeyEvent * event );
+    virtual void keyPressEvent ( QKeyEvent * event );
+    virtual void keyReleaseEvent ( QKeyEvent * event );
 
 private:
-bool wireframe;
-RenderingMode renderingMode;
-int kdTreeDepth;
+    bool wireframe;
+    RenderingMode renderingMode;
+    int kdTreeDepth;
 };
 
 #endif // GLVIEWER_H

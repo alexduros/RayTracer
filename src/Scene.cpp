@@ -5,7 +5,9 @@
 // All rights reserved.
 // *********************************************************
 
+#include <fstream>
 #include "Scene.h"
+
 Vec3Df EPS = Vec3Df(0.001,0.001,0.001);
 using namespace std;
 
@@ -13,7 +15,10 @@ static Scene * instance = NULL;
 
 Scene * Scene::getInstance () {
     if (instance == NULL)
+    {
+        cout << "creating new scene" << endl;
         instance = new Scene ();
+    }
     return instance;
 }
 
@@ -25,7 +30,7 @@ void Scene::destroyInstance () {
 }
 
 Scene::Scene () {
-    buildDefaultScene (false);
+    buildDefaultScene (true);
     updateBoundingBox ();
 }
 
@@ -33,6 +38,7 @@ Scene::~Scene () {
 }
 
 void Scene::updateBoundingBox () {
+    cout << "updating bounding box" << endl;
     if (objects.empty ())
         bbox = BoundingBox ();
     else {
@@ -52,11 +58,29 @@ void Scene::buildDefaultScene (bool HD) {
     // Material groundMat;
     // Object ground (groundMesh, groundMat);
     // objects.push_back (ground);
+    cout << "load mesh" << endl;
     Mesh ramMesh;
     if (HD)
-        ramMesh.loadOFF ("models/ram_HD.off");
+    {
+        cout << "load HD mesh" << endl;
+        ramMesh.loadOFF ("/Users/alexandre/dev/RayTracer/src/models/ram_HD.off");
+    }
     else
-        ramMesh.loadOFF ("models/ram.off");
+    {
+        cout << "load low quality mesh" << endl;
+        ifstream ifile("/Users/alexandre/dev/RayTracer/src/models/ram.off");
+        if(ifile)
+        {
+            cout << "file exists" << endl;
+            ramMesh.loadOFF ("/Users/alexandre/dev/RayTracer/src/models/ram.off");
+        }
+        else
+        {
+            cout << "ouch! file does not exist" << endl;
+            exit(1);
+        }
+
+    }
     Material ramMat (1.f, 1.f, Vec3Df (1.f, .6f, .2f));
     KdTree kdTree (ramMesh, 0, 5);
     Object ram (ramMesh, ramMat, kdTree);

@@ -7,6 +7,8 @@
 // *********************************************************
 
 #include "GLViewer.h"
+#include "Scene.h"
+
 
 #include <iostream>
 #include <cstdlib>
@@ -18,7 +20,8 @@ using namespace std;
 
 static const GLuint OpenGLLightID[] = {GL_LIGHT0, GL_LIGHT1, GL_LIGHT2, GL_LIGHT3, GL_LIGHT4, GL_LIGHT5, GL_LIGHT6, GL_LIGHT7};
 
-GLViewer::GLViewer () : QGLViewer () {
+GLViewer::GLViewer () : QGLViewer ()
+{
     wireframe = false;
     renderingMode = Smooth;
     kdTreeDepth = 1;
@@ -27,7 +30,8 @@ GLViewer::GLViewer () : QGLViewer () {
 GLViewer::~GLViewer () {
 }
 
-void GLViewer::setWireframe (bool b) {
+void GLViewer::setWireframe (bool b)
+{
     wireframe = b;
     if (wireframe)
         glPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
@@ -36,15 +40,18 @@ void GLViewer::setWireframe (bool b) {
     updateGL ();
 }
 
-void GLViewer::setRenderingMode (int m) {
+void GLViewer::setRenderingMode (int m)
+{
+    cout << "update rendering mode" << endl;
     renderingMode = static_cast<RenderingMode>(m);
     updateGL ();
 }
 
-void GLViewer::setKDTreeDepth (int value) {
-    kdTreeDepth = value;
-    updateGL();
-}
+//void GLViewer::setKDTreeDepth (int value)
+//{
+//    kdTreeDepth = value;
+//    updateGL();
+//}
 
 
 QString GLViewer::helpString() const {
@@ -82,6 +89,7 @@ void GLViewer::keyReleaseEvent (QKeyEvent * /*event*/) {
 // -----------------------------------------------
 
 void GLViewer::init() {
+    cout << "init gl viewer" << endl;
     glClearColor (0.f, 0.f, 0.f, 0.0);
     glCullFace (GL_BACK);
     glEnable (GL_CULL_FACE);
@@ -139,7 +147,7 @@ void GLViewer::draw () {
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 128);
         glDisable (GL_COLOR_MATERIAL);
         o.getMesh ().renderGL (renderingMode == Flat);
-        o.getKdTree().renderGL(kdTreeDepth);
+//        o.getKdTree().renderGL(kdTreeDepth);
     }
 }
 

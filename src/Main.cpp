@@ -17,9 +17,9 @@ int main (int argc, char **argv)
     setBoubekQTStyle (raymini);
     cout << "Raymini: Creates main window..." << endl;
     Window * window = new Window ();
-//    window->setWindowTitle ("RayMini: A minimal image synthesizer based on raytracing.");
-//    window->showMaximized ();
-//    window->show();
+    window->setWindowTitle ("RayMini: A minimal image synthesizer based on raytracing.");
+    window->showMaximized ();
+    window->show();
     raymini.setStyle("fusion");
     raymini.connect (&raymini, SIGNAL (lastWindowClosed()), &raymini, SLOT (quit()));
 

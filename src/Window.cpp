@@ -40,12 +40,12 @@ using namespace std;
 Window::Window () : QMainWindow (NULL) {
     cout << "Entering window" << endl;
 
-    cout << "Create a new GLViewer" << endl;
     viewer = new GLViewer();
 
     cout << "Creates Layout" << endl;
     QGroupBox * renderingGroupBox = new QGroupBox (this);
     QHBoxLayout * renderingLayout = new QHBoxLayout (renderingGroupBox);
+
 
     imageLabel = new QLabel;
     imageLabel->setBackgroundRole (QPalette::Base);
@@ -59,6 +59,7 @@ Window::Window () : QMainWindow (NULL) {
 
     setCentralWidget (renderingGroupBox);
 
+    cout << "Creates control widget" << endl;
     QDockWidget * controlDockWidget = new QDockWidget (this);
     initControlWidget ();
 
@@ -69,8 +70,6 @@ Window::Window () : QMainWindow (NULL) {
 
     setMinimumWidth (800);
     setMinimumHeight (400);
-
-    getRayTracer()->getInstance();
 }
 
 Window::~Window () {
@@ -158,6 +157,19 @@ void Window::about () {
                         "<b>RayMini</b> <br> by <i>Tamy Boubekeur</i>.");
 }
 
+void Window::setWiframe(bool m)
+{
+    cout << "wiframemode " << m << endl;
+    viewer->setWireframe(m);
+}
+
+void Window::setRenderingMode(int m)
+{
+    cout << "rendering mode " << m << endl;
+    viewer->setRenderingMode(m);
+}
+
+
 void Window::initControlWidget () {
     controlWidget = new QGroupBox ();
     QVBoxLayout * layout = new QVBoxLayout (controlWidget);
@@ -166,7 +178,7 @@ void Window::initControlWidget () {
     QVBoxLayout * previewLayout = new QVBoxLayout (previewGroupBox);
 
     QCheckBox * wireframeCheckBox = new QCheckBox ("Wireframe", previewGroupBox);
-    connect (wireframeCheckBox, SIGNAL (toggled (bool)), viewer, SLOT (setWireframe (bool)));
+    connect (wireframeCheckBox, SIGNAL (toggled (bool)), this, SLOT (setWiframe (bool)));
     previewLayout->addWidget (wireframeCheckBox);
 
     QButtonGroup * modeButtonGroup = new QButtonGroup (previewGroupBox);
@@ -175,7 +187,7 @@ void Window::initControlWidget () {
     QRadioButton * smoothButton = new QRadioButton ("Smooth", previewGroupBox);
     modeButtonGroup->addButton (flatButton, static_cast<int>(GLViewer::Flat));
     modeButtonGroup->addButton (smoothButton, static_cast<int>(GLViewer::Smooth));
-    connect (modeButtonGroup, SIGNAL (buttonClicked (int)), viewer, SLOT (setRenderingMode (int)));
+    connect (modeButtonGroup, SIGNAL (buttonClicked (int)), this, SLOT (setRenderingMode (int)));
     previewLayout->addWidget (flatButton);
     previewLayout->addWidget (smoothButton);
 
@@ -192,13 +204,13 @@ void Window::initControlWidget () {
     connect (rayButton, SIGNAL (clicked ()), this, SLOT (renderRayImage ()));
 
     // kd-trees
-    QLabel * kdTreeLabel = new QLabel(QString("KD-tree display level:"), previewGroupBox);
-    previewLayout->addWidget(kdTreeLabel);
-    QSlider * kdTreeSlider = new QSlider(Qt::Horizontal, previewGroupBox);
-    kdTreeSlider->setRange(0, 30);
-    kdTreeSlider->setSliderPosition(1);
-    connect(kdTreeSlider, SIGNAL(valueChanged (int)), viewer, SLOT (setKDTreeDepth (int)));
-    previewLayout->addWidget(kdTreeSlider);
+//    QLabel * kdTreeLabel = new QLabel(QString("KD-tree display level:"), previewGroupBox);
+//    previewLayout->addWidget(kdTreeLabel);
+//    QSlider * kdTreeSlider = new QSlider(Qt::Horizontal, previewGroupBox);
+//    kdTreeSlider->setRange(0, 30);
+//    kdTreeSlider->setSliderPosition(1);
+//    connect(kdTreeSlider, SIGNAL(valueChanged (int)), viewer, SLOT (setKDTreeDepth (int)));
+//    previewLayout->addWidget(kdTreeSlider);
 
 //    QCheckBox * shadowMode = new QCheckBox ("Soft Shadow", rayGroupBox);
 //    QLabel *rayLabel = new QLabel("Ray Per Light", rayGroupBox);

@@ -37,11 +37,13 @@ public slots :
     void setAntiAliasing(bool aa);
     void setAliasingMode(int mode);
     void setRayPerLight(int rpl);
+    void setWiframe(bool m);
     void setNumDir(int numdir);
     void exportGLImage ();
     void exportRayImage ();
     void about ();
     void calculAO ();
+    void setRenderingMode(int m);
 
     RayTracer * getRayTracer(){ return rayTracer; }
 
