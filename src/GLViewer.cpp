@@ -32,6 +32,7 @@ GLViewer::~GLViewer () {
 
 void GLViewer::setWireframe (bool b)
 {
+    cout << "update wireframe" << b << endl;
     wireframe = b;
     if (wireframe)
         glPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
@@ -42,7 +43,7 @@ void GLViewer::setWireframe (bool b)
 
 void GLViewer::setRenderingMode (int m)
 {
-    cout << "update rendering mode" << endl;
+    cout << "update rendering mode" << m << endl;
     renderingMode = static_cast<RenderingMode>(m);
     updateGL ();
 }

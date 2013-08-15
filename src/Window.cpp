@@ -157,19 +157,6 @@ void Window::about () {
                         "<b>RayMini</b> <br> by <i>Tamy Boubekeur</i>.");
 }
 
-void Window::setWiframe(bool m)
-{
-    cout << "wiframemode " << m << endl;
-    viewer->setWireframe(m);
-}
-
-void Window::setRenderingMode(int m)
-{
-    cout << "rendering mode " << m << endl;
-    viewer->setRenderingMode(m);
-}
-
-
 void Window::initControlWidget () {
     controlWidget = new QGroupBox ();
     QVBoxLayout * layout = new QVBoxLayout (controlWidget);
@@ -178,7 +165,7 @@ void Window::initControlWidget () {
     QVBoxLayout * previewLayout = new QVBoxLayout (previewGroupBox);
 
     QCheckBox * wireframeCheckBox = new QCheckBox ("Wireframe", previewGroupBox);
-    connect (wireframeCheckBox, SIGNAL (toggled (bool)), this, SLOT (setWiframe (bool)));
+    connect (wireframeCheckBox, SIGNAL (toggled (bool)), viewer, SLOT (setWireframe (bool)));
     previewLayout->addWidget (wireframeCheckBox);
 
     QButtonGroup * modeButtonGroup = new QButtonGroup (previewGroupBox);
@@ -187,7 +174,7 @@ void Window::initControlWidget () {
     QRadioButton * smoothButton = new QRadioButton ("Smooth", previewGroupBox);
     modeButtonGroup->addButton (flatButton, static_cast<int>(GLViewer::Flat));
     modeButtonGroup->addButton (smoothButton, static_cast<int>(GLViewer::Smooth));
-    connect (modeButtonGroup, SIGNAL (buttonClicked (int)), this, SLOT (setRenderingMode (int)));
+    connect (modeButtonGroup, SIGNAL (buttonClicked (int)), viewer, SLOT (setRenderingMode (int)));
     previewLayout->addWidget (flatButton);
     previewLayout->addWidget (smoothButton);
 

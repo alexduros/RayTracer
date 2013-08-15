@@ -14,6 +14,7 @@
 #include <string>
 
 class GLViewer : public QGLViewer  {
+    Q_OBJECT
 public:
     
     typedef enum {Flat=0, Smooth=1} RenderingMode;
