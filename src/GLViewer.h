@@ -16,15 +16,15 @@
 class GLViewer : public QGLViewer  {
     Q_OBJECT
 public:
-    
+
     typedef enum {Flat=0, Smooth=1} RenderingMode;
-    
+
     GLViewer ();
     virtual ~GLViewer ();
-    
+
     inline bool isWireframe () const { return wireframe; }
     inline int getRenderingMode () const { return renderingMode; }
-    
+
     class Exception  {
     public:
         Exception (const std::string & msg) : message ("[GLViewer]"+msg) {}
@@ -32,12 +32,12 @@ public:
         const std::string & getMessage () const { return message; }
     private:
         std::string message;
-    }; 
+    };
 
 public slots :
-  void setWireframe (bool b);
-  void setRenderingMode (int m);
-//  void setKDTreeDepth (int value);
+    void setWireframe (bool b);
+    void setRenderingMode (int m);
+    void setKDTreeDepth (int value);
 
 
 protected :

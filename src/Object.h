@@ -46,7 +46,7 @@ public:
     inline void parcoursObject(Ray r, Vertex & intersectionPoint, float & distance){
         kdTree.searchHit(r,intersectionPoint,distance);
     }
-    
+
 private:
     Mesh mesh;
     Material mat;

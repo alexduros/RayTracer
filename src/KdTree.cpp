@@ -14,18 +14,25 @@ void KdTree::build () {
     vector<Vertex> & vertices = mesh.getVertices();
     bbox = BoundingBox::computeBoundingBoxTriangles(triangles, mesh);
 
-    if(step > triangles.size() && maxDepth <= MAX_DEPTH){
+    cout << "step " << step << " triangles " << triangles.size() << endl;
+
+    if(step < triangles.size() && maxDepth <= MAX_DEPTH){
         leaf = false;
 
         int direction = bbox.getDirection();
-        Vertex::getMedian(vertices, direction);
-        Vertex::sortByDirection(vertices, direction);
         Mesh leftMesh, rightMesh;
         KdTree leftTree, rightTree;
         mesh.split(direction, rightMesh, leftMesh);
         leftTree = KdTree(leftMesh, maxDepth + 1, step);
+        cout << "instance of left tree " << maxDepth << " triangles length " << leftMesh.getTriangles().size() <<  endl;
         rightTree = KdTree(rightMesh, maxDepth + 1, step);
+        cout << "instance of right tree " << maxDepth << " triangles length " << rightMesh.getTriangles().size() <<  endl;
+        cout << "build left " << maxDepth << endl;
+        leftTree.build();
+        cout << "build right " << maxDepth << endl;
+        rightTree.build();
     } else {
+        cout << "depth " << maxDepth << " leaf" << endl;
         leaf = true;
     }
 
@@ -41,6 +48,7 @@ void KdTree::recDrawBoundingBox(unsigned int depth){
 }
 
 void KdTree::renderGL (unsigned int depth) const {
+    cout << "renderGL kdTree" << depth << endl;
     if (maxDepth <= depth) {
         bbox.renderGL();
     } else if(leftTree != NULL && rightTree != NULL) {

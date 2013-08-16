@@ -64,6 +64,8 @@ Window::Window () : QMainWindow (NULL) {
     initControlWidget ();
 
     controlDockWidget->setWidget (controlWidget);
+    QWidget* titleWidget = new QWidget(this);
+    controlDockWidget->setTitleBarWidget(titleWidget);
     controlDockWidget->adjustSize ();
     addDockWidget (Qt::RightDockWidgetArea, controlDockWidget);
     controlDockWidget->setFeatures (QDockWidget::AllDockWidgetFeatures);
@@ -161,6 +163,7 @@ void Window::initControlWidget () {
     controlWidget = new QGroupBox ();
     QVBoxLayout * layout = new QVBoxLayout (controlWidget);
 
+    // Preview Group Box
     QGroupBox * previewGroupBox = new QGroupBox ("Preview", controlWidget);
     QVBoxLayout * previewLayout = new QVBoxLayout (previewGroupBox);
 
@@ -184,20 +187,25 @@ void Window::initControlWidget () {
 
     layout->addWidget (previewGroupBox);
 
-    QGroupBox * rayGroupBox = new QGroupBox ("Ray Tracing", controlWidget);
-    QVBoxLayout * rayLayout = new QVBoxLayout (rayGroupBox);
-    QPushButton * rayButton = new QPushButton ("Render", rayGroupBox);
-    rayLayout->addWidget (rayButton);
-    connect (rayButton, SIGNAL (clicked ()), this, SLOT (renderRayImage ()));
+    // QGroupBox * rayGroupBox = new QGroupBox ("Ray Tracing", controlWidget);
+    // QVBoxLayout * rayLayout = new QVBoxLayout (rayGroupBox);
+    // QPushButton * rayButton = new QPushButton ("Render", rayGroupBox);
+    // rayLayout->addWidget (rayButton);
+    // connect (rayButton, SIGNAL (clicked ()), this, SLOT (renderRayImage ()));
 
-    // kd-trees
-//    QLabel * kdTreeLabel = new QLabel(QString("KD-tree display level:"), previewGroupBox);
-//    previewLayout->addWidget(kdTreeLabel);
-//    QSlider * kdTreeSlider = new QSlider(Qt::Horizontal, previewGroupBox);
-//    kdTreeSlider->setRange(0, 30);
-//    kdTreeSlider->setSliderPosition(1);
-//    connect(kdTreeSlider, SIGNAL(valueChanged (int)), viewer, SLOT (setKDTreeDepth (int)));
-//    previewLayout->addWidget(kdTreeSlider);
+    // KD-Trees Group Box
+    QGroupBox * treeGroupBox = new QGroupBox ("Data Structure", controlWidget);
+    QVBoxLayout * treeLayout = new QVBoxLayout (treeGroupBox);
+
+    QLabel * kdTreeLabel = new QLabel(QString("KD-tree level:"), treeGroupBox);
+    treeLayout->addWidget(kdTreeLabel);
+    QSlider * kdTreeSlider = new QSlider(Qt::Horizontal, treeGroupBox);
+    kdTreeSlider->setRange(0, 30);
+    kdTreeSlider->setSliderPosition(1);
+    connect(kdTreeSlider, SIGNAL(valueChanged (int)), viewer, SLOT (setKDTreeDepth (int)));
+    treeLayout->addWidget(kdTreeSlider);
+
+    layout->addWidget (treeGroupBox);
 
 //    QCheckBox * shadowMode = new QCheckBox ("Soft Shadow", rayGroupBox);
 //    QLabel *rayLabel = new QLabel("Ray Per Light", rayGroupBox);

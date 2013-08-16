@@ -48,11 +48,12 @@ void GLViewer::setRenderingMode (int m)
     updateGL ();
 }
 
-//void GLViewer::setKDTreeDepth (int value)
-//{
-//    kdTreeDepth = value;
-//    updateGL();
-//}
+void GLViewer::setKDTreeDepth (int value)
+{
+   cout << "update kd tree depth" << value << endl;
+   kdTreeDepth = value;
+   updateGL();
+}
 
 
 QString GLViewer::helpString() const {
@@ -148,7 +149,7 @@ void GLViewer::draw () {
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 128);
         glDisable (GL_COLOR_MATERIAL);
         o.getMesh ().renderGL (renderingMode == Flat);
-//        o.getKdTree().renderGL(kdTreeDepth);
+        o.getKdTree().renderGL(kdTreeDepth);
     }
 }
 

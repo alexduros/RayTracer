@@ -51,15 +51,11 @@ QImage RayTracer::render (const Vec3Df & camPos,
     Scene * scene = Scene::getInstance();
     vector<KdTree *> kdTrees;
 
-    // Actually build kd-trees
     buildKDTrees(scene, kdTrees);
 
     if(ambientOcclusion){
         scene->calculAmbientOcclusion();
     }
-
-    // Totally arbitrary render of bounding box
-    // arbresScene[1]->recDrawBoundingBox(2);
 
     for (unsigned int i = 0; i < screenWidth; i++){
         for (unsigned int j = 0; j < screenHeight; j++) {

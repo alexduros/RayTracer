@@ -60,36 +60,17 @@ void Scene::buildDefaultScene (bool HD) {
     // objects.push_back (ground);
     cout << "load mesh" << endl;
     Mesh ramMesh;
-    if (HD)
-    {
-        cout << "load HD mesh" << endl;
-        ramMesh.loadOFF ("/Users/alexandre/dev/RayTracer/src/models/ram_HD.off");
-    }
-    else
-    {
-        cout << "load low quality mesh" << endl;
-        ifstream ifile("/Users/alexandre/dev/RayTracer/src/models/ram.off");
-        if(ifile)
-        {
-            cout << "file exists" << endl;
-            ramMesh.loadOFF ("/Users/alexandre/dev/RayTracer/src/models/ram.off");
-        }
-        else
-        {
-            cout << "ouch! file does not exist" << endl;
-            exit(1);
-        }
-
-    }
+    ramMesh.loadOFF ("/Users/alexandre/dev/RayTracer/src/models/minion.off");
     Material ramMat (1.f, 1.f, Vec3Df (1.f, .6f, .2f));
-    KdTree kdTree (ramMesh, 0, 5);
+    KdTree kdTree (ramMesh, 0, 300);
+    // kdTree.build();
     Object ram (ramMesh, ramMat, kdTree);
     objects.push_back (ram);
     Light l (Vec3Df (3.0f, 3.0f, 3.0f), Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, 3.0f);
     lights.push_back (l);
     Light l1 (Vec3Df (-2.0f, -2.0f, 2.0f), Vec3Df (1.0f, 1.0f, 0.0f), 0.5f, 3.0f);
     lights.push_back (l1);
-     Light l2 (Vec3Df (0.0f, -2.0f, 2.0f), Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, 3.0f);
+    Light l2 (Vec3Df (0.0f, -2.0f, 2.0f), Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, 3.0f);
     lights.push_back (l2);
 }
 
