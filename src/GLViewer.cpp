@@ -9,22 +9,29 @@
 #include "GLViewer.h"
 #include "Scene.h"
 
-
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
 #include <string>
 
+static const GLuint OpenGLLightID[] = {
+    GL_LIGHT0,
+    GL_LIGHT1,
+    GL_LIGHT2,
+    GL_LIGHT3,
+    GL_LIGHT4,
+    GL_LIGHT5,
+    GL_LIGHT6,
+    GL_LIGHT7
+};
+
 using namespace std;
 
-static const GLuint OpenGLLightID[] = {GL_LIGHT0, GL_LIGHT1, GL_LIGHT2, GL_LIGHT3, GL_LIGHT4, GL_LIGHT5, GL_LIGHT6, GL_LIGHT7};
-
-GLViewer::GLViewer () : QGLViewer ()
-{
-    wireframe = false;
-    renderingMode = Smooth;
-    kdTreeDepth = 1;
+GLViewer::GLViewer () : QGLViewer () {
+    // wireframe = false;
+    // renderingMode = Smooth;
+    // kdTreeDepth = 1;
 }
 
 GLViewer::~GLViewer () {

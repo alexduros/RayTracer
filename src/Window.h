@@ -15,10 +15,10 @@
 
 #include <vector>
 #include <string>
-
 #include "QTUtils.h"
 #include "GLViewer.h"
 #include "RayTracer.h"
+
 
 class Window : public QMainWindow {
     Q_OBJECT
@@ -40,6 +40,7 @@ public slots :
     void setNumDir(int numdir);
     void exportGLImage ();
     void exportRayImage ();
+    void changeOFFFile ();
     void about ();
     void calculAO ();
 

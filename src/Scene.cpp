@@ -30,7 +30,9 @@ void Scene::destroyInstance () {
 }
 
 Scene::Scene () {
-    buildDefaultScene (true);
+    QString filename("./models/minion.off");
+    offFilename = filename;
+    buildDefaultScene ();
     updateBoundingBox ();
 }
 
@@ -48,19 +50,13 @@ void Scene::updateBoundingBox () {
     }
 }
 
-// Changer ce code pour créer des scènes originales
-void Scene::buildDefaultScene (bool HD) {
-    // Mesh groundMesh;
-    // if (HD)
-    //     groundMesh.loadOFF ("models/ground_HD.off");
-    // else
-    //     groundMesh.loadOFF ("models/ground.off");
-    // Material groundMat;
-    // Object ground (groundMesh, groundMat);
-    // objects.push_back (ground);
-    cout << "load mesh" << endl;
+void Scene::setOFFFilename (const QString & filename){
+    offFilename = filename;
+}
+
+void Scene::buildDefaultScene () {
     Mesh ramMesh;
-    ramMesh.loadOFF ("/Users/alexandre/dev/RayTracer/src/models/minion.off");
+    ramMesh.loadOFF (offFilename.toStdString());
     Material ramMat (1.f, 1.f, Vec3Df (1.f, .6f, .2f));
     KdTree kdTree (ramMesh, 0, 300);
     // kdTree.build();

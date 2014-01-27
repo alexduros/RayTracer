@@ -23,7 +23,6 @@
 #include <QSplitter>
 #include <QMenu>
 #include <QScrollArea>
-#include <QCoreApplication>
 #include <QFont>
 #include <QSizePolicy>
 #include <QImageReader>
@@ -32,20 +31,20 @@
 #include <QMessageBox>
 #include <QFileDialog>
 
+#include "Scene.h"
 #include "RayTracer.h"
+#include "GLViewer.h"
 
 using namespace std;
 
 
 Window::Window () : QMainWindow (NULL) {
     cout << "Entering window" << endl;
-
-    viewer = new GLViewer();
+    viewer = new GLViewer ();
 
     cout << "Creates Layout" << endl;
     QGroupBox * renderingGroupBox = new QGroupBox (this);
     QHBoxLayout * renderingLayout = new QHBoxLayout (renderingGroupBox);
-
 
     imageLabel = new QLabel;
     imageLabel->setBackgroundRole (QPalette::Base);
@@ -80,7 +79,7 @@ Window::~Window () {
 
 void Window::renderRayImage () {
     qglviewer::Camera * cam = viewer->camera ();
-    RayTracer * rayTracer = RayTracer::getInstance ();
+    rayTracer = RayTracer::getInstance ();
 
     qglviewer::Vec p = cam->position ();
     qglviewer::Vec d = cam->viewDirection ();
@@ -153,6 +152,21 @@ void Window::exportRayImage () {
     }
 }
 
+void Window::changeOFFFile () {
+    QString filename = QFileDialog::getOpenFileName(this,
+                                                    "Open OFF File",
+                                                    ".",
+                                                    "*.off");
+    if (!filename.isNull () && !filename.isEmpty ()) {
+        cout << "using " << filename.toStdString() << endl;
+        Scene * scene = Scene::getInstance();
+        scene->destroyInstance();
+        scene->getInstance();
+        scene->setOFFFilename(filename);
+        // viewer->initializeGL();
+    }
+}
+
 void Window::about () {
     QMessageBox::about (this,
                         "About This Program",
@@ -166,6 +180,13 @@ void Window::initControlWidget () {
     // Preview Group Box
     QGroupBox * previewGroupBox = new QGroupBox ("Preview", controlWidget);
     QVBoxLayout * previewLayout = new QVBoxLayout (previewGroupBox);
+
+    Scene * scene = Scene::getInstance();
+    QLabel * meshLabelTitle = new QLabel("OFF File : " + scene->getOFFFilename(), controlWidget);
+    QPushButton * changeOFFButton  = new QPushButton ("Choose model", previewGroupBox);
+    connect (changeOFFButton, SIGNAL (clicked ()) , this, SLOT (changeOFFFile ()));
+    previewLayout->addWidget (meshLabelTitle);
+    previewLayout->addWidget (changeOFFButton);
 
     QCheckBox * wireframeCheckBox = new QCheckBox ("Wireframe", previewGroupBox);
     connect (wireframeCheckBox, SIGNAL (toggled (bool)), viewer, SLOT (setWireframe (bool)));

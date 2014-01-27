@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <vector>
+#include <QString>
 
 #include "Object.h"
 #include "Light.h"
@@ -46,12 +47,16 @@ class Scene {
             }
         }
 
+        inline QString getOFFFilename () const { return offFilename; }
+        void setOFFFilename (const QString & filename);
+
     protected:
         Scene ();
         virtual ~Scene ();
 
     private:
-        void buildDefaultScene (bool HD);
+        QString offFilename;
+        void buildDefaultScene ();
         std::vector<Object> objects;
         std::vector<Light> lights;
         BoundingBox bbox;
