@@ -181,12 +181,12 @@ void Window::initControlWidget () {
     QGroupBox * previewGroupBox = new QGroupBox ("Preview", controlWidget);
     QVBoxLayout * previewLayout = new QVBoxLayout (previewGroupBox);
 
-    Scene * scene = Scene::getInstance();
-    QLabel * meshLabelTitle = new QLabel("OFF File : " + scene->getOFFFilename(), controlWidget);
-    QPushButton * changeOFFButton  = new QPushButton ("Choose model", previewGroupBox);
-    connect (changeOFFButton, SIGNAL (clicked ()) , this, SLOT (changeOFFFile ()));
-    previewLayout->addWidget (meshLabelTitle);
-    previewLayout->addWidget (changeOFFButton);
+    // Scene * scene = Scene::getInstance();
+    // QLabel * meshLabelTitle = new QLabel("OFF File : " + scene->getOFFFilename(), controlWidget);
+    // QPushButton * changeOFFButton  = new QPushButton ("Choose model", previewGroupBox);
+    // connect (changeOFFButton, SIGNAL (clicked ()) , this, SLOT (changeOFFFile ()));
+    // previewLayout->addWidget (meshLabelTitle);
+    // previewLayout->addWidget (changeOFFButton);
 
     QCheckBox * wireframeCheckBox = new QCheckBox ("Wireframe", previewGroupBox);
     connect (wireframeCheckBox, SIGNAL (toggled (bool)), viewer, SLOT (setWireframe (bool)));

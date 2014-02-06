@@ -1,4 +1,4 @@
-#include <QApplication>
+#include <QtGui/QApplication>
 #include <QDir>
 #include <QPixmap>
 #include <QSplashScreen>
