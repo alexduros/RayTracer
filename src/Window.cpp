@@ -223,6 +223,7 @@ void Window::initControlWidget () {
     QSlider * kdTreeSlider = new QSlider(Qt::Horizontal, treeGroupBox);
     kdTreeSlider->setRange(0, 30);
     kdTreeSlider->setSliderPosition(1);
+    kdTreeSlider->setValue(1);
     connect(kdTreeSlider, SIGNAL(valueChanged (int)), viewer, SLOT (setKDTreeDepth (int)));
     treeLayout->addWidget(kdTreeSlider);
 
