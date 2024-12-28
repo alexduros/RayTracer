@@ -8,3 +8,4 @@ src/raymini
 src/Makefile
 **/*.pdf
 **/*.off
+src/build/

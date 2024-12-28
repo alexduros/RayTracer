@@ -10,7 +10,6 @@
 
 #include <iostream>
 #include <vector>
-#include <QString>
 
 #include "Object.h"
 #include "Light.h"

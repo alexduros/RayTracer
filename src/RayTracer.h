@@ -10,7 +10,6 @@
 
 #include <iostream>
 #include <vector>
-#include <QImage>
 
 #include "Vec3D.h"
 #include "KdTree.h"
