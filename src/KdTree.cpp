@@ -14,7 +14,11 @@ void KdTree::build () {
     vector<Vertex> & vertices = mesh.getVertices();
     bbox = BoundingBox::computeBoundingBoxTriangles(triangles, mesh);
 
-    cout << "step " << step << " triangles " << triangles.size() << endl;
+    // Using a more structured logging approach
+    std::ostringstream logStream;
+    logStream << "Step: " << step << ", Number of triangles: " << triangles.size();
+    std::string logMessage = logStream.str();
+    cout << logMessage << endl;
 
     if(step < triangles.size() && maxDepth <= MAX_DEPTH){
         leaf = false;
