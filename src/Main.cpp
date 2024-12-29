@@ -66,9 +66,9 @@ bool loadOFF(const std::string& filename, std::vector<Vertex>& vertices, std::ve
     vertices.resize(numVertices);
     for (unsigned int i = 0; i < numVertices; ++i) {
         file >> vertices[i].x >> vertices[i].y >> vertices[i].z;
-        vertices[i].r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-        vertices[i].g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-        vertices[i].b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+        vertices[i].r = 1.0f;
+        vertices[i].g = 1.0f;
+        vertices[i].b = 1.0f;
     }
 
     faces.resize(numFaces);
@@ -185,12 +185,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    if (fov >= 1.0f && fov <= 45.0f)
-        fov -= yoffset;
-    if (fov <= 1.0f)
-        fov = 1.0f;
-    if (fov >= 45.0f)
-        fov = 45.0f;
+    fov -= yoffset;
 }
 
 
@@ -298,10 +293,9 @@ int main (int argc, char **argv)
         return -1;
     }
 
-
+    std::string modelPath = argv[1];
     std::vector<Vertex> vertices;
     std::vector<Face> faces;
-    std::string modelPath = argv[1];
 
     if (!loadOFF(modelPath, vertices, faces)) {
         return -1;
@@ -312,22 +306,14 @@ int main (int argc, char **argv)
     GLuint shaderProgram = createShaderProgram();
     glUseProgram(shaderProgram);
 
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 100.0f);
-    glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -5.0f));
-    glm::mat4 model = glm::mat4(1.0f);
-
     GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
     GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
     GLint projectionLoc = glGetUniformLocation(shaderProgram, "projection");
 
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
-
         glm::mat4 projection = glm::perspective(glm::radians(fov), (float)width / (float)height, 0.1f, 100.0f);
         glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
         glm::mat4 model = glm::mat4(1.0f);

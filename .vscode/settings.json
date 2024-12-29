@@ -69,6 +69,7 @@
     "utility": "cpp",
     "thread": "cpp",
     "chrono": "c",
-    "sstream": "cpp"
+    "sstream": "cpp",
+    "fstream": "cpp"
   }
 }
