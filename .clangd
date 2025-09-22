@@ -1,0 +1,17 @@
+CompileFlags:
+  Add:
+    - -std=c++17
+    - -I/usr/local/include
+    - -I/usr/local/Cellar/glfw/3.4/include
+    - -I/usr/local/Cellar/glm/1.0.1/include
+    - -DGL_SILENCE_DEPRECATION
+    - -DGLFW_INCLUDE_NONE
+    - -DIMGUI_IMPL_OPENGL_LOADER_GLAD
+  CompilationDatabase: src/
+
+Index:
+  Background: Build
+
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict

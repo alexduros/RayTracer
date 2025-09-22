@@ -1,0 +1,134 @@
+[
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Main.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Main.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Main.cpp",
+  "output": "CMakeFiles/raymini.dir/Main.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Image.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Image.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Image.cpp",
+  "output": "CMakeFiles/raymini.dir/Image.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/RayTracer.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/RayTracer.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/RayTracer.cpp",
+  "output": "CMakeFiles/raymini.dir/RayTracer.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Scene.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Scene.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Scene.cpp",
+  "output": "CMakeFiles/raymini.dir/Scene.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/BoundingBox.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/BoundingBox.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/BoundingBox.cpp",
+  "output": "CMakeFiles/raymini.dir/BoundingBox.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/KdTree.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/KdTree.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/KdTree.cpp",
+  "output": "CMakeFiles/raymini.dir/KdTree.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Light.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Light.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Light.cpp",
+  "output": "CMakeFiles/raymini.dir/Light.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Material.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Material.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Material.cpp",
+  "output": "CMakeFiles/raymini.dir/Material.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Mesh.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Mesh.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Mesh.cpp",
+  "output": "CMakeFiles/raymini.dir/Mesh.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Object.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Object.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Object.cpp",
+  "output": "CMakeFiles/raymini.dir/Object.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Ray.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Ray.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Ray.cpp",
+  "output": "CMakeFiles/raymini.dir/Ray.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Triangle.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Triangle.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Triangle.cpp",
+  "output": "CMakeFiles/raymini.dir/Triangle.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/TriangleC.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/TriangleC.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/TriangleC.cpp",
+  "output": "CMakeFiles/raymini.dir/TriangleC.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/Vertex.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/Vertex.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/Vertex.cpp",
+  "output": "CMakeFiles/raymini.dir/Vertex.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include  -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/glad/gl.c.o -c /Users/aduros/Projects/alexduros/RayTracer/src/glad/gl.c",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/glad/gl.c",
+  "output": "CMakeFiles/raymini.dir/glad/gl.c.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/imgui.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/imgui.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/imgui_demo.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_demo.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_demo.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/imgui_demo.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/imgui_draw.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_draw.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_draw.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/imgui_draw.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/imgui_tables.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_tables.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_tables.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/imgui_tables.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/imgui_widgets.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_widgets.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/imgui_widgets.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/imgui_widgets.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/backends/imgui_impl_glfw.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends/imgui_impl_glfw.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends/imgui_impl_glfw.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/backends/imgui_impl_glfw.cpp.o"
+},
+{
+  "directory": "/Users/aduros/Projects/alexduros/RayTracer/src",
+  "command": "/usr/bin/clang++ -DGL_SILENCE_DEPRECATION -I/usr/local/Cellar/glfw/3.4/include -I/usr/local/Cellar/glm/1.0.1/include -I/Users/aduros/Projects/alexduros/RayTracer/src/glad -I/Users/aduros/Projects/alexduros/RayTracer/src/stb -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui -I/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends -isystem /usr/local/include -std=gnu++17 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.6 -o CMakeFiles/raymini.dir/imgui/backends/imgui_impl_opengl3.cpp.o -c /Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends/imgui_impl_opengl3.cpp",
+  "file": "/Users/aduros/Projects/alexduros/RayTracer/src/imgui/backends/imgui_impl_opengl3.cpp",
+  "output": "CMakeFiles/raymini.dir/imgui/backends/imgui_impl_opengl3.cpp.o"
+}
+]

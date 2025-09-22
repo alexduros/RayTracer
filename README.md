@@ -107,6 +107,183 @@ cd build/
    - Use the file browser in the interface
    - Models are automatically centered and scaled
 
+## Architecture Overview
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        RayTracer Application                    │
+│                                                                 │
+│  ┌─────────────────┐                    ┌─────────────────┐    │
+│  │   GLFW Window   │                    │  Dear ImGui UI  │    │
+│  │                 │                    │                 │    │
+│  │  ┌───────────┐  │                    │ ┌─────────────┐ │    │
+│  │  │ OpenGL 3D │  │◄───────────────────┤ │ Control     │ │    │
+│  │  │ Viewer    │  │                    │ │ Panels      │ │    │
+│  │  │           │  │                    │ │             │ │    │
+│  │  │ Real-time │  │                    │ │ - Camera    │ │    │
+│  │  │ Preview   │  │                    │ │ - Lighting  │ │    │
+│  │  └───────────┘  │                    │ │ - Material  │ │    │
+│  └─────────────────┘                    │ │ - Render    │ │    │
+│                                         │ └─────────────┘ │    │
+│                                         └─────────────────┘    │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                Ray Tracing Engine                      │   │
+│  │                                                         │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │   │
+│  │  │   Scene     │◄─┤  KdTree     │◄─┤ RayTracer   │    │   │
+│  │  │ Management  │  │ Acceleration│  │   Core      │    │   │
+│  │  │             │  │ Structure   │  │             │    │   │
+│  │  │ - Objects   │  │             │  │ - Ray-Tri   │    │   │
+│  │  │ - Lights    │  │ - Spatial   │  │   Intersect │    │   │
+│  │  │ - Materials │  │   Partition │  │ - Shading   │    │   │
+│  │  │ - Camera    │  │ - Fast Hit  │  │ - Image Gen │    │   │
+│  │  └─────────────┘  │   Testing   │  └─────────────┘    │   │
+│  │                   └─────────────┘                     │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Component Architecture
+
+```
+                    ┌─────────────────┐
+                    │   Main.cpp      │
+                    │ Application     │
+                    │ Entry Point     │
+                    └─────────┬───────┘
+                              │
+                    ┌─────────▼───────┐
+                    │  GLFW + OpenGL  │
+                    │   Window Mgmt   │
+                    └─────────┬───────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+    ┌─────────▼───────┐ ┌─────▼─────┐ ┌───────▼───────┐
+    │   Dear ImGui    │ │  OpenGL   │ │  RayTracer    │
+    │   Interface     │ │  Renderer │ │   Engine      │
+    │                 │ │           │ │               │
+    │ • Control Panel │ │ • Shaders │ │ ┌───────────┐ │
+    │ • File Browser  │ │ • Buffers │ │ │   Scene   │ │
+    │ • Render Config │ │ • Textures│ │ │           │ │
+    └─────────────────┘ └───────────┘ │ └───────────┘ │
+                                      │ ┌───────────┐ │
+                                      │ │  KdTree   │ │
+                                      │ │           │ │
+                                      │ └───────────┘ │
+                                      │ ┌───────────┐ │
+                                      │ │   Image   │ │
+                                      │ │  Output   │ │
+                                      │ └───────────┘ │
+                                      └───────────────┘
+```
+
+### Data Flow
+
+```
+    User Input (Mouse/Keyboard)
+                │
+                ▼
+         ┌─────────────┐
+         │ Dear ImGui  │
+         │   Events    │
+         └──────┬──────┘
+                │
+        ┌───────┼───────┐
+        │       │       │
+        ▼       ▼       ▼
+   ┌────────┐ ┌────┐ ┌──────┐
+   │ Camera │ │Lit │ │Render│
+   │ Update │ │Upd │ │Trigg │
+   └───┬────┘ └─┬──┘ └───┬──┘
+       │        │        │
+       ▼        ▼        ▼
+   ┌─────────────────────────┐
+   │     OpenGL Viewer       │
+   │   (Real-time update)    │
+   └─────────────────────────┘
+                │
+                ▼
+          ┌──────────┐
+          │   Mesh   │        ┌────────────┐
+          │ Loading  │◄───────┤ OFF File   │
+          └────┬─────┘        │ Parser     │
+               │              └────────────┘
+               ▼
+          ┌──────────┐        ┌────────────┐
+          │  Scene   │◄───────┤  Material  │
+          │ Building │        │ & Lighting │
+          └────┬─────┘        └────────────┘
+               │
+               ▼
+          ┌──────────┐
+          │ KdTree   │
+          │ Building │
+          └────┬─────┘
+               │
+               ▼
+          ┌──────────┐        ┌────────────┐
+          │   Ray    │────────┤   Image    │
+          │ Tracing  │        │  Output    │
+          └──────────┘        └────────────┘
+```
+
+### Class Hierarchy
+
+```
+Core Classes:
+├── Scene (Singleton)
+│   ├── Objects[]
+│   ├── Lights[]
+│   └── Camera
+│
+├── RayTracer (Singleton)
+│   ├── render()
+│   ├── rayTrace()
+│   └── buildKDTrees()
+│
+├── KdTree
+│   ├── build()
+│   ├── hasHit()
+│   ├── searchHit()
+│   └── renderGL()
+│
+├── Object
+│   ├── Mesh
+│   ├── Material
+│   └── KdTree
+│
+├── Mesh
+│   ├── Vertices[]
+│   ├── Triangles[]
+│   ├── loadOFF()
+│   └── split()
+│
+├── Ray
+│   ├── origin
+│   ├── direction
+│   ├── intersect()
+│   ├── hasHit()
+│   └── nearestHit()
+│
+├── Image
+│   ├── width/height
+│   ├── pixels[]
+│   ├── save()
+│   ├── load()
+│   └── setPixel()
+│
+└── Geometric Primitives
+    ├── Vertex
+    ├── Triangle
+    ├── BoundingBox
+    ├── Light
+    └── Material
+```
+
 ## File Structure
 
 ```
@@ -117,6 +294,14 @@ RayTracer/
 │   ├── RayTracer.h/cpp    # Core raytracing engine
 │   ├── Scene.h/cpp        # Scene management
 │   ├── KdTree.h/cpp       # Spatial acceleration structure
+│   ├── Object.h/cpp       # 3D objects with materials
+│   ├── Mesh.h/cpp         # 3D mesh loading and manipulation
+│   ├── Ray.h/cpp          # Ray casting and intersection
+│   ├── Vertex.h/cpp       # 3D vertices with properties
+│   ├── Triangle.h/cpp     # Triangle primitives
+│   ├── BoundingBox.h/cpp  # Axis-aligned bounding boxes
+│   ├── Light.h/cpp        # Light sources
+│   ├── Material.h/cpp     # Material properties
 │   ├── glad/              # OpenGL loader
 │   ├── imgui/             # Dear ImGui library
 │   ├── stb/               # STB image libraries

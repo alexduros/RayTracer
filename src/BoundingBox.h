@@ -194,7 +194,7 @@ private:
 
 
 
-public :    
+public :
     Vec3Df minBb, maxBb;
 };
 

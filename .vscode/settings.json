@@ -19,6 +19,11 @@
   ],
   "C_Cpp.errorSquiggles": "enabled",
   "C_Cpp.intelliSenseEngine": "default",
+  "C_Cpp.intelliSenseEngineDownloadPath": "${workspaceFolder}/.vscode",
+  "C_Cpp.configurationWarnings": "enabled",
+  "C_Cpp.loggingLevel": "Information",
+  "C_Cpp.workspaceParsingPriority": "highest",
+  "C_Cpp.enhancedColorization": "enabled",
   "cmake.buildDirectory": "${workspaceFolder}/src",
   "cmake.sourceDirectory": "${workspaceFolder}/src",
   "cmake.configureOnOpen": true,
@@ -30,17 +35,18 @@
     "**/.DS_Store": true
   },
   "files.associations": {
-    "*.h": "cpp",
-    "*.cpp": "cpp",
-    "*.hpp": "cpp",
     "*.json.liquid": "json",
     "*.yaml.liquid": "yaml",
     "*.md.liquid": "markdown",
     "*.js.liquid": "liquid-javascript",
     "*.css.liquid": "liquid-css",
     "*.scss.liquid": "liquid-scss",
-    "*.js": "javascriptreact",
+    "*.jsx": "javascriptreact",
     "*.tsx": "typescriptreact",
+    "*.h": "cpp",
+    "*.cpp": "cpp",
+    "*.hpp": "cpp",
+    "*.js": "javascriptreact",
     "ostream": "cpp",
     "iostream": "cpp",
     "gl.h": "c",
@@ -103,6 +109,7 @@
     "thread": "cpp",
     "chrono": "c",
     "sstream": "cpp",
-    "fstream": "cpp"
+    "fstream": "cpp",
+    "map": "cpp"
   }
 }
