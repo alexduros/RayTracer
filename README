@@ -1,8 +1,0 @@
-RayTracer by Benjamin Combourieu, Alexandre Duros et Raphaël Moutard.
-
-Pour compiler et exécuter le projet, se placer dans le répertoire src/ du projet et taper :
-
-qmake && make && ./raymini
-
-L'interface a été personnalisée et permet à l'utilisateur de tester librement les différents effets disponibles.
-
