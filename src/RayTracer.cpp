@@ -13,20 +13,20 @@
 
 const Vec3Df BLACK = Vec3Df(0.000f, 0.000f, 0.000f);
 const Vec3Df EPS = Vec3Df(0.001, 0.001, 0.001);
-static RayTracer * instance = NULL;
+static RayTracer * instance = nullptr;
 
 using namespace std;
 
 RayTracer * RayTracer::getInstance () {
-    if (instance == NULL)
+    if (instance == nullptr)
         instance = new RayTracer ();
     return instance;
 }
 
 void RayTracer::destroyInstance () {
-    if (instance != NULL) {
+    if (instance != nullptr) {
         delete instance;
-        instance = NULL;
+        instance = nullptr;
     }
 }
 

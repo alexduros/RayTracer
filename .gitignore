@@ -1,11 +1,40 @@
-*DS_Store
+# Build directories
+build/
+src/build/
+
+# CMake generated files
+src/CMakeCache.txt
+src/CMakeFiles/
+src/cmake_install.cmake
+src/*.cmake
+!src/CMakeLists.txt
+
+# Object files and binaries
 src/*.o
+src/*.a
+src/*.so
+src/*.dylib
+src/*.exe
+src/raymini
 src/moc_*
 src/.moc*
 src/.obj*
 src/raymini.app*
-src/raymini
 src/Makefile
+
+# IDE files
+.vscode/
+*.vcxproj*
+*.sln
+
+# ImGui generated files
+src/imgui.ini
+
+# Temporary files
+*.tmp
+*.swp
+*DS_Store
+.DS_Store
+
+# Documentation (keep models visible)
 **/*.pdf
-**/*.off
-src/build/

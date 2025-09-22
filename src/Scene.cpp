@@ -11,10 +11,10 @@
 Vec3Df EPS = Vec3Df(0.001,0.001,0.001);
 using namespace std;
 
-static Scene * instance = NULL;
+static Scene * instance = nullptr;
 
 Scene * Scene::getInstance () {
-    if (instance == NULL)
+    if (instance == nullptr)
     {
         cout << "creating new scene" << endl;
         instance = new Scene ();
@@ -23,9 +23,9 @@ Scene * Scene::getInstance () {
 }
 
 void Scene::destroyInstance () {
-    if (instance != NULL) {
+    if (instance != nullptr) {
         delete instance;
-        instance = NULL;
+        instance = nullptr;
     }
 }
 

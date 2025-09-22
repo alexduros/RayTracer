@@ -11,6 +11,7 @@
 #define MAX_DEPTH 15
 
 #include <vector>
+#include <algorithm>
 #include "Mesh.h"
 #include "Ray.h"
 #include "BoundingBox.h"
@@ -22,21 +23,27 @@ class KdTree {
 
 public :
 
-    inline KdTree() {}
+    inline KdTree() : leftTree(nullptr), rightTree(nullptr), leaf(true) {}
     inline KdTree(const Mesh & m,
                   unsigned int d,
                   int s)
-        :mesh(m), maxDepth(d), step(s) {}
+        :mesh(m), maxDepth(d), step(s), leftTree(nullptr), rightTree(nullptr), leaf(true) {}
 
-    inline virtual ~KdTree(){}
+    inline virtual ~KdTree(){
+        delete leftTree;
+        delete rightTree;
+    }
     Mesh & getMesh() { return mesh; }
     BoundingBox & getBoundingBox() { return bbox; }
     bool isLeaf() { return leaf; }
     inline Vertex getMiddle() { return mesh.getVertices()[mesh.getVertices().size()/2]; }
     inline int getDepth(){
-        // Note: 'this' pointer cannot be null in well-defined C++
-        // This check has been removed as it's not needed in modern C++
-        return (1 + rightTree->getDepth() );
+        if(isLeaf()) {
+            return 1;
+        }
+        int leftDepth = leftTree ? leftTree->getDepth() : 0;
+        int rightDepth = rightTree ? rightTree->getDepth() : 0;
+        return 1 + std::max(leftDepth, rightDepth);
     }
 
     void build();

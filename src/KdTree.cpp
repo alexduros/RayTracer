@@ -26,19 +26,21 @@ void KdTree::build () {
 
         int direction = bbox.getDirection();
         Mesh leftMesh, rightMesh;
-        KdTree leftTree, rightTree;
         mesh.split(direction, rightMesh, leftMesh);
-        leftTree = KdTree(leftMesh, maxDepth + 1, step);
+
+        leftTree = new KdTree(leftMesh, maxDepth + 1, step);
         cout << "instance of left tree " << maxDepth << " triangles length " << leftMesh.getTriangles().size() <<  endl;
-        rightTree = KdTree(rightMesh, maxDepth + 1, step);
+        rightTree = new KdTree(rightMesh, maxDepth + 1, step);
         cout << "instance of right tree " << maxDepth << " triangles length " << rightMesh.getTriangles().size() <<  endl;
         cout << "build left " << maxDepth << endl;
-        leftTree.build();
+        leftTree->build();
         cout << "build right " << maxDepth << endl;
-        rightTree.build();
+        rightTree->build();
     } else {
         cout << "depth " << maxDepth << " leaf" << endl;
         leaf = true;
+        leftTree = nullptr;
+        rightTree = nullptr;
     }
 
 }
@@ -56,10 +58,10 @@ void KdTree::renderGL (unsigned int depth) const {
     cout << "renderGL kdTree" << depth << endl;
     if (maxDepth <= depth) {
         bbox.renderGL();
-    } else if(leftTree != NULL && rightTree != NULL) {
+    } else if(leftTree != nullptr && rightTree != nullptr) {
         leftTree->renderGL(depth);
         rightTree->renderGL(depth);
-    } else if(leftTree == NULL && rightTree == NULL){
+    } else if(leftTree == nullptr && rightTree == nullptr){
         bbox.renderGL();
     }
 }

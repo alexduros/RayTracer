@@ -1,5 +1,38 @@
 {
+  "C_Cpp.default.cppStandard": "c++17",
+  "C_Cpp.default.cStandard": "c17",
+  "C_Cpp.default.compilerPath": "/usr/bin/clang++",
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/src",
+    "${workspaceFolder}/src/glad",
+    "${workspaceFolder}/src/stb",
+    "${workspaceFolder}/src/imgui",
+    "${workspaceFolder}/src/imgui/backends",
+    "/usr/local/include",
+    "/usr/local/Cellar/glfw/3.4/include",
+    "/usr/local/Cellar/glm/1.0.1/include"
+  ],
+  "C_Cpp.default.defines": [
+    "GL_SILENCE_DEPRECATION",
+    "GLFW_INCLUDE_NONE",
+    "IMGUI_IMPL_OPENGL_LOADER_GLAD"
+  ],
+  "C_Cpp.errorSquiggles": "enabled",
+  "C_Cpp.intelliSenseEngine": "default",
+  "cmake.buildDirectory": "${workspaceFolder}/src",
+  "cmake.sourceDirectory": "${workspaceFolder}/src",
+  "cmake.configureOnOpen": true,
+  "files.exclude": {
+    "**/CMakeFiles": true,
+    "**/CMakeCache.txt": true,
+    "**/*.o": true,
+    "**/imgui.ini": true,
+    "**/.DS_Store": true
+  },
   "files.associations": {
+    "*.h": "cpp",
+    "*.cpp": "cpp",
+    "*.hpp": "cpp",
     "*.json.liquid": "json",
     "*.yaml.liquid": "yaml",
     "*.md.liquid": "markdown",

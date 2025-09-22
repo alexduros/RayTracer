@@ -10,7 +10,6 @@
 #include <fstream>
 #include <algorithm>
 #include <cctype>
-#include <locale>
 #include <cmath>
 
 // Dear ImGui
@@ -165,7 +164,6 @@ GLuint createModel(const std::vector<Vertex>& vertices, const std::vector<Face>&
 }
 
 void renderModel(GLuint vao, size_t numIndices) {
-    cout << "Raymini: render model..." << endl;
     glBindVertexArray(vao);
     glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
