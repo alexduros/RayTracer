@@ -303,24 +303,32 @@ int main (int argc, char **argv)
     GLuint vao = createModel(vertices, faces);
     size_t numIndices = faces.size() * 3;
 
-    GLuint shaderProgram = createShaderProgram();
-    glUseProgram(shaderProgram);
+    // GLuint shaderProgram = createShaderProgram();
+    // glUseProgram(shaderProgram);
 
-    GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
-    GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
-    GLint projectionLoc = glGetUniformLocation(shaderProgram, "projection");
+    // GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
+    // GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
+    // GLint projectionLoc = glGetUniformLocation(shaderProgram, "projection");
 
+    glClearColor (0.f, 0.f, 0.f, 0.0);
+    glCullFace (GL_BACK);
+    glEnable (GL_CULL_FACE);
+    glDepthFunc (GL_LEQUAL);
+    glHint (GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+    glEnable (GL_POINT_SMOOTH);
+    glLoadIdentity ();
+    glEnable (GL_LIGHTING);
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
-        glm::mat4 projection = glm::perspective(glm::radians(fov), (float)width / (float)height, 0.1f, 100.0f);
-        glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
-        glm::mat4 model = glm::mat4(1.0f);
+        // glm::mat4 projection = glm::perspective(glm::radians(fov), (float)width / (float)height, 0.1f, 100.0f);
+        // glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+        // glm::mat4 model = glm::mat4(1.0f);
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        // glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        // glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
