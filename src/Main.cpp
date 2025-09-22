@@ -13,6 +13,11 @@
 #include <locale>
 #include <cmath>
 
+// Dear ImGui
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 
 using namespace std;
 
@@ -64,11 +69,25 @@ bool loadOFF(const std::string& filename, std::vector<Vertex>& vertices, std::ve
     file >> numVertices >> numFaces >> numEdges;
 
     vertices.resize(numVertices);
+
+    // Read all vertices first
     for (unsigned int i = 0; i < numVertices; ++i) {
         file >> vertices[i].x >> vertices[i].y >> vertices[i].z;
-        vertices[i].r = 1.0f;
-        vertices[i].g = 1.0f;
-        vertices[i].b = 1.0f;
+    }
+
+    // Calculate bounds for color normalization
+    float minY = vertices[0].y, maxY = vertices[0].y;
+    for (const auto& v : vertices) {
+        minY = std::min(minY, v.y);
+        maxY = std::max(maxY, v.y);
+    }
+
+    // Add color variation based on normalized Y position
+    for (unsigned int i = 0; i < numVertices; ++i) {
+        float normalizedY = (maxY != minY) ? (vertices[i].y - minY) / (maxY - minY) : 0.5f;
+        vertices[i].r = 0.8f + 0.2f * normalizedY; // Red gradient
+        vertices[i].g = 0.6f + 0.4f * (1.0f - normalizedY); // Green gradient
+        vertices[i].b = 0.4f + 0.6f * normalizedY; // Blue gradient
     }
 
     faces.resize(numFaces);
@@ -87,6 +106,33 @@ bool loadOFF(const std::string& filename, std::vector<Vertex>& vertices, std::ve
 GLuint createModel(const std::vector<Vertex>& vertices, const std::vector<Face>& faces) {
     GLuint vao, vbo, ebo;
     std::vector<unsigned int> indices;
+
+    // Calculate model bounds
+    glm::vec3 minBounds(vertices[0].x, vertices[0].y, vertices[0].z);
+    glm::vec3 maxBounds(vertices[0].x, vertices[0].y, vertices[0].z);
+
+    for (const auto& vertex : vertices) {
+        minBounds.x = std::min(minBounds.x, vertex.x);
+        minBounds.y = std::min(minBounds.y, vertex.y);
+        minBounds.z = std::min(minBounds.z, vertex.z);
+        maxBounds.x = std::max(maxBounds.x, vertex.x);
+        maxBounds.y = std::max(maxBounds.y, vertex.y);
+        maxBounds.z = std::max(maxBounds.z, vertex.z);
+    }
+
+    glm::vec3 modelCenter = (minBounds + maxBounds) * 0.5f;
+    glm::vec3 modelSize = maxBounds - minBounds;
+    float maxDimension = std::max({modelSize.x, modelSize.y, modelSize.z});
+
+    // Adjust camera to frame the model nicely
+    cameraTarget = modelCenter;
+    float distance = maxDimension * 2.0f; // Distance factor for good framing
+    cameraPos = modelCenter + glm::vec3(0.0f, 0.0f, distance);
+
+    std::cout << "Model bounds: min(" << minBounds.x << "," << minBounds.y << "," << minBounds.z << ")"
+              << " max(" << maxBounds.x << "," << maxBounds.y << "," << maxBounds.z << ")" << std::endl;
+    std::cout << "Model center: (" << modelCenter.x << "," << modelCenter.y << "," << modelCenter.z << ")" << std::endl;
+    std::cout << "Camera distance: " << distance << std::endl;
 
     for (const auto& face : faces) {
         for (unsigned int index : face.vertices) {
@@ -270,8 +316,8 @@ int main (int argc, char **argv)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE); // Required on macOS
 
     cout << "Raymini: Creates main window..." << endl;
-    int width = 640;
-    int height = 480;
+    int width = 1400;  // Wider for dual viewport
+    int height = 800;
 
     GLFWwindow* window = glfwCreateWindow(width, height, "Raymini", NULL, NULL);
     if (!window)
@@ -293,6 +339,19 @@ int main (int argc, char **argv)
         return -1;
     }
 
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
     std::string modelPath = argv[1];
     std::vector<Vertex> vertices;
     std::vector<Face> faces;
@@ -303,40 +362,161 @@ int main (int argc, char **argv)
     GLuint vao = createModel(vertices, faces);
     size_t numIndices = faces.size() * 3;
 
-    // GLuint shaderProgram = createShaderProgram();
-    // glUseProgram(shaderProgram);
+    GLuint shaderProgram = createShaderProgram();
+    glUseProgram(shaderProgram);
 
-    // GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
-    // GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
-    // GLint projectionLoc = glGetUniformLocation(shaderProgram, "projection");
+    GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
+    GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
+    GLint projectionLoc = glGetUniformLocation(shaderProgram, "projection");
 
     glClearColor (0.f, 0.f, 0.f, 0.0);
     glCullFace (GL_BACK);
-    glEnable (GL_CULL_FACE);
-    glDepthFunc (GL_LEQUAL);
-    glHint (GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-    glEnable (GL_POINT_SMOOTH);
-    glLoadIdentity ();
-    glEnable (GL_LIGHTING);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+
+    // Create framebuffer for GL viewport
+    GLuint glViewportFBO, glViewportTexture;
+    glGenFramebuffers(1, &glViewportFBO);
+    glGenTextures(1, &glViewportTexture);
+
+    glBindTexture(GL_TEXTURE_2D, glViewportTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 600, 400, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, glViewportFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, glViewportTexture, 0);
+
+    // Create depth buffer
+    GLuint depthBuffer;
+    glGenRenderbuffers(1, &depthBuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 600, 400);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window)) {
-        processInput(window);
-        // glm::mat4 projection = glm::perspective(glm::radians(fov), (float)width / (float)height, 0.1f, 100.0f);
-        // glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
-        // glm::mat4 model = glm::mat4(1.0f);
+        glfwPollEvents();
 
-        // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        // glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        // glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
+        // Simple side-by-side layout without docking
+
+        // GL Viewport Panel - Fixed position and size
+        ImGui::SetNextWindowPos(ImVec2(10, 20), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(620, 460), ImGuiCond_Always);
+        ImGuiWindowFlags gl_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+        ImGui::Begin("OpenGL Viewer", nullptr, gl_flags);
+
+        // Render to framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, glViewportFBO);
+        glViewport(0, 0, 600, 400);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Use shader program
+        glUseProgram(shaderProgram);
+
+        // Set up matrices
+        glm::mat4 projection = glm::perspective(glm::radians(fov), 600.0f / 400.0f, 0.1f, 100.0f);
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        glm::mat4 model = glm::mat4(1.0f);
+
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
         renderModel(vao, numIndices);
 
+        // Back to default framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // Display the texture in ImGui
+        ImGui::Image((ImTextureID)(intptr_t)glViewportTexture, ImVec2(600, 400));
+        ImGui::End();
+
+        // Raytracer Panel - Fixed position and size
+        ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(730, 460), ImGuiCond_Always);
+        ImGuiWindowFlags rt_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+        ImGui::Begin("Raytracer", nullptr, rt_flags);
+        ImGui::Text("Raytracer rendering will go here");
+        if (ImGui::Button("Render Scene")) {
+            ImGui::Text("Rendering...");
+        }
+        ImGui::End();
+
+        // Camera Controls Panel - Fixed position and size
+        ImGui::SetNextWindowPos(ImVec2(10, 500), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(1370, 280), ImGuiCond_Always);
+        ImGuiWindowFlags ctrl_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+        ImGui::Begin("Controls", nullptr, ctrl_flags);
+
+        // Split controls into columns
+        ImGui::Columns(3, "ControlColumns", true);
+
+        // Camera Controls Column
+        ImGui::Text("Camera Controls");
+        ImGui::Separator();
+        ImGui::SliderFloat("FOV", &fov, 10.0f, 120.0f);
+        ImGui::Text("Position: %.2f, %.2f, %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
+        ImGui::Text("Target: %.2f, %.2f, %.2f", cameraTarget.x, cameraTarget.y, cameraTarget.z);
+
+        if (ImGui::Button("Reset Camera")) {
+            // Reset to default view
+            fov = 45.0f;
+        }
+
+        ImGui::NextColumn();
+
+        // Rendering Settings Column
+        ImGui::Text("Rendering Settings");
+        ImGui::Separator();
+        static bool wireframe = false;
+        if (ImGui::Checkbox("Wireframe", &wireframe)) {
+            glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+        }
+
+        static bool showNormals = false;
+        ImGui::Checkbox("Show Normals", &showNormals);
+
+        static float lightIntensity = 1.0f;
+        ImGui::SliderFloat("Light Intensity", &lightIntensity, 0.0f, 2.0f);
+
+        ImGui::NextColumn();
+
+        // Model Info Column
+        ImGui::Text("Model Information");
+        ImGui::Separator();
+        ImGui::Text("Vertices: %zu", vertices.size());
+        ImGui::Text("Faces: %zu", faces.size());
+        ImGui::Text("Model: %s", modelPath.c_str());
+
+        ImGui::Columns(1); // Reset to single column
+        ImGui::End();
+
+        // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
-        glfwPollEvents();
     }
+
+    // Cleanup ImGui
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwTerminate();
     return 0;

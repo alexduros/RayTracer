@@ -30,7 +30,7 @@ void Scene::destroyInstance () {
 }
 
 Scene::Scene () {
-    QString filename("./models/minion.off");
+    std::string filename("./models/minion.off");
     offFilename = filename;
     buildDefaultScene ();
     updateBoundingBox ();
@@ -50,13 +50,13 @@ void Scene::updateBoundingBox () {
     }
 }
 
-void Scene::setOFFFilename (const QString & filename){
+void Scene::setOFFFilename (const std::string& filename){
     offFilename = filename;
 }
 
 void Scene::buildDefaultScene () {
     Mesh ramMesh;
-    ramMesh.loadOFF (offFilename.toStdString());
+    ramMesh.loadOFF (offFilename);
     Material ramMat (1.f, 1.f, Vec3Df (1.f, .6f, .2f));
     KdTree kdTree (ramMesh, 0, 300);
     // kdTree.build();

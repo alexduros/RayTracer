@@ -1,0 +1,3 @@
+/Users/aduros/Projects/alexduros/RayTracer/src/CMakeFiles/raymini.dir
+/Users/aduros/Projects/alexduros/RayTracer/src/CMakeFiles/edit_cache.dir
+/Users/aduros/Projects/alexduros/RayTracer/src/CMakeFiles/rebuild_cache.dir

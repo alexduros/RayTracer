@@ -6,6 +6,7 @@
 #include "KdTree.h"
 #include "Vertex.h"
 #include "Triangle.h"
+#include <sstream>
 
 using namespace std;
 

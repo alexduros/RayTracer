@@ -4,8 +4,11 @@ cmake_minimum_required(VERSION 3.10)
 project(raymini)
 
 # Set the C++ standard
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Silence OpenGL deprecation warnings on macOS
+add_definitions(-DGL_SILENCE_DEPRECATION)
 
 # Specify the compiler
 set(CMAKE_C_COMPILER /usr/bin/clang)
@@ -14,7 +17,28 @@ set(CMAKE_CXX_COMPILER /usr/bin/clang++)
 # Define the source files
 set(SOURCES
     Main.cpp
+    Image.cpp
+    RayTracer.cpp
+    Scene.cpp
+    BoundingBox.cpp
+    KdTree.cpp
+    Light.cpp
+    Material.cpp
+    Mesh.cpp
+    Object.cpp
+    Ray.cpp
+    Triangle.cpp
+    TriangleC.cpp
+    Vertex.cpp
     glad/gl.c
+    # Dear ImGui
+    imgui/imgui.cpp
+    imgui/imgui_demo.cpp
+    imgui/imgui_draw.cpp
+    imgui/imgui_tables.cpp
+    imgui/imgui_widgets.cpp
+    imgui/backends/imgui_impl_glfw.cpp
+    imgui/backends/imgui_impl_opengl3.cpp
 )
 
 # Define the header files
@@ -26,6 +50,9 @@ set(HEADERS
 # Include directories
 include_directories(/usr/local/include)
 include_directories(${CMAKE_SOURCE_DIR}/glad)
+include_directories(${CMAKE_SOURCE_DIR}/stb)
+include_directories(${CMAKE_SOURCE_DIR}/imgui)
+include_directories(${CMAKE_SOURCE_DIR}/imgui/backends)
 
 # Link libraries
 link_directories(/usr/local/lib)
