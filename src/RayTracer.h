@@ -10,11 +10,11 @@
 
 #include <iostream>
 #include <vector>
-#include <QImage>
 
 #include "Vec3D.h"
 #include "KdTree.h"
 #include "Scene.h"
+#include "Image.h"
 
 #define DEFAULT_RAY_PER_LIGHT 10
 
@@ -40,14 +40,14 @@ class RayTracer {
         void searchKDTreeHit(std::vector<KdTree *> kdTrees, const Ray & ray, Scene * scene, unsigned int & kdTree);
 
         Vec3Df rayTrace(vector<KdTree*> & kdTrees, Scene * scene, Ray & r);
-        QImage render (const Vec3Df & camPos,
-                       const Vec3Df & viewDirection,
-                       const Vec3Df & upVector,
-                       const Vec3Df & rightVector,
-                       float fieldOfView,
-                       float aspectRatio,
-                       unsigned int screenWidth,
-                       unsigned int screenHeight);
+        Image render (const Vec3Df & camPos,
+                      const Vec3Df & viewDirection,
+                      const Vec3Df & upVector,
+                      const Vec3Df & rightVector,
+                      float fieldOfView,
+                      float aspectRatio,
+                      unsigned int screenWidth,
+                      unsigned int screenHeight);
 
     protected:
         inline RayTracer () {

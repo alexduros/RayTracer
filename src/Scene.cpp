@@ -11,10 +11,10 @@
 Vec3Df EPS = Vec3Df(0.001,0.001,0.001);
 using namespace std;
 
-static Scene * instance = NULL;
+static Scene * instance = nullptr;
 
 Scene * Scene::getInstance () {
-    if (instance == NULL)
+    if (instance == nullptr)
     {
         cout << "creating new scene" << endl;
         instance = new Scene ();
@@ -23,14 +23,14 @@ Scene * Scene::getInstance () {
 }
 
 void Scene::destroyInstance () {
-    if (instance != NULL) {
+    if (instance != nullptr) {
         delete instance;
-        instance = NULL;
+        instance = nullptr;
     }
 }
 
 Scene::Scene () {
-    QString filename("./models/minion.off");
+    std::string filename("./models/minion.off");
     offFilename = filename;
     buildDefaultScene ();
     updateBoundingBox ();
@@ -50,13 +50,13 @@ void Scene::updateBoundingBox () {
     }
 }
 
-void Scene::setOFFFilename (const QString & filename){
+void Scene::setOFFFilename (const std::string& filename){
     offFilename = filename;
 }
 
 void Scene::buildDefaultScene () {
     Mesh ramMesh;
-    ramMesh.loadOFF (offFilename.toStdString());
+    ramMesh.loadOFF (offFilename);
     Material ramMat (1.f, 1.f, Vec3Df (1.f, .6f, .2f));
     KdTree kdTree (ramMesh, 0, 300);
     // kdTree.build();

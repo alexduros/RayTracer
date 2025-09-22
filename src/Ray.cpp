@@ -79,7 +79,7 @@ bool Ray::intersect (const BoundingBox & bbox, Vec3Df & intersectionPoint) const
     const Vec3Df & maxBb = bbox.getMax ();
     bool inside = true;
     unsigned int  quadrant[NUMDIM];
-    register unsigned int i;
+    unsigned int i;
     unsigned int whichPlane;
     Vec3Df maxT;
     Vec3Df candidatePlane;

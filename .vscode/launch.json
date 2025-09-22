@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug RayMini",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/raymini",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/src",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "Build RayMini"
+        },
+        {
+            "name": "Debug RayMini with Model",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/raymini",
+            "args": ["models/minion.off"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/src",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "Build RayMini"
+        }
+    ]
+}

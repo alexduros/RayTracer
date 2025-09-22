@@ -6,6 +6,7 @@
 #include "KdTree.h"
 #include "Vertex.h"
 #include "Triangle.h"
+#include <sstream>
 
 using namespace std;
 
@@ -14,26 +15,32 @@ void KdTree::build () {
     vector<Vertex> & vertices = mesh.getVertices();
     bbox = BoundingBox::computeBoundingBoxTriangles(triangles, mesh);
 
-    cout << "step " << step << " triangles " << triangles.size() << endl;
+    // Using a more structured logging approach
+    std::ostringstream logStream;
+    logStream << "Step: " << step << ", Number of triangles: " << triangles.size();
+    std::string logMessage = logStream.str();
+    cout << logMessage << endl;
 
     if(step < triangles.size() && maxDepth <= MAX_DEPTH){
         leaf = false;
 
         int direction = bbox.getDirection();
         Mesh leftMesh, rightMesh;
-        KdTree leftTree, rightTree;
         mesh.split(direction, rightMesh, leftMesh);
-        leftTree = KdTree(leftMesh, maxDepth + 1, step);
+
+        leftTree = new KdTree(leftMesh, maxDepth + 1, step);
         cout << "instance of left tree " << maxDepth << " triangles length " << leftMesh.getTriangles().size() <<  endl;
-        rightTree = KdTree(rightMesh, maxDepth + 1, step);
+        rightTree = new KdTree(rightMesh, maxDepth + 1, step);
         cout << "instance of right tree " << maxDepth << " triangles length " << rightMesh.getTriangles().size() <<  endl;
         cout << "build left " << maxDepth << endl;
-        leftTree.build();
+        leftTree->build();
         cout << "build right " << maxDepth << endl;
-        rightTree.build();
+        rightTree->build();
     } else {
         cout << "depth " << maxDepth << " leaf" << endl;
         leaf = true;
+        leftTree = nullptr;
+        rightTree = nullptr;
     }
 
 }
@@ -51,10 +58,10 @@ void KdTree::renderGL (unsigned int depth) const {
     cout << "renderGL kdTree" << depth << endl;
     if (maxDepth <= depth) {
         bbox.renderGL();
-    } else if(leftTree != NULL && rightTree != NULL) {
+    } else if(leftTree != nullptr && rightTree != nullptr) {
         leftTree->renderGL(depth);
         rightTree->renderGL(depth);
-    } else if(leftTree == NULL && rightTree == NULL){
+    } else if(leftTree == nullptr && rightTree == nullptr){
         bbox.renderGL();
     }
 }
@@ -62,9 +69,9 @@ void KdTree::renderGL (unsigned int depth) const {
 bool KdTree::hasHit(const Ray & ray){
     Ray theRay = ray;
 
-    if(this==NULL){
-        return false;
-    } else if(!ray.intersect(bbox)){
+    // Note: 'this' pointer cannot be null in well-defined C++
+    // This check has been removed as it's not needed in modern C++
+    if(!ray.intersect(bbox)){
         return false;
     } else if(isLeaf()){
         return theRay.hasHit(mesh);
@@ -86,9 +93,9 @@ bool KdTree::hasHit(const Ray & ray){
 bool KdTree::searchHit(const Ray & ray, Vertex & hit, float & distance){
     Ray theRay;
 
-    if(this==NULL){
-        return false;
-    } else if(!ray.intersect(bbox)){
+    // Note: 'this' pointer cannot be null in well-defined C++
+    // This check has been removed as it's not needed in modern C++
+    if(!ray.intersect(bbox)){
         return false;
     } else if(isLeaf()){
         return theRay.nearestHit(mesh, hit, distance);

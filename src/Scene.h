@@ -10,7 +10,7 @@
 
 #include <iostream>
 #include <vector>
-#include <QString>
+#include <string>
 
 #include "Object.h"
 #include "Light.h"
@@ -47,15 +47,15 @@ class Scene {
             }
         }
 
-        inline QString getOFFFilename () const { return offFilename; }
-        void setOFFFilename (const QString & filename);
+        inline const std::string& getOFFFilename () const { return offFilename; }
+        void setOFFFilename (const std::string& filename);
 
     protected:
         Scene ();
         virtual ~Scene ();
 
     private:
-        QString offFilename;
+        std::string offFilename;
         void buildDefaultScene ();
         std::vector<Object> objects;
         std::vector<Light> lights;

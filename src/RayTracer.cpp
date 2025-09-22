@@ -9,23 +9,24 @@
 #include "Ray.h"
 #include "Scene.h"
 #include "KdTree.h"
+#include "Image.h"
 
 const Vec3Df BLACK = Vec3Df(0.000f, 0.000f, 0.000f);
 const Vec3Df EPS = Vec3Df(0.001, 0.001, 0.001);
-static RayTracer * instance = NULL;
+static RayTracer * instance = nullptr;
 
 using namespace std;
 
 RayTracer * RayTracer::getInstance () {
-    if (instance == NULL)
+    if (instance == nullptr)
         instance = new RayTracer ();
     return instance;
 }
 
 void RayTracer::destroyInstance () {
-    if (instance != NULL) {
+    if (instance != nullptr) {
         delete instance;
-        instance = NULL;
+        instance = nullptr;
     }
 }
 
@@ -34,15 +35,15 @@ inline int clamp (float f, int inf, int sup) {
     return (v < inf ? inf : (v > sup ? sup : v));
 }
 
-QImage RayTracer::render (const Vec3Df & camPos,
-                          const Vec3Df & direction,
-                          const Vec3Df & upVector,
-                          const Vec3Df & rightVector,
-                          float fieldOfView,
-                          float aspectRatio,
-                          unsigned int screenWidth,
-                          unsigned int screenHeight) {
-    QImage image (QSize (screenWidth, screenHeight), QImage::Format_RGB888);
+Image RayTracer::render (const Vec3Df & camPos,
+                         const Vec3Df & direction,
+                         const Vec3Df & upVector,
+                         const Vec3Df & rightVector,
+                         float fieldOfView,
+                         float aspectRatio,
+                         unsigned int screenWidth,
+                         unsigned int screenHeight) {
+    Image image(screenWidth, screenHeight, Image::RGB888);
 
     clock_t start, finish;
     cout << "Rendering started..." << endl;
@@ -102,9 +103,10 @@ QImage RayTracer::render (const Vec3Df & camPos,
 
             color = RayTracer::rayTrace(kdTrees, scene, ray);
 
-            image.setPixel (i, ((screenHeight-1)-j), qRgb (clamp (color[0], 0, 255),
-                                                           clamp (color[1], 0, 255),
-                                                           clamp (color[2], 0, 255)));
+            image.setPixel (i, ((screenHeight-1)-j),
+                            clamp (color[0], 0, 255),
+                            clamp (color[1], 0, 255),
+                            clamp (color[2], 0, 255));
 
         }
     }
