@@ -67,9 +67,9 @@ void KdTree::renderGL (unsigned int depth) const {
 bool KdTree::hasHit(const Ray & ray){
     Ray theRay = ray;
 
-    if(this==NULL){
-        return false;
-    } else if(!ray.intersect(bbox)){
+    // Note: 'this' pointer cannot be null in well-defined C++
+    // This check has been removed as it's not needed in modern C++
+    if(!ray.intersect(bbox)){
         return false;
     } else if(isLeaf()){
         return theRay.hasHit(mesh);
@@ -91,9 +91,9 @@ bool KdTree::hasHit(const Ray & ray){
 bool KdTree::searchHit(const Ray & ray, Vertex & hit, float & distance){
     Ray theRay;
 
-    if(this==NULL){
-        return false;
-    } else if(!ray.intersect(bbox)){
+    // Note: 'this' pointer cannot be null in well-defined C++
+    // This check has been removed as it's not needed in modern C++
+    if(!ray.intersect(bbox)){
         return false;
     } else if(isLeaf()){
         return theRay.nearestHit(mesh, hit, distance);

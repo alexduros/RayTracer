@@ -34,9 +34,8 @@ public :
     bool isLeaf() { return leaf; }
     inline Vertex getMiddle() { return mesh.getVertices()[mesh.getVertices().size()/2]; }
     inline int getDepth(){
-        if(this == NULL){
-            return 0;
-        }
+        // Note: 'this' pointer cannot be null in well-defined C++
+        // This check has been removed as it's not needed in modern C++
         return (1 + rightTree->getDepth() );
     }
 
