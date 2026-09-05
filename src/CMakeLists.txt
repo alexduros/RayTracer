@@ -17,6 +17,14 @@ target_link_libraries(raymini_core PUBLIC stb)
 target_compile_options(raymini_core PRIVATE ${RAYMINI_WARNINGS})
 
 # ---------------------------------------------------------------------------
+# raymini-cli: headless renderer, OFF in -> PNG out. Used by the tests and CI.
+# ---------------------------------------------------------------------------
+add_executable(raymini-cli cli/Main.cpp)
+target_link_libraries(raymini-cli PRIVATE raymini_core)
+target_compile_definitions(raymini-cli PRIVATE RAYMINI_MODELS_DIR="${RAYMINI_MODELS_DIR}")
+target_compile_options(raymini-cli PRIVATE ${RAYMINI_WARNINGS})
+
+# ---------------------------------------------------------------------------
 # raymini: GLFW + Dear ImGui viewer with the raytracer panel.
 # ---------------------------------------------------------------------------
 if(RAYMINI_BUILD_GUI)
