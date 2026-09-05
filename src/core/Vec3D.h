@@ -294,12 +294,6 @@ protected:
     T p[3];
 };
 
-template <class T> inline Vec3D<T> swap (Vec3D<T> & P, Vec3D<T> & Q) {
-    Vec3D<T> tmp = P;
-    P = Q;
-    Q = tmp;
-}
-
 template <class T> std::ostream & operator<< (std::ostream & output, const Vec3D<T> & v) {
     output << v[0] << " " << v[1] << " " << v[2];
     return output;

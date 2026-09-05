@@ -14,58 +14,42 @@
 #include "Vertex.h"
 #include "Triangle.h"
 #include "Edge.h"
-#include <OpenGL/gl.h>
-
 
 class Mesh {
 public:
     inline Mesh () {}
     inline Mesh (const std::vector<Vertex> & v)
-            : vertices (v) {}
+        : vertices (v) {}
     inline Mesh (const std::vector<Vertex> & v,
                  const std::vector<Triangle> & t)
-    : vertices (v), triangles (t)  {}
-    inline Mesh (const Mesh & mesh)
-            : vertices (mesh.vertices),
-            triangles (mesh.triangles) {}
+        : vertices (v), triangles (t) {}
+    virtual ~Mesh () {}
 
-    inline virtual ~Mesh () {}
     std::vector<Vertex> & getVertices () { return vertices; }
     const std::vector<Vertex> & getVertices () const { return vertices; }
-
-    void setVertices(const std::vector<Vertex> & newVertices){
-        int nbVertices = newVertices.size();
-        for(int i = 0;i<nbVertices;i++){
-            vertices[i] = newVertices[i];
-        }
-    }
     std::vector<Triangle> & getTriangles () { return triangles; }
     const std::vector<Triangle> & getTriangles () const { return triangles; }
+
     void clear ();
     void clearGeometry ();
     void clearTopology ();
     void unmarkAllVertices ();
+
+    // weight: 0 = uniform, 1 = triangle area, 2 = corner angle.
     void recomputeSmoothVertexNormals (unsigned int weight);
-    void computeTriangleNormals (std::vector<Vec3Df> & triangleNormals);
+    void computeTriangleNormals (std::vector<Vec3Df> & triangleNormals) const;
+
+    // Adjacency helpers (unused by the raytracer today, kept for mesh
+    // processing experiments such as smoothing or subdivision).
     void collectOneRing (std::vector<std::vector<unsigned int> > & oneRing) const;
     void collectOrderedOneRing (std::vector<std::vector<unsigned int> > & oneRing) const;
     void computeDualEdgeMap (EdgeMapIndex & dualVMap1, EdgeMapIndex & dualVMap2);
     void markBorderEdges (EdgeMapIndex & edgeMap);
-    void setMeshAO(int numVertex, float ao){ vertices[numVertex].setAmbientOcclusionCoeff(ao); }
-    void split (const int & direction, Mesh & rightMesh, Mesh & leftMesh);
 
-    void renderGL (bool flat) const;
-
+    // Load an ASCII OFF file. Polygons with more than three vertices are
+    // fan-triangulated and smooth vertex normals are recomputed.
+    // Throws std::runtime_error if the file is missing or malformed.
     void loadOFF (const std::string & filename);
-
-    class Exception {
-    private:
-        std::string msg;
-    public:
-        Exception (const std::string & msg) : msg ("[Mesh Exception]" + msg) {}
-        virtual ~Exception () {}
-        inline const std::string & getMessage () const { return msg; }
-    };
 
 private:
     std::vector<Vertex> vertices;
@@ -73,10 +57,3 @@ private:
 };
 
 #endif // MESH_H
-
-// Some Emacs-Hints -- please don't remove:
-//
-//  Local Variables:
-//  mode:C++
-//  tab-width:4
-//  End:

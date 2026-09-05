@@ -12,8 +12,6 @@
 
 using namespace std;
 
-static const unsigned int SIZE_OF_VERTEX = 10;
-
 ostream & operator<< (ostream & output, const Vertex & v) {
     output << v.getPos () << endl << v.getNormal ();
     return output;
@@ -52,47 +50,11 @@ void Vertex::scaleToUnitBox (vector<Vertex> & vertices,
 }
 
 void Vertex::normalizeNormals (vector<Vertex> & vertices) {
-    for (std::vector<Vertex>::iterator it = vertices.begin ();
-    it != vertices.end ();
-    it++) {
-        Vec3Df n = it->getNormal ();
+    for (Vertex & v : vertices) {
+        Vec3Df n = v.getNormal ();
         if (n != Vec3Df (0.0, 0.0, 0.0)) {
             n.normalize ();
-            it->setNormal (n);
+            v.setNormal (n);
         }
     }
 }
-
-inline bool sortX(Vertex v1, Vertex v2){
-    return v1.getPos()[0] < v2.getPos()[0] ;
-}
-
-inline bool sortY(Vertex v1, Vertex v2){
-    return v1.getPos()[1] < v2.getPos()[1] ;
-}
-
-inline bool sortZ(Vertex v1, Vertex v2){
-    return v1.getPos()[2] < v2.getPos()[2] ;
-}
-
-void Vertex::sortByDirection(std::vector<Vertex> & vertices, int direction){
-    switch(direction){
-        case 0:
-            sort (vertices.begin(), vertices.end(), sortX);
-            break;
-        case 1:
-            sort (vertices.begin(), vertices.end(), sortY);
-            break;
-        case 3:
-            sort (vertices.begin(), vertices.end(), sortZ);
-            break;
-    }
-}
-
-const Vertex & Vertex::getMedian(std::vector<Vertex> & vertices, int direction){
-    Vertex::sortByDirection(vertices, direction);
-    return vertices[vertices.size()/2] ;
-}
-
-
-

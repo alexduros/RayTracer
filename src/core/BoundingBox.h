@@ -36,12 +36,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <vector>
 #include <algorithm>
-#include <OpenGL/gl.h>
+#include <cmath>
 
 #include "Vec3D.h"
-#include "Triangle.h"
 #include "Vertex.h"
-#include "Mesh.h"
 
 const float BOUNDINGBOX_EPSILON = 0.0001f;
 
@@ -66,6 +64,7 @@ public:
     inline float getLength () const {
         return (maxBb[2] - minBb[2]);
     }
+    /// Largest extent along any axis.
     inline float getSize () const {
         return std::max (getWidth (), std::max (getHeight (), getLength ()));
     }
@@ -142,47 +141,28 @@ public:
         return (maxBb[i] - minBb[i]);
     }
 
-    inline int getDirection() {
+    /// Index of the longest axis (0 = x, 1 = y, 2 = z).
+    inline int getDirection () const {
         float max = 0;
         int axe = 0;
-        for(int i=0; i<3; i++){
-            if(getWHL(i) > max){
+        for (int i = 0; i < 3; i++) {
+            if (getWHL (i) > max) {
                 axe = i;
-                max = getWHL(i);
+                max = getWHL (i);
             }
         }
         return axe;
     }
 
-    static inline BoundingBox computeBoundingBox(const std::vector<Vertex> & vertices){
-        BoundingBox bbox = BoundingBox(vertices[0].getPos());
-
-        for(unsigned int i= 0;i<vertices.size();i++){
-            bbox.extendTo(vertices[i].getPos());
-        }
-
+    static inline BoundingBox computeBoundingBox (const std::vector<Vertex> & vertices) {
+        if (vertices.empty ())
+            return BoundingBox ();
+        BoundingBox bbox (vertices[0].getPos ());
+        for (const Vertex & v : vertices)
+            bbox.extendTo (v.getPos ());
         return bbox;
     }
 
-    static inline BoundingBox computeBoundingBoxTriangles(const std::vector<Triangle> & triangles, const Mesh & mesh ){
-        Triangle t = triangles[0];
-        Vec3Df v = mesh.getVertices()[t.getVertex(0)].getPos();
-        BoundingBox bbox = BoundingBox(v);
-
-        for(unsigned int i= 0;i<triangles.size();i++){
-            for(int j=0; j<3; j++){
-                Triangle t1 = triangles[i];
-                Vec3Df v1 = mesh.getVertices()[t1.getVertex(j)].getPos();
-                bbox.extendTo(v1);
-            }
-        }
-
-        return bbox;
-    }
-    //
-    void drawBoundingBox();
-    void renderGL () const;
-    //
 private:
     inline float getMiddle (unsigned int i) const {
         return ((minBb[i] + maxBb[i]) / 2.0);
@@ -191,21 +171,8 @@ private:
         return (x >= min && x <= max);
     }
 
-
-
-
-public :
+public:
     Vec3Df minBb, maxBb;
 };
 
-
-
-
 #endif // BOUNDINGBOX_H
-
-// Some Emacs-Hints -- please don't remove:
-//
-//  Local Variables:
-//  mode:C++
-//  tab-width:4
-//  End:

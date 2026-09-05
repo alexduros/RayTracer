@@ -16,25 +16,16 @@
 class Vertex {
 public:
     inline Vertex ()
-            : pos (Vec3Df (0.0,0.0,0.0)), normal (Vec3Df (0.0, 0.0, 1.0)),
-            marked (false), id (-1), ambientOcclusionCoeff(0) {}
+        : pos (Vec3Df (0.0,0.0,0.0)), normal (Vec3Df (0.0, 0.0, 1.0)),
+          marked (false), id (-1), id_object (-1), ambientOcclusionCoeff (0) {}
     inline Vertex (const Vec3Df & pos)
-            : pos (pos), normal (Vec3Df (0.0, 0.0, 1.0)),
-            marked (false), id (-1), ambientOcclusionCoeff(0) {}
+        : pos (pos), normal (Vec3Df (0.0, 0.0, 1.0)),
+          marked (false), id (-1), id_object (-1), ambientOcclusionCoeff (0) {}
     inline Vertex (const Vec3Df & pos, const Vec3Df & normal)
-            : pos (pos), normal (normal),
-            marked (false), id (-1), ambientOcclusionCoeff(0) {}
-    inline Vertex (const Vertex & v) : pos (v.pos), normal (v.normal),
-    marked (v.marked), id (-1), ambientOcclusionCoeff(0) {}
-    inline virtual ~Vertex () {}
-    inline Vertex & operator= (const Vertex & vertex) {
-        pos = vertex.pos;
-        normal = vertex.normal;
-        marked = vertex.marked;
-        id = -1;
-        ambientOcclusionCoeff = vertex.ambientOcclusionCoeff;
-        return (*this);
-    }
+        : pos (pos), normal (normal),
+          marked (false), id (-1), id_object (-1), ambientOcclusionCoeff (0) {}
+    virtual ~Vertex () {}
+
     inline const Vec3Df & getPos () const { return pos; }
     inline const Vec3Df & getNormal () const { return normal; }
     inline bool isMarked () const { return marked; }
@@ -44,11 +35,11 @@ public:
     inline void mark () { marked = true; }
     inline void unmark () { marked = false; }
     inline void setId (int newId) { id = newId; }
-    inline bool operator== (const Vertex & v) { return (v.pos == pos && v.normal == normal); }
+    inline bool operator== (const Vertex & v) const { return (v.pos == pos && v.normal == normal); }
     inline int getIdObject () const { return id_object; }
     inline void setIdObject (int newId) { id_object = newId; }
-    inline float getAmbientOcclusionCoeff() const { return ambientOcclusionCoeff;}
-    inline void setAmbientOcclusionCoeff(float a){ ambientOcclusionCoeff = a;}
+    inline float getAmbientOcclusionCoeff () const { return ambientOcclusionCoeff; }
+    inline void setAmbientOcclusionCoeff (float a) { ambientOcclusionCoeff = a; }
 
     void interpolate (const Vertex & u, const Vertex & v, float alpha = 0.5);
 
@@ -57,9 +48,6 @@ public:
     static void scaleToUnitBox (std::vector<Vertex> & vertices,
                                 Vec3Df & center, float & scaleToUnitBox);
     static void normalizeNormals (std::vector<Vertex> & vertices);
-    static void sortByDirection  (std::vector<Vertex> & vertices, int direction);
-    static const Vertex & getMedian  (std::vector<Vertex> & vertices, int direction);
-
 
 private:
     Vec3Df pos;
@@ -73,10 +61,3 @@ private:
 extern std::ostream & operator<< (std::ostream & output, const Vertex & v);
 
 #endif // VERTEX_H
-
-// Some Emacs-Hints -- please don't remove:
-//
-//  Local Variables:
-//  mode:C++
-//  tab-width:4
-//  End:
