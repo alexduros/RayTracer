@@ -12,11 +12,15 @@ TEST_CASE("vec3d: dot, cross, length") {
 }
 
 TEST_CASE("vec3d: normalize returns the old length and handles zero") {
+    // normalize() mutates and returns the previous length; capture it before
+    // asserting so the value is read exactly once.
     Vec3Df v(0.f, 3.f, 4.f);
-    CHECK_CLOSE(v.normalize(), 5.f, 1e-6);
+    const float length = v.normalize();
+    CHECK_CLOSE(length, 5.f, 1e-6);
     CHECK_CLOSE(v.getLength(), 1.f, 1e-6);
     Vec3Df zero;
-    CHECK_CLOSE(zero.normalize(), 0.f, 1e-6);
+    const float zeroLength = zero.normalize();
+    CHECK_CLOSE(zeroLength, 0.f, 1e-6);
     CHECK(zero == Vec3Df(0.f, 0.f, 0.f));
 }
 

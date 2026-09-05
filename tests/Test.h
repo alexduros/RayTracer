@@ -50,9 +50,25 @@ std::string show(const char* aExpr, const A& a, const char* bExpr, const B& b) {
 
 #define CHECK(expr) test::check(static_cast<bool>(expr), #expr, __FILE__, __LINE__, "")
 #define CHECK_MSG(expr, msg) test::check(static_cast<bool>(expr), #expr, __FILE__, __LINE__, (msg))
-#define CHECK_EQ(a, b) test::check((a) == (b), #a " == " #b, __FILE__, __LINE__, test::show(#a, (a), #b, (b)))
-#define CHECK_CLOSE(a, b, eps) \
-    test::check(std::fabs(static_cast<double>(a) - static_cast<double>(b)) <= (eps), #a " ~= " #b, __FILE__, __LINE__, test::show(#a, (a), #b, (b)))
+// CHECK_EQ / CHECK_CLOSE capture each operand once: they appear in both the
+// comparison and the failure message, and an argument with a side effect
+// (e.g. Vec3D::normalize()) must not run twice. The evaluation order of
+// function arguments is unspecified, so a double evaluation can even pass on
+// one compiler and fail on another.
+#define CHECK_EQ(a, b)                                                                   \
+    do {                                                                                 \
+        auto _test_a = (a);                                                              \
+        auto _test_b = (b);                                                              \
+        test::check(_test_a == _test_b, #a " == " #b, __FILE__, __LINE__,                \
+                    test::show(#a, _test_a, #b, _test_b));                               \
+    } while (0)
+#define CHECK_CLOSE(a, b, eps)                                                           \
+    do {                                                                                 \
+        auto _test_a = (a);                                                              \
+        auto _test_b = (b);                                                              \
+        test::check(std::fabs(static_cast<double>(_test_a) - static_cast<double>(_test_b)) <= (eps), \
+                    #a " ~= " #b, __FILE__, __LINE__, test::show(#a, _test_a, #b, _test_b)); \
+    } while (0)
 #define REQUIRE(expr)                                                              \
     do {                                                                           \
         if (!(expr)) {                                                             \
