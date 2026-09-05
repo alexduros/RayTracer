@@ -36,3 +36,8 @@ set(RAYMINI_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/models")
 
 add_subdirectory(third_party)
 add_subdirectory(src)
+
+if(RAYMINI_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
