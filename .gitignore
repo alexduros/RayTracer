@@ -1,40 +1,25 @@
-# Build directories
+# Build output (out-of-source: cmake -B build)
 build/
-src/build/
+cmake-build-*/
 
-# CMake generated files
+# Legacy in-source build artifacts (the old workflow ran cmake inside src/)
 src/CMakeCache.txt
 src/CMakeFiles/
 src/cmake_install.cmake
-src/*.cmake
-!src/CMakeLists.txt
-
-# Object files and binaries
+src/Makefile
+src/compile_commands.json
+src/raymini
 src/*.o
 src/*.a
-src/*.so
-src/*.dylib
-src/*.exe
-src/raymini
-src/moc_*
-src/.moc*
-src/.obj*
-src/raymini.app*
-src/Makefile
 
-# IDE files
-.vscode/
-*.vcxproj*
-*.sln
+# Dear ImGui writes its window layout next to the working directory
+imgui.ini
 
-# ImGui generated files
-src/imgui.ini
+# Rendered images from the GUI "Save PNG" button and raymini-cli
+renders/
 
-# Temporary files
-*.tmp
-*.swp
-*DS_Store
+# OS / editor
 .DS_Store
-
-# Documentation (keep models visible)
-**/*.pdf
+*.swp
+*.tmp
+.claude/settings.local.json

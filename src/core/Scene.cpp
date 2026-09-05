@@ -1,0 +1,49 @@
+// *********************************************************
+// Scene Class
+// Author : Tamy Boubekeur (boubek@gmail.com).
+// Copyright (C) 2010 Tamy Boubekeur.
+// All rights reserved.
+// *********************************************************
+
+#include "Scene.h"
+
+void Scene::updateBoundingBox () {
+    if (objects.empty ())
+        bbox = BoundingBox ();
+    else {
+        bbox = objects[0].getBoundingBox ();
+        for (unsigned int i = 1; i < objects.size (); i++)
+            bbox.extendTo (objects[i].getBoundingBox ());
+    }
+}
+
+void Scene::addObject (const Object & object) {
+    objects.push_back (object);
+    updateBoundingBox ();
+}
+
+void Scene::addLight (const Light & light) {
+    lights.push_back (light);
+}
+
+void Scene::addObjectFromOFF (const std::string & filename, const Material & material) {
+    Mesh mesh;
+    mesh.loadOFF (filename);
+    addObject (Object (mesh, material));
+}
+
+void Scene::addDefaultLights () {
+    // Positions/radii below were tuned for a model of size ~2 centred at the
+    // origin; scale them by half the bounding box size and re-centre.
+    const Vec3Df c = bbox.getCenter ();
+    const float s = std::max (bbox.getSize (), 1e-3f) / 2.f;
+    lights.push_back (Light (c + s * Vec3Df (3.0f, 3.0f, 3.0f),   Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, 3.0f * s));
+    lights.push_back (Light (c + s * Vec3Df (-2.0f, -2.0f, 2.0f), Vec3Df (1.0f, 1.0f, 0.0f), 0.5f, 3.0f * s));
+    lights.push_back (Light (c + s * Vec3Df (0.0f, -2.0f, 2.0f),  Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, 3.0f * s));
+}
+
+void Scene::clear () {
+    objects.clear ();
+    lights.clear ();
+    bbox = BoundingBox ();
+}

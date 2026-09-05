@@ -1,9 +1,0 @@
-{
-  "files.associations": {
-    "*.js": "javascriptreact",
-    "vector": "cpp",
-    "string": "cpp",
-    "cstdio": "cpp",
-    "cstdlib": "cpp"
-  }
-}

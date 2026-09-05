@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglfw3-dev libglm-dev libgl1-mesa-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install glfw glm
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j 4
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Render samples
+        run: |
+          build/raymini-cli teapot --mode lit     --size 512x512 --yaw 25  --pitch 20 --out renders/teapot_lit.png
+          build/raymini-cli teapot --mode normals --size 512x512 --yaw 25  --pitch 20 --out renders/teapot_normals.png
+          build/raymini-cli ram    --mode lit     --size 512x512 --yaw -35 --pitch 15 --out renders/ram_lit.png
+
+      # Renders plus whatever the golden tests produced (useful when they fail).
+      - name: Upload renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: renders-${{ matrix.os }}
+          path: |
+            renders/*.png
+            build/tests/out/golden_*.png
+          if-no-files-found: ignore
