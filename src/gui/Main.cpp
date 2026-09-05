@@ -27,6 +27,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+#include "Camera.h"
 #include "Image.h"
 #include "Mesh.h"
 #include "RayTracer.h"
@@ -258,7 +259,7 @@ void uploadTexture(GLuint& texture, int& texW, int& texH, const Image& img) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-const char* kModeLabels[] = {"Lit (ambient stub)", "Ambient", "Hit mask", "Normals", "Depth", "Object id"};
+const char* kModeLabels[] = {"Lit (Lambert)", "Ambient", "Hit mask", "Normals", "Depth", "Object id"};
 const char* kModeSlugs[] = {"lit", "ambient", "hitmask", "normals", "depth", "objectid"};
 
 }  // namespace
@@ -354,8 +355,11 @@ int main(int argc, char** argv) {
     GLuint rtTexture = 0;
     int rtTexW = 0, rtTexH = 0;
     int rtResolution = 256;
-    int rtMode = static_cast<int>(RayTracer::DebugMode::AMBIENT);
-    float rtDepthRange = initialDistance + scene.getBoundingBox().getSize();
+    int rtMode = static_cast<int>(RayTracer::DebugMode::LIT);
+    // Depth mode defaults: the model spans initialDistance +- size/2 from the camera.
+    const float modelSize = scene.getBoundingBox().getSize();
+    float rtDepthNear = std::max(0.f, initialDistance - modelSize);
+    float rtDepthFar = initialDistance + modelSize;
     std::string lastSavedPath;
     bool wireframe = false;
 
@@ -408,19 +412,18 @@ int main(int argc, char** argv) {
         ImGui::SliderInt("Resolution", &rtResolution, 64, 1024);
         ImGui::Combo("Mode", &rtMode, kModeLabels, IM_ARRAYSIZE(kModeLabels));
         if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
-            ImGui::SliderFloat("Depth range", &rtDepthRange, 0.1f, 10.f * initialDistance);
+            ImGui::SliderFloat("Depth near", &rtDepthNear, 0.f, 10.f * initialDistance);
+            ImGui::SliderFloat("Depth far", &rtDepthFar, 0.f, 10.f * initialDistance);
         }
 
         if (ImGui::Button("Render Scene")) {
-            const glm::vec3 dir = glm::normalize(cameraFront);
-            const glm::vec3 right = glm::normalize(glm::cross(dir, cameraUp));
-            const glm::vec3 up = glm::normalize(glm::cross(right, dir));
             auto toVec3Df = [](const glm::vec3& v) { return Vec3Df(v.x, v.y, v.z); };
-
+            // Same eye/target/up as the GL preview; square output so aspect = 1.
+            const Camera camera = Camera::lookAt(toVec3Df(cameraPos), toVec3Df(cameraTarget), toVec3Df(cameraUp),
+                                                 glm::radians(fov), 1.f);
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
-            rt.setDepthRange(rtDepthRange);
-            lastRender = rt.render(scene, toVec3Df(cameraPos), toVec3Df(dir), toVec3Df(up), toVec3Df(right),
-                                   glm::radians(fov), 1.f, rtResolution, rtResolution);
+            rt.setDepthRange(rtDepthNear, rtDepthFar);
+            lastRender = rt.render(scene, camera, rtResolution, rtResolution);
             uploadTexture(rtTexture, rtTexW, rtTexH, lastRender);
             lastSavedPath.clear();
         }

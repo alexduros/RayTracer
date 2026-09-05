@@ -27,15 +27,12 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
     const std::vector<Object> & objects = scene.getObjects ();
     for (unsigned int i = 0; i < objects.size (); ++i) {
         Vertex v;
-        float distSq = 0.f;   // Ray::nearestHit: 0 = "no hit yet", returns squared distance
-        if (ray.nearestHit (objects[i].getMesh (), v, distSq)) {
-            const float d = std::sqrt (distSq);
-            if (d < best.distance) {
-                best.distance = d;
-                best.vertex = v;
-                best.objectIndex = i;
-                found = true;
-            }
+        float t = 0.f;
+        if (ray.nearestHit (objects[i].getMesh (), v, t) && t < best.distance) {
+            best.distance = t;
+            best.vertex = v;
+            best.objectIndex = i;
+            found = true;
         }
     }
     return found;
@@ -52,7 +49,8 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & /*ray*/, const Hit & h
             return 0.5f * (n + Vec3Df (1.f, 1.f, 1.f));
         }
         case DebugMode::DEPTH: {
-            const float t = depthRange > 0.f ? std::min (hit.distance / depthRange, 1.f) : 0.f;
+            const float range = depthFar - depthNear;
+            const float t = range > 0.f ? std::clamp ((hit.distance - depthNear) / range, 0.f, 1.f) : 0.f;
             return Vec3Df (t, 0.f, 1.f - t);
         }
         case DebugMode::OBJECT_ID: {
@@ -65,9 +63,20 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & /*ray*/, const Hit & h
         case DebugMode::AMBIENT:
             return mat.getColor ();
         case DebugMode::LIT:
-        default:
-            // Ambient-only stub; the diffuse/specular terms are not ported yet.
-            return 0.33f * mat.getColor ();
+        default: {
+            // Lambert. No shadows, no specular, no attenuation yet.
+            Vec3Df n = hit.vertex.getNormal ();
+            n.normalize ();
+            const Vec3Df & p = hit.vertex.getPos ();
+            Vec3Df color = ambientIntensity * mat.getColor ();
+            for (const Light & light : scene.getLights ()) {
+                Vec3Df l = light.getPos () - p;
+                l.normalize ();
+                const float nDotL = std::max (0.f, Vec3Df::dotProduct (n, l));
+                color += (mat.getDiffuse () * light.getIntensity () * nDotL) * (mat.getColor () * light.getColor ());
+            }
+            return color;
+        }
     }
 }
 
@@ -84,29 +93,16 @@ Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray) {
     return shade (scene, ray, hit);
 }
 
-Image RayTracer::render (const Scene & scene,
-                         const Vec3Df & camPos,
-                         const Vec3Df & direction,
-                         const Vec3Df & upVector,
-                         const Vec3Df & rightVector,
-                         float fieldOfView,
-                         float aspectRatio,
-                         unsigned int screenWidth,
-                         unsigned int screenHeight) {
-    Image image (screenWidth, screenHeight, Image::RGB888);
+Image RayTracer::render (const Scene & scene, const Camera & camera,
+                         unsigned int width, unsigned int height) {
+    Image image (width, height, Image::RGB888);
     lastStats = Stats ();
     const auto start = std::chrono::steady_clock::now ();
 
-    const float tanX = std::tan (fieldOfView);
-    const float tanY = tanX / aspectRatio;
-    for (unsigned int i = 0; i < screenWidth; i++) {
-        for (unsigned int j = 0; j < screenHeight; j++) {
-            Vec3Df stepX = (float (i) - screenWidth / 2.f) / screenWidth * tanX * rightVector;
-            Vec3Df stepY = (float (j) - screenHeight / 2.f) / screenHeight * tanY * upVector;
-            Vec3Df dir = direction + stepX + stepY;
-            dir.normalize ();
-            const Vec3Df color = trace (scene, Ray (camPos, dir));
-            image.setPixel (i, (screenHeight - 1) - j, toByte (color[0]), toByte (color[1]), toByte (color[2]));
+    for (unsigned int y = 0; y < height; y++) {
+        for (unsigned int x = 0; x < width; x++) {
+            const Vec3Df color = trace (scene, camera.primaryRay (x, y, width, height));
+            image.setPixel (x, y, toByte (color[0]), toByte (color[1]), toByte (color[2]));
         }
     }
 

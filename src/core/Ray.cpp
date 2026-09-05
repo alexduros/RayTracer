@@ -7,11 +7,13 @@
 
 #include "Ray.h"
 
+#include <limits>
+
 using namespace std;
 
 static const unsigned int NUMDIM = 3, RIGHT = 0, LEFT = 1, MIDDLE = 2;
 
-bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit) const {
+bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float & t) const {
     Vec3Df uvw;
     const vector<Vertex> & vertices = mesh.getVertices();
     const Vec3Df & A = vertices[triangle.getVertex(0)].getPos(),
@@ -54,24 +56,28 @@ bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit) const
         hit.setPos(A * uvw[0] + B * uvw[1] + C * uvw[2]);
         hit.setNormal(An * uvw[0] + Bn * uvw[1] + Cn * uvw[2]);
         hit.setAmbientOcclusionCoeff((Ac * uvw[0] + Bc * uvw[1] + Cc * uvw[2]));
-
+        t = distance;
         return true;
     } else {
         return false;
     }
 }
 
-bool Ray::nearestHit (const Mesh & mesh, Vertex & hit , float & distance) const {
-    bool hasHit = false;
-    for(unsigned int i=0;i<mesh.getTriangles().size();i++){
-        if(this->hit(mesh.getTriangles()[i], mesh, hit)){
-            if(!distance || Vec3Df::squaredDistance(origin, hit.getPos()) < distance){
-                distance = Vec3Df::squaredDistance(origin, hit.getPos());
-                hasHit = true;
-            }
+bool Ray::nearestHit (const Mesh & mesh, Vertex & hit, float & t) const {
+    bool found = false;
+    float best = std::numeric_limits<float>::max ();
+    Vertex candidate;
+    float tc = 0.f;
+    for (const Triangle & triangle : mesh.getTriangles ()) {
+        if (this->hit (triangle, mesh, candidate, tc) && tc < best) {
+            best = tc;
+            hit = candidate;
+            found = true;
         }
     }
-    return hasHit;
+    if (found)
+        t = best;
+    return found;
 }
 
 bool Ray::intersect (const BoundingBox & bbox, Vec3Df & intersectionPoint) const {

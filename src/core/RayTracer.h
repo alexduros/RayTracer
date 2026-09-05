@@ -9,21 +9,21 @@
 #define RAYTRACER_H
 
 #include "Vec3D.h"
+#include "Camera.h"
 #include "Ray.h"
 #include "Scene.h"
 #include "Image.h"
 
 class RayTracer {
 public:
-    // Debug visualization modes. LIT is the real shading path (currently an
-    // ambient-only stub); the others colorize the hit information directly so
-    // rays, intersections and normals can be checked independently.
+    // LIT is the shading path; the others colorize the hit information
+    // directly so rays, intersections and normals can be checked one at a time.
     enum class DebugMode {
-        LIT,          // ambient-only stub, deliberately dark
+        LIT,          // Lambert: ambient + sum over lights of diffuse * max(0, n.l)
         AMBIENT,      // flat material color
         HIT_MASK,     // white = hit, black = miss
         NORMALS,      // (n + 1) / 2 as RGB
-        DEPTH,        // hit distance / depthRange, blue (near) -> red (far)
+        DEPTH,        // (distance - depthNear) / (depthFar - depthNear): blue (near) -> red (far)
         OBJECT_ID     // distinct color per object index
     };
 
@@ -47,8 +47,11 @@ public:
 
     inline void setDebugMode (DebugMode m) { debugMode = m; }
     inline DebugMode getDebugMode () const { return debugMode; }
-    inline void setDepthRange (float maxDist) { depthRange = maxDist; }
-    inline float getDepthRange () const { return depthRange; }
+    inline void setDepthRange (float near, float far) { depthNear = near; depthFar = far; }
+    inline float getDepthNear () const { return depthNear; }
+    inline float getDepthFar () const { return depthFar; }
+    inline void setAmbientIntensity (float a) { ambientIntensity = a; }
+    inline float getAmbientIntensity () const { return ambientIntensity; }
     inline void setBackgroundColor (const Vec3Df & c) { backgroundColor = c; }
     inline const Vec3Df & getBackgroundColor () const { return backgroundColor; }
     inline const Stats & getLastStats () const { return lastStats; }
@@ -57,23 +60,20 @@ public:
     bool closestHit (const Scene & scene, const Ray & ray, Hit & hit) const;
 
     /// Color of one ray in linear [0,1] RGB (background if nothing is hit).
+    /// Updates the stats of the current render.
     Vec3Df trace (const Scene & scene, const Ray & ray);
 
-    Image render (const Scene & scene,
-                  const Vec3Df & camPos,
-                  const Vec3Df & viewDirection,
-                  const Vec3Df & upVector,
-                  const Vec3Df & rightVector,
-                  float fieldOfView,
-                  float aspectRatio,
-                  unsigned int screenWidth,
-                  unsigned int screenHeight);
-
-private:
+    /// Color for a known hit, in linear [0,1] RGB, according to the mode.
     Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit) const;
 
-    DebugMode debugMode = DebugMode::AMBIENT;
-    float depthRange = 10.f;
+    Image render (const Scene & scene, const Camera & camera,
+                  unsigned int width, unsigned int height);
+
+private:
+    DebugMode debugMode = DebugMode::LIT;
+    float depthNear = 0.f;
+    float depthFar = 10.f;
+    float ambientIntensity = 0.15f;
     Vec3Df backgroundColor = Vec3Df (0.f, 0.f, 0.f);
     Stats lastStats;
 };

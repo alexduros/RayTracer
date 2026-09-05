@@ -33,12 +33,13 @@ public:
     }
 
     /// Ray / triangle test with back-face culling. On success `hit` holds the
-    /// interpolated position, normal and AO coefficient.
-    bool hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit) const;
+    /// interpolated position, normal and AO coefficient, and `t` the distance
+    /// along the ray (Euclidean when `direction` is normalized).
+    bool hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float & t) const;
 
-    /// Closest front-facing triangle of `mesh`. `distance` is the *squared*
-    /// distance from the origin and must be 0 on entry (0 means "no hit yet").
-    bool nearestHit (const Mesh & mesh, Vertex & hit, float & distance) const;
+    /// Closest front-facing triangle of `mesh`. `hit` and `t` are left
+    /// untouched when nothing is hit.
+    bool nearestHit (const Mesh & mesh, Vertex & hit, float & t) const;
 
 private:
     Vec3Df origin;
