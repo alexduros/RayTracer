@@ -1,351 +1,95 @@
-# RayTracer
+# raymini
 
-**Original project by Benjamin Combourieu, Alexandre Duros et Raphaël Moutard.**
+A small CPU raytracer with a real-time OpenGL preview, a headless renderer and
+a regression test suite.
 
-A modern C++ raytracer with real-time 3D viewer, featuring dual-viewport architecture for interactive model visualization and high-quality ray-traced rendering.
+Originally written in 2013 by Benjamin Combourieu, Alexandre Duros and Raphaël
+Moutard on top of Tamy Boubekeur's raymini teaching framework (Qt +
+libQGLViewer). Modernized to C++17, GLFW, OpenGL 3.3 core, Dear ImGui and stb,
+with the raytracer split into a library that builds without any GL dependency.
 
-## Project History
+![Reference render from the original project](Rendu.png)
 
-This raytracer was originally developed 15+ years ago using Qt and libqglviewer. It has been completely modernized to use:
-- **GLFW 3.3** + **OpenGL 3.3 Core** (replacing Qt/libqglviewer)
-- **Dear ImGui** for immediate-mode GUI
-- **STB** libraries for image handling
-- **GLM** for mathematics
-- **Modern C++17** standards
+## What it does today
 
-The interface has been customized to allow users to freely test the different available effects.
+- Loads OFF meshes (polygons are fan-triangulated, smooth normals computed).
+- Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
+  with the raytracer, save the result as PNG.
+- Raytracer: ray/triangle intersection (brute force, back faces culled),
+  Lambert shading with point lights, and debug modes: hit mask, normals,
+  depth, object id.
+- CLI: render any model to a PNG, no display needed.
+- Tests: unit tests on synthetic geometry and golden-image regression on the
+  teapot and ram models. CI runs them on Ubuntu and macOS.
 
-## Features
+## Build
 
-- **Dual-Viewport System**: Real-time OpenGL 3D viewer alongside raytracer output
-- **Modern UI**: Dear ImGui interface with fixed panels for settings and controls
-- **3D Model Loading**: Support for OFF format files
-- **Ray Tracing**: High-quality offline rendering with configurable parameters
-- **KD-Tree Acceleration**: Spatial acceleration structure for fast ray-triangle intersections
-- **Material System**: Diffuse, specular, and ambient lighting models
-- **Automatic Model Centering**: Models are automatically centered and scaled for optimal viewing
+Requirements: CMake 3.16+, a C++17 compiler; for the viewer, GLFW 3 and GLM.
 
-## Requirements
-
-### macOS (Homebrew)
 ```bash
-# Install dependencies
+# macOS
 brew install cmake glfw glm
+# Ubuntu / Debian
+sudo apt-get install build-essential cmake libglfw3-dev libglm-dev libgl1-mesa-dev
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ```
 
-### Linux (Ubuntu/Debian)
+`-DRAYMINI_BUILD_GUI=OFF` skips the viewer (no GLFW/GLM needed);
+`-DRAYMINI_BUILD_TESTS=OFF` skips the tests. Executables are written to `build/`.
+
+## Run
+
 ```bash
-# Install dependencies
-sudo apt-get update
-sudo apt-get install build-essential cmake libglfw3-dev libglm-dev
+build/raymini models/minion.off                       # viewer
+build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20
+build/raymini-cli --help                              # all options
 ```
 
-### Linux (Fedora/CentOS)
+The CLI writes `renders/<model>_<mode>.png` by default; bare model names
+resolve to `models/`.
+
+Viewer controls:
+
+- Left-drag in the preview to orbit, scroll to zoom, FOV slider, Reset Camera.
+- Raytracer panel: resolution, mode (Lit, Ambient, Hit mask, Normals, Depth,
+  Object id), Render Scene, Save PNG (into `renders/`).
+
+## Test
+
 ```bash
-# Install dependencies
-sudo dnf install cmake glfw-devel glm-devel gcc-c++
+ctest --test-dir build --output-on-failure
+build/raymini_tests --filter camera                    # a subset
+build/raymini_tests --filter golden --update-golden    # after an intentional rendering change
 ```
 
-## Compilation
+Golden images live in `tests/golden/`; review their diff before committing a
+regeneration.
 
-### Option 1: Using CMake (Recommended)
-```bash
-# Navigate to source directory
-cd src/
-
-# Build the project
-make clean && make
-
-# Or manually with cmake
-mkdir -p build
-cd build
-cmake ..
-make -j$(nproc)
-```
-
-### Option 2: Manual cmake build
-```bash
-cd src/
-mkdir -p build
-cd build
-cmake -DCMAKE_CXX_STANDARD=17 ..
-make -j$(nproc)
-```
-
-## Execution
-
-### From src/ directory:
-```bash
-# After compilation
-./raymini
-
-# Or with a specific model
-./raymini models/minion.off
-```
-
-### From build/ directory:
-```bash
-# If using manual cmake build
-cd build/
-./raymini
-```
-
-## Usage
-
-1. **3D Viewer**: Use mouse to rotate, zoom, and pan the 3D model
-   - Left click + drag: Rotate camera
-   - Right click + drag: Zoom in/out
-   - Middle click + drag: Pan camera
-
-2. **Raytracer Panel**: Configure rendering settings
-   - Adjust camera parameters
-   - Set image resolution
-   - Configure lighting and materials
-   - Click "Render" to generate ray-traced image
-
-3. **Model Loading**: Load different 3D models in OFF format
-   - Use the file browser in the interface
-   - Models are automatically centered and scaled
-
-## Architecture Overview
-
-### High-Level Architecture
+## Layout
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        RayTracer Application                    │
-│                                                                 │
-│  ┌─────────────────┐                    ┌─────────────────┐    │
-│  │   GLFW Window   │                    │  Dear ImGui UI  │    │
-│  │                 │                    │                 │    │
-│  │  ┌───────────┐  │                    │ ┌─────────────┐ │    │
-│  │  │ OpenGL 3D │  │◄───────────────────┤ │ Control     │ │    │
-│  │  │ Viewer    │  │                    │ │ Panels      │ │    │
-│  │  │           │  │                    │ │             │ │    │
-│  │  │ Real-time │  │                    │ │ - Camera    │ │    │
-│  │  │ Preview   │  │                    │ │ - Lighting  │ │    │
-│  │  └───────────┘  │                    │ │ - Material  │ │    │
-│  └─────────────────┘                    │ │ - Render    │ │    │
-│                                         │ └─────────────┘ │    │
-│                                         └─────────────────┘    │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                Ray Tracing Engine                      │   │
-│  │                                                         │   │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │   │
-│  │  │   Scene     │◄─┤  KdTree     │◄─┤ RayTracer   │    │   │
-│  │  │ Management  │  │ Acceleration│  │   Core      │    │   │
-│  │  │             │  │ Structure   │  │             │    │   │
-│  │  │ - Objects   │  │             │  │ - Ray-Tri   │    │   │
-│  │  │ - Lights    │  │ - Spatial   │  │   Intersect │    │   │
-│  │  │ - Materials │  │   Partition │  │ - Shading   │    │   │
-│  │  │ - Camera    │  │ - Fast Hit  │  │ - Image Gen │    │   │
-│  │  └─────────────┘  │   Testing   │  └─────────────┘    │   │
-│  │                   └─────────────┘                     │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+CMakeLists.txt          root project; options RAYMINI_BUILD_GUI / RAYMINI_BUILD_TESTS
+src/core/               raymini_core: mesh, ray, camera, scene, raytracer, image
+src/gui/Main.cpp        raymini (GLFW + Dear ImGui viewer)
+src/cli/Main.cpp        raymini-cli (headless renderer)
+tests/                  raymini_tests + tests/golden/*.png
+third_party/            imgui, glad, stb
+models/                 OFF models (teapot, ram, minion, dragon, ...)
+claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
+.github/workflows/      CI: build + tests + sample renders on Ubuntu and macOS
 ```
 
-### Component Architecture
+## Next steps
 
-```
-                    ┌─────────────────┐
-                    │   Main.cpp      │
-                    │ Application     │
-                    │ Entry Point     │
-                    └─────────┬───────┘
-                              │
-                    ┌─────────▼───────┐
-                    │  GLFW + OpenGL  │
-                    │   Window Mgmt   │
-                    └─────────┬───────┘
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-    ┌─────────▼───────┐ ┌─────▼─────┐ ┌───────▼───────┐
-    │   Dear ImGui    │ │  OpenGL   │ │  RayTracer    │
-    │   Interface     │ │  Renderer │ │   Engine      │
-    │                 │ │           │ │               │
-    │ • Control Panel │ │ • Shaders │ │ ┌───────────┐ │
-    │ • File Browser  │ │ • Buffers │ │ │   Scene   │ │
-    │ • Render Config │ │ • Textures│ │ │           │ │
-    └─────────────────┘ └───────────┘ │ └───────────┘ │
-                                      │ ┌───────────┐ │
-                                      │ │  KdTree   │ │
-                                      │ │           │ │
-                                      │ └───────────┘ │
-                                      │ ┌───────────┐ │
-                                      │ │   Image   │ │
-                                      │ │  Output   │ │
-                                      │ └───────────┘ │
-                                      └───────────────┘
-```
+`claudedocs/EXPERIMENTS.md` lists the next ten experiments (ground plane and
+hard shadows, Blinn-Phong, BVH, threads, anti-aliasing, soft shadows,
+reflections, ambient occlusion, tone mapping, depth of field), each with the
+test that proves it.
 
-### Data Flow
+## Notes
 
-```
-    User Input (Mouse/Keyboard)
-                │
-                ▼
-         ┌─────────────┐
-         │ Dear ImGui  │
-         │   Events    │
-         └──────┬──────┘
-                │
-        ┌───────┼───────┐
-        │       │       │
-        ▼       ▼       ▼
-   ┌────────┐ ┌────┐ ┌──────┐
-   │ Camera │ │Lit │ │Render│
-   │ Update │ │Upd │ │Trigg │
-   └───┬────┘ └─┬──┘ └───┬──┘
-       │        │        │
-       ▼        ▼        ▼
-   ┌─────────────────────────┐
-   │     OpenGL Viewer       │
-   │   (Real-time update)    │
-   └─────────────────────────┘
-                │
-                ▼
-          ┌──────────┐
-          │   Mesh   │        ┌────────────┐
-          │ Loading  │◄───────┤ OFF File   │
-          └────┬─────┘        │ Parser     │
-               │              └────────────┘
-               ▼
-          ┌──────────┐        ┌────────────┐
-          │  Scene   │◄───────┤  Material  │
-          │ Building │        │ & Lighting │
-          └────┬─────┘        └────────────┘
-               │
-               ▼
-          ┌──────────┐
-          │ KdTree   │
-          │ Building │
-          └────┬─────┘
-               │
-               ▼
-          ┌──────────┐        ┌────────────┐
-          │   Ray    │────────┤   Image    │
-          │ Tracing  │        │  Output    │
-          └──────────┘        └────────────┘
-```
-
-### Class Hierarchy
-
-```
-Core Classes:
-├── Scene (Singleton)
-│   ├── Objects[]
-│   ├── Lights[]
-│   └── Camera
-│
-├── RayTracer (Singleton)
-│   ├── render()
-│   ├── rayTrace()
-│   └── buildKDTrees()
-│
-├── KdTree
-│   ├── build()
-│   ├── hasHit()
-│   ├── searchHit()
-│   └── renderGL()
-│
-├── Object
-│   ├── Mesh
-│   ├── Material
-│   └── KdTree
-│
-├── Mesh
-│   ├── Vertices[]
-│   ├── Triangles[]
-│   ├── loadOFF()
-│   └── split()
-│
-├── Ray
-│   ├── origin
-│   ├── direction
-│   ├── intersect()
-│   ├── hasHit()
-│   └── nearestHit()
-│
-├── Image
-│   ├── width/height
-│   ├── pixels[]
-│   ├── save()
-│   ├── load()
-│   └── setPixel()
-│
-└── Geometric Primitives
-    ├── Vertex
-    ├── Triangle
-    ├── BoundingBox
-    ├── Light
-    └── Material
-```
-
-## File Structure
-
-```
-RayTracer/
-├── src/                    # Source code
-│   ├── Main.cpp           # Application entry point & ImGui interface
-│   ├── Image.h/cpp        # Modern image handling (replaces QImage)
-│   ├── RayTracer.h/cpp    # Core raytracing engine
-│   ├── Scene.h/cpp        # Scene management
-│   ├── KdTree.h/cpp       # Spatial acceleration structure
-│   ├── Object.h/cpp       # 3D objects with materials
-│   ├── Mesh.h/cpp         # 3D mesh loading and manipulation
-│   ├── Ray.h/cpp          # Ray casting and intersection
-│   ├── Vertex.h/cpp       # 3D vertices with properties
-│   ├── Triangle.h/cpp     # Triangle primitives
-│   ├── BoundingBox.h/cpp  # Axis-aligned bounding boxes
-│   ├── Light.h/cpp        # Light sources
-│   ├── Material.h/cpp     # Material properties
-│   ├── glad/              # OpenGL loader
-│   ├── imgui/             # Dear ImGui library
-│   ├── stb/               # STB image libraries
-│   ├── models/            # 3D model files
-│   └── CMakeLists.txt     # Build configuration
-├── .vscode/               # VSCode configuration
-└── README.md              # This file
-```
-
-## Troubleshooting
-
-### Build Issues
-- Ensure GLFW and GLM are properly installed
-- Check that you're using C++17 compatible compiler (GCC 7+, Clang 5+)
-- Verify include paths in VSCode settings if using IDE
-
-### Runtime Issues
-- Make sure you're running from the correct directory (src/ or build/)
-- Ensure model files exist in the models/ directory
-- Check OpenGL 3.3 support on your graphics hardware
-
-### VSCode Integration
-The project includes VSCode configuration for:
-- C++ IntelliSense with proper include paths
-- CMake integration
-- Debugging support
-
-## Development
-
-This modernized version maintains the core raytracing algorithms while updating the infrastructure:
-- Removed Qt dependencies completely
-- Implemented modern OpenGL rendering pipeline
-- Added Dear ImGui for immediate-mode interface
-- Updated to C++17 standards with RAII and smart pointers
-- Enhanced build system with CMake
-
-## Future Enhancements
-
-- [ ] Connect raytracer to render button
-- [ ] Add Phong shading implementation
-- [ ] Implement additional material models
-- [ ] Add more 3D model format support
-- [ ] Enhance lighting system
-
----
-
-*Modernized for C++17 with GLFW + OpenGL 3.3 + Dear ImGui*
+- Some OFF files are Z-up (the teapot); the viewer and CLI assume Y-up.
+- The default lights are the original project's cyan / yellow / white rig,
+  scaled to the model.

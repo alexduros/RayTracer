@@ -1,141 +1,83 @@
-# RayTracer Modernization Project
+# raymini
 
-## Project Overview
-Modernizing a 15-year-old Qt/libqglviewer raytracer to use modern C++ and OpenGL technologies. The goal is to create a dual-viewport application with real-time GL preview and high-quality raytracing capabilities.
+A small CPU raytracer, modernized from a 2013 student project (Qt/libQGLViewer
+originally). Today: C++17, a GL-free core library, a GLFW + Dear ImGui viewer, a
+headless CLI and a test suite. The goal is to iterate on rendering effects with
+tests that prove each one.
 
-## Current Status: ✅ Phase 1 Complete - Modern Foundation
+## Layout
 
-### ✅ Completed Features
+- `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
+  loader), BoundingBox, Ray (triangle + slab tests), Camera, Material, Light,
+  Object, Scene, RayTracer, Image (stb). No GL, no GLFW: it links anywhere.
+- `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
+  (right), controls (bottom).
+- `src/cli/Main.cpp` — `raymini-cli`: OFF in, PNG out. What the tests, CI and
+  headless sessions use.
+- `tests/` — `raymini_tests` (tiny harness in `tests/Test.h`, no external
+  dependency) plus `tests/golden/*.png`.
+- `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
+  backends), glad, stb. `models/` — 26 OFF files.
+- `claudedocs/EXPERIMENTS.md` — the next ten experiments, each with the test
+  that proves it. `claudedocs/MODERNIZATION_ROADMAP.md` — the longer view.
+- `Rendu.png` — reference render from the original project (ram on a ground
+  plane with shadows). That look is the first target.
 
-#### Core Infrastructure
-- **Qt Dependencies Removed**: Completely eliminated Qt dependencies (QImage, QString)
-- **Modern C++17**: Updated build system and code standards
-- **GLFW + OpenGL 3.3**: Modern windowing and graphics context
-- **Custom Image Class**: STB-based image handling for PNG/JPG/TGA
-- **Dear ImGui Integration**: Modern immediate-mode GUI
-
-#### Dual-Viewport System
-- **Fixed Layout**: Three non-movable panels for optimal workflow
-- **OpenGL Viewer**: Real-time 3D model display with interactive camera
-- **Raytracer Panel**: Dedicated space for high-quality renders
-- **Controls Panel**: Comprehensive camera and rendering controls
-
-#### Visual Features
-- **Model Auto-Centering**: Automatic camera positioning based on model bounds
-- **Color Gradients**: Y-position based vertex coloring for visual appeal
-- **Interactive Camera**: Mouse controls for orbit, pan, zoom
-- **Wireframe Mode**: Toggle between solid and wireframe rendering
-
-### 🏗️ Architecture
-
-```
-┌─────────────────┬──────────────────┐
-│   GL Viewer     │  Raytracer View  │
-│  (Real-time)    │   (High Quality) │
-│                 │                  │
-│ • Live preview  │ • Final renders  │
-│ • Fast display  │ • Phong shading  │
-│ • Camera ctrl   │ • Reflections    │
-│ • Material edit │ • Textures       │
-└─────────────────┴──────────────────┘
-│           Controls Panel            │
-│  Camera • Rendering • Model Info    │
-└─────────────────────────────────────┘
-```
-
-### 🛠️ Technology Stack
-
-- **Core**: C++17 with modern standards
-- **Graphics**: GLFW 3.3 + OpenGL 3.3 Core + GLM
-- **GUI**: Dear ImGui 1.91.5 with GLFW/OpenGL3 backends
-- **Image**: STB image library (header-only)
-- **Build**: CMake with proper dependency management
-
-### 📁 Project Structure
-
-```
-src/
-├── Main.cpp                 # Application entry point + ImGui UI
-├── Image.{h,cpp}           # Modern image handling (replaces QImage)
-├── RayTracer.{h,cpp}       # Core raytracing engine
-├── Scene.{h,cpp}           # Scene management
-├── [Core Classes]          # Mesh, Material, Light, Ray, etc.
-├── glad/                   # OpenGL loader
-├── stb/                    # STB image library
-├── imgui/                  # Dear ImGui library
-└── models/                 # 3D model files (.off format)
-
-claudedocs/
-└── MODERNIZATION_ROADMAP.md # Detailed development plan
-```
-
-## 🚀 Next Steps (Phase 2)
-
-### High Priority
-1. **Connect Raytracer**: Wire up "Render Scene" button to actual raytracing
-2. **Phong Shading**: Implement proper lighting model in raytracer
-3. **Material System**: Add material property controls in UI
-
-### Medium Priority
-4. **Performance**: Threading for non-blocking raytracer renders
-5. **Export**: Save raytraced images to disk
-6. **Camera Sync**: Synchronize GL and raytracer cameras
-
-### Future Enhancements
-7. **PBR Materials**: Physically-based rendering
-8. **Post-Processing**: Tone mapping, gamma correction
-9. **Texture Support**: UV mapping and texture loading
-
-## 🎯 Success Metrics
-
-### ✅ Phase 1 Achievements
-- Qt-free build and execution
-- Dual-viewport system working
-- Modern C++ codebase (C++17)
-- Interactive 3D viewer with controls
-- Professional UI layout
-
-### 🎯 Phase 2 Goals
-- Functional raytracer integration
-- Phong shading implementation
-- Material property editing
-- Performance optimization
-
-## 💻 Build Instructions
+## Build, run, test
 
 ```bash
-cd src
-cmake .
-make
-./raymini models/minion.off
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+
+build/raymini models/minion.off                                   # viewer
+build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20 \
+    --out renders/teapot.png                                      # headless
+build/raymini-cli --help
 ```
 
-### Dependencies
-- CMake 3.10+
-- GLFW 3.x
-- GLM (OpenGL Mathematics)
-- C++17 compatible compiler (Clang/GCC)
+- Options: `-DRAYMINI_BUILD_GUI=OFF` (no glfw/glm needed),
+  `-DRAYMINI_BUILD_TESTS=OFF`. Executables land in `build/`.
+- Dependencies: CMake >= 3.16, C++17 compiler. Viewer only: glfw3 + glm
+  (`brew install glfw glm` / `apt install libglfw3-dev libglm-dev`).
+- `renders/`, `build/` and `imgui.ini` are gitignored.
+- CI (`.github/workflows/ci.yml`) builds and tests on Ubuntu and macOS and
+  uploads sample renders as artifacts.
 
-## 🎮 Controls
+## Rendering pipeline as it exists today
 
-### Mouse (in GL Viewer)
-- **Left Click + Drag**: Orbit around model
-- **Scroll**: Zoom in/out
+- `Camera::primaryRay` -> `RayTracer::closestHit` (brute force over every
+  triangle of every object, back faces culled) -> `RayTracer::shade` by mode.
+- Modes: `lit` (Lambert: ambient + sum over lights of diffuse * max(0, n.l);
+  no shadows, no specular), `ambient`, `hitmask`, `normals`, `depth`,
+  `objectid`.
+- Single-threaded. On an M-series Mac: teapot (880 triangles) at 256x256 in
+  about 0.3 s; minion (84k triangles) at 160x160 in about 9 s.
+- `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
+  to the model's bounding box. Cyan light on the orange default material
+  gives the green tint you see on renders; that is expected.
+- Colors stay linear [0,1] until the final 8-bit conversion in `render()`.
 
-### UI Controls
-- **FOV Slider**: Adjust field of view
-- **Wireframe**: Toggle wireframe rendering
-- **Reset Camera**: Return to default view
-- **Render Scene**: Trigger raytracer (WIP)
+## Conventions for adding an effect
 
-## 📊 Current Models Supported
+1. Write the unit test first on synthetic geometry (`tests/Fixtures.h` has a
+   quad and a cube); assert the physics (a shadowed pixel equals ambient, an
+   edge pixel becomes gray with AA, ...).
+2. Implement behind a `RayTracer` setter and a `raymini-cli` flag.
+3. Regenerate goldens with `build/raymini_tests --filter golden --update-golden`
+   and look at the PNG diff before committing them.
+4. Render a PNG with `raymini-cli` and share it; the GUI needs a display.
+5. Keep `src/core` free of GL/GLFW.
 
-- OFF format files (Object File Format)
-- Available models: minion, dragon, teapot, ram, and more
-- Auto-scaling and centering for any size model
+Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
+(silhouettes can flip across CPUs).
 
----
+## Known gaps
 
-**Status**: Foundation complete, ready for raytracer integration
-**Last Updated**: January 22, 2025
-**Next Session**: Connect raytracer rendering pipeline
+- No acceleration structure: the old KdTree was removed (never built, unsafe
+  to copy). A BVH is experiment 3.
+- No shadows, specular, reflections, anti-aliasing, ambient occlusion,
+  textures or threading yet. See `claudedocs/EXPERIMENTS.md`.
+- Some OFF files are Z-up (teapot); the viewer and CLI assume Y-up.
+- GL preview is 3:2, the raytraced panel is square; they share eye, target,
+  up and vertical fov.
