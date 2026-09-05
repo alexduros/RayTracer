@@ -17,10 +17,15 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+// Raytracer
+#include "RayTracer.h"
+#include "Scene.h"
+#include "Image.h"
+
 
 using namespace std;
 
-struct Vertex {
+struct GLVertex {
     float x, y, z;
     float r, g, b;
 };
@@ -49,7 +54,7 @@ static inline void rtrim(std::string &s) {
     }).base(), s.end());
 }
 
-bool loadOFF(const std::string& filename, std::vector<Vertex>& vertices, std::vector<Face>& faces) {
+bool loadOFF(const std::string& filename, std::vector<GLVertex>& vertices, std::vector<Face>& faces) {
     std::ifstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Failed to open file: " << filename << std::endl;
@@ -102,7 +107,7 @@ bool loadOFF(const std::string& filename, std::vector<Vertex>& vertices, std::ve
     return true;
 }
 
-GLuint createModel(const std::vector<Vertex>& vertices, const std::vector<Face>& faces) {
+GLuint createModel(const std::vector<GLVertex>& vertices, const std::vector<Face>& faces) {
     GLuint vao, vbo, ebo;
     std::vector<unsigned int> indices;
 
@@ -146,15 +151,15 @@ GLuint createModel(const std::vector<Vertex>& vertices, const std::vector<Face>&
     glBindVertexArray(vao);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(GLVertex), vertices.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void*)0);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -351,7 +356,7 @@ int main (int argc, char **argv)
     ImGui_ImplOpenGL3_Init("#version 330");
 
     std::string modelPath = argv[1];
-    std::vector<Vertex> vertices;
+    std::vector<GLVertex> vertices;
     std::vector<Face> faces;
 
     if (!loadOFF(modelPath, vertices, faces)) {
@@ -359,6 +364,9 @@ int main (int argc, char **argv)
     }
     GLuint vao = createModel(vertices, faces);
     size_t numIndices = faces.size() * 3;
+
+    // Load the same mesh into the raytracer's Scene (triggers singleton creation).
+    Scene::getInstance()->loadFromOFF(modelPath);
 
     GLuint shaderProgram = createShaderProgram();
     glUseProgram(shaderProgram);
@@ -424,7 +432,9 @@ int main (int argc, char **argv)
 
         // Set up matrices
         glm::mat4 projection = glm::perspective(glm::radians(fov), 600.0f / 400.0f, 0.1f, 100.0f);
-        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        // Orbit camera: always look at the target, regardless of cameraFront.
+        cameraFront = glm::normalize(cameraTarget - cameraPos);
+        glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
         glm::mat4 model = glm::mat4(1.0f);
 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -445,10 +455,77 @@ int main (int argc, char **argv)
         ImGui::SetNextWindowSize(ImVec2(730, 460), ImGuiCond_Always);
         ImGuiWindowFlags rt_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
         ImGui::Begin("Raytracer", nullptr, rt_flags);
-        ImGui::Text("Raytracer rendering will go here");
-        if (ImGui::Button("Render Scene")) {
-            ImGui::Text("Rendering...");
+
+        static GLuint rtTexture = 0;
+        static int rtWidth = 0, rtHeight = 0;
+        static float rtLastSeconds = 0.0f;
+        static int rtResolution = 256;  // square render target; cheap by default
+        static int rtDebugMode = (int)RayTracer::DebugMode::AMBIENT;
+        static float rtDepthRange = 10.0f;
+
+        ImGui::SliderInt("Resolution", &rtResolution, 64, 1024);
+        const char* debugLabels[] = {"LIT (stubbed)", "AMBIENT", "HIT_MASK", "NORMALS", "DEPTH", "OBJECT_ID"};
+        ImGui::Combo("Debug mode", &rtDebugMode, debugLabels, IM_ARRAYSIZE(debugLabels));
+        if ((RayTracer::DebugMode)rtDebugMode == RayTracer::DebugMode::DEPTH) {
+            ImGui::SliderFloat("Depth range", &rtDepthRange, 0.5f, 50.0f);
         }
+        if (ImGui::Button("Render Scene")) {
+            // Build camera basis from the GL viewer camera.
+            glm::vec3 dir = glm::normalize(cameraFront);
+            glm::vec3 up = glm::normalize(cameraUp);
+            glm::vec3 right = glm::normalize(glm::cross(dir, up));
+            // Re-orthogonalize up in case cameraUp drifted.
+            up = glm::normalize(glm::cross(right, dir));
+
+            const float aspect = 1.0f;
+            const int W = rtResolution, H = rtResolution;
+
+            auto toVec3Df = [](const glm::vec3& v) { return Vec3Df(v.x, v.y, v.z); };
+
+            RayTracer* rt = RayTracer::getInstance();
+            rt->setDebugMode((RayTracer::DebugMode)rtDebugMode);
+            rt->setDepthRange(rtDepthRange);
+
+            clock_t t0 = clock();
+            Image img = rt->render(
+                toVec3Df(cameraPos),
+                toVec3Df(dir),
+                toVec3Df(up),
+                toVec3Df(right),
+                glm::radians(fov),
+                aspect,
+                W, H);
+            rtLastSeconds = (float)(clock() - t0) / CLOCKS_PER_SEC;
+
+            if (rtTexture == 0) {
+                glGenTextures(1, &rtTexture);
+            }
+            glBindTexture(GL_TEXTURE_2D, rtTexture);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            if (rtWidth != W || rtHeight != H) {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, W, H, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data());
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                rtWidth = W;
+                rtHeight = H;
+            } else {
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGB, GL_UNSIGNED_BYTE, img.data());
+            }
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        if (rtTexture != 0) {
+            ImGui::SameLine();
+            ImGui::Text("%dx%d in %.2fs", rtWidth, rtHeight, rtLastSeconds);
+            const float displaySize = 400.0f;
+            ImGui::Image((ImTextureID)(intptr_t)rtTexture, ImVec2(displaySize, displaySize));
+        } else {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(no render yet)");
+        }
+
         ImGui::End();
 
         // Camera Controls Panel - Fixed position and size

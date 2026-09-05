@@ -54,6 +54,18 @@ void Scene::setOFFFilename (const std::string& filename){
     offFilename = filename;
 }
 
+void Scene::loadFromOFF (const std::string& filename) {
+    offFilename = filename;
+    objects.clear();
+    Mesh mesh;
+    mesh.loadOFF(filename);
+    Material mat(1.f, 1.f, Vec3Df(1.f, .6f, .2f));
+    KdTree kdTree(mesh, 0, 300);
+    Object obj(mesh, mat, kdTree);
+    objects.push_back(obj);
+    updateBoundingBox();
+}
+
 void Scene::buildDefaultScene () {
     Mesh ramMesh;
     ramMesh.loadOFF (offFilename);

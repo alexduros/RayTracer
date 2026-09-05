@@ -50,6 +50,10 @@ class Scene {
         inline const std::string& getOFFFilename () const { return offFilename; }
         void setOFFFilename (const std::string& filename);
 
+        // Replace the scene's meshes with a single object loaded from `filename`.
+        // Lights are kept; bounding box is recomputed.
+        void loadFromOFF (const std::string& filename);
+
     protected:
         Scene ();
         virtual ~Scene ();
