@@ -52,12 +52,14 @@ resolve to `models/`.
 
 Viewer controls:
 
-- Model picker (Controls panel) lists every `.off` in `models/`; choosing one
-  reloads the scene and re-frames the camera. Starts on the teapot unless a
-  path is given on the command line.
-- Left-drag in the preview to orbit, scroll to zoom, FOV slider, Reset Camera.
-- Raytracer panel: resolution, mode (Lit, Ambient, Hit mask, Normals, Depth,
-  Object id), Render Scene, Save PNG (into `renders/`).
+- Controls panel, four sections: Model (picker over every `.off` in
+  `models/`, mesh stats), Camera (FOV, position, target, Reset), Preview
+  (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
+  Hit mask, Normals, Depth, Object id; depth range in Depth mode).
+- Left-drag in the preview to orbit, scroll to zoom.
+- Raytracer panel: Render Scene, Save PNG (into `renders/`), timing and hit
+  ratio, then the image. Starts on the teapot unless a path is given on the
+  command line.
 
 ## Test
 

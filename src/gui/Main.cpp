@@ -15,7 +15,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cfloat>
 #include <cmath>
+#include <cstdarg>
 #include <cstddef>
 #include <cstdio>
 #include <exception>
@@ -45,6 +47,13 @@ constexpr int kWindowWidth = 1400;
 constexpr int kWindowHeight = 800;
 constexpr int kViewportWidth = 600;
 constexpr int kViewportHeight = 400;
+// Shared by the GL projection and the raytracer camera so both frame the same view.
+constexpr float kViewportAspect = static_cast<float>(kViewportWidth) / kViewportHeight;
+
+// Render height that keeps square pixels at the preview's aspect.
+int renderHeightFor(int width) {
+    return std::max(1, static_cast<int>(width / kViewportAspect + 0.5f));
+}
 
 struct GLVertex {
     float x, y, z;     // position
@@ -305,6 +314,32 @@ void uploadTexture(GLuint& texture, int& texW, int& texH, const Image& img) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+// ---- controls-panel helpers --------------------------------------------------
+// Each section of the Controls panel is a table column; inside it every row is
+// "muted label on the left, value or widget aligned at kLabelWidth", so all
+// sections read the same way.
+constexpr float kLabelWidth = 84.f;
+
+void rowLabel(const char* label) {
+    ImGui::TextDisabled("%s", label);
+    ImGui::SameLine(kLabelWidth);
+}
+
+void rowValue(const char* label, const char* fmt, ...) IM_FMTARGS(2);
+void rowValue(const char* label, const char* fmt, ...) {
+    rowLabel(label);
+    va_list args;
+    va_start(args, fmt);
+    ImGui::TextV(fmt, args);
+    va_end(args);
+}
+
+// Label followed by a widget that fills the rest of the row.
+void rowWidget(const char* label) {
+    rowLabel(label);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+}
+
 const char* kModeLabels[] = {"Lit (Lambert)", "Ambient", "Hit mask", "Normals", "Depth", "Object id"};
 const char* kModeSlugs[] = {"lit", "ambient", "hitmask", "normals", "depth", "objectid"};
 
@@ -407,6 +442,7 @@ int main(int argc, char** argv) {
     float rtDepthNear = 0.f, rtDepthFar = 10.f;  // set per model by loadModel
     std::string lastSavedPath;
     bool wireframe = false;
+    bool cullBackFaces = true;  // off helps with OFF files whose winding is inconsistent
 
     // Scene / model state. The picker in the Controls panel swaps models at
     // runtime, so everything derived from the mesh is rebuilt by loadModel.
@@ -491,11 +527,14 @@ int main(int argc, char** argv) {
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+        if (cullBackFaces)
+            glEnable(GL_CULL_FACE);
+        else
+            glDisable(GL_CULL_FACE);
         glUseProgram(shaderProgram);
 
         cameraFront = glm::normalize(cameraTarget - cameraPos);
-        const float viewportAspect = static_cast<float>(kViewportWidth) / kViewportHeight;
-        const glm::mat4 projection = glm::perspective(glm::radians(fov), viewportAspect, 0.01f * initialDistance, 100.f * initialDistance);
+        const glm::mat4 projection = glm::perspective(glm::radians(fov), kViewportAspect, 0.01f * initialDistance, 100.f * initialDistance);
         const glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
         const glm::mat4 model(1.f);
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -525,22 +564,17 @@ int main(int argc, char** argv) {
         ImGui::SetNextWindowSize(ImVec2(730, 460), ImGuiCond_Always);
         ImGui::Begin("Raytracer", nullptr, panelFlags);
 
-        ImGui::SliderInt("Resolution", &rtResolution, 64, 1024);
-        ImGui::Combo("Mode", &rtMode, kModeLabels, IM_ARRAYSIZE(kModeLabels));
-        if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
-            ImGui::SliderFloat("Depth near", &rtDepthNear, 0.f, 10.f * initialDistance);
-            ImGui::SliderFloat("Depth far", &rtDepthFar, 0.f, 10.f * initialDistance);
-        }
-
+        // Settings live in the Render section of the Controls panel; this
+        // panel holds the actions and the result.
         if (ImGui::Button("Render Scene")) {
             auto toVec3Df = [](const glm::vec3& v) { return Vec3Df(v.x, v.y, v.z); };
             // Match the GL preview exactly: same eye/target/up, same vertical
             // fov and the same aspect ratio, so the framing is identical. The
             // resolution slider sets the width; the height follows the aspect.
             const int renderW = rtResolution;
-            const int renderH = std::max(1, static_cast<int>(rtResolution / viewportAspect + 0.5f));
+            const int renderH = renderHeightFor(rtResolution);
             const Camera camera = Camera::lookAt(toVec3Df(cameraPos), toVec3Df(cameraTarget), toVec3Df(cameraUp),
-                                                 glm::radians(fov), viewportAspect);
+                                                 glm::radians(fov), kViewportAspect);
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
             rt.setDepthRange(rtDepthNear, rtDepthFar);
             lastRender = rt.render(scene, camera, renderW, renderH);
@@ -585,46 +619,86 @@ int main(int argc, char** argv) {
         ImGui::SetNextWindowPos(ImVec2(10, 500), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(1370, 280), ImGuiCond_Always);
         ImGui::Begin("Controls", nullptr, panelFlags);
-        ImGui::Columns(3, "ControlColumns", true);
+        // Four sections, one per thing a setting affects: the model, the camera
+        // both views share, the GL preview, and the raytraced render. Sections
+        // are separated by vertical rules and read as "label | value" rows.
+        const ImGuiTableFlags sectionFlags = ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerV |
+                                             ImGuiTableFlags_PadOuterX | ImGuiTableFlags_NoSavedSettings;
+        if (ImGui::BeginTable("sections", 4, sectionFlags)) {
+            ImGui::TableSetupColumn("Model", ImGuiTableColumnFlags_WidthStretch, 1.2f);
+            ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn("Preview", ImGuiTableColumnFlags_WidthStretch, 0.7f);
+            ImGui::TableSetupColumn("Render", ImGuiTableColumnFlags_WidthStretch, 1.1f);
+            ImGui::TableNextRow();
 
-        ImGui::Text("Camera");
-        ImGui::Separator();
-        ImGui::SliderFloat("FOV", &fov, 10.0f, 120.0f);
-        ImGui::Text("Position: %.2f, %.2f, %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
-        ImGui::Text("Target:   %.2f, %.2f, %.2f", cameraTarget.x, cameraTarget.y, cameraTarget.z);
-        ImGui::TextDisabled("Left-drag in the viewer to orbit, scroll to zoom.");
-        if (ImGui::Button("Reset Camera")) resetCamera();
-        ImGui::NextColumn();
-
-        ImGui::Text("Preview");
-        ImGui::Separator();
-        ImGui::Checkbox("Wireframe", &wireframe);
-        ImGui::NextColumn();
-
-        ImGui::Text("Model");
-        ImGui::Separator();
-        if (modelNames.empty()) {
-            ImGui::TextDisabled("(no models directory found)");
-        } else {
-            // Picker over every .off in the models directory. If a load fails
-            // modelIndex is untouched, so the combo snaps back next frame.
-            std::vector<const char*> names;
-            names.reserve(modelNames.size());
-            for (const std::string& n : modelNames) names.push_back(n.c_str());
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            int pick = modelIndex;
-            if (ImGui::Combo("##model", &pick, names.data(), static_cast<int>(names.size())) && pick >= 0 &&
-                pick != modelIndex) {
-                loadModel(modelPaths[static_cast<size_t>(pick)].string());
+            // ---- Model ----
+            ImGui::TableNextColumn();
+            ImGui::SeparatorText("Model");
+            if (modelNames.empty()) {
+                ImGui::TextDisabled("(no models directory found)");
+            } else {
+                // Picker over every .off in the models directory. If a load fails
+                // modelIndex is untouched, so the combo snaps back next frame.
+                std::vector<const char*> names;
+                names.reserve(modelNames.size());
+                for (const std::string& n : modelNames) names.push_back(n.c_str());
+                rowWidget("File");
+                int pick = modelIndex;
+                if (ImGui::Combo("##model", &pick, names.data(), static_cast<int>(names.size())) && pick >= 0 &&
+                    pick != modelIndex) {
+                    loadModel(modelPaths[static_cast<size_t>(pick)].string());
+                }
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", modelPath.c_str());
             }
+            if (!loadError.empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
+                ImGui::TextWrapped("%s", loadError.c_str());
+                ImGui::PopStyleColor();
+            }
+            {
+                const Mesh& mesh = scene.getObjects()[0].getMesh();
+                const BoundingBox& bbox = scene.getBoundingBox();
+                rowValue("Vertices", "%zu", mesh.getVertices().size());
+                rowValue("Triangles", "%zu", mesh.getTriangles().size());
+                rowValue("Bounds", "%.2f x %.2f x %.2f", bbox.getWidth(), bbox.getHeight(), bbox.getLength());
+            }
+
+            // ---- Camera ----
+            ImGui::TableNextColumn();
+            ImGui::SeparatorText("Camera");
+            rowWidget("FOV");
+            ImGui::SliderFloat("##fov", &fov, 10.0f, 120.0f, "%.0f deg");
+            rowValue("Position", "%.2f, %.2f, %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
+            rowValue("Target", "%.2f, %.2f, %.2f", cameraTarget.x, cameraTarget.y, cameraTarget.z);
+            rowValue("Distance", "%.2f", glm::length(cameraPos - cameraTarget));
+            if (ImGui::Button("Reset Camera")) resetCamera();
+
+            // ---- Preview ----
+            ImGui::TableNextColumn();
+            ImGui::SeparatorText("Preview");
+            ImGui::Checkbox("Wireframe", &wireframe);
+            ImGui::Checkbox("Cull back faces", &cullBackFaces);
+            ImGui::Spacing();
+            ImGui::TextDisabled("Left-drag to orbit");
+            ImGui::TextDisabled("Scroll to zoom");
+
+            // ---- Render ----
+            ImGui::TableNextColumn();
+            ImGui::SeparatorText("Render");
+            rowWidget("Width");
+            ImGui::SliderInt("##width", &rtResolution, 64, 1024, "%d px");
+            rowValue("Output", "%d x %d px", rtResolution, renderHeightFor(rtResolution));
+            rowWidget("Mode");
+            ImGui::Combo("##mode", &rtMode, kModeLabels, IM_ARRAYSIZE(kModeLabels));
+            if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
+                rowWidget("Near");
+                ImGui::SliderFloat("##near", &rtDepthNear, 0.f, 10.f * initialDistance, "%.2f");
+                rowWidget("Far");
+                ImGui::SliderFloat("##far", &rtDepthFar, 0.f, 10.f * initialDistance, "%.2f");
+            }
+
+            ImGui::EndTable();
         }
-        if (!loadError.empty()) ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s", loadError.c_str());
-        const Mesh& mesh = scene.getObjects()[0].getMesh();
-        ImGui::TextWrapped("%s", modelPath.c_str());
-        ImGui::Text("Vertices:  %zu", mesh.getVertices().size());
-        ImGui::Text("Triangles: %zu", mesh.getTriangles().size());
-        ImGui::Text("Size:      %.3f", scene.getBoundingBox().getSize());
-        ImGui::Columns(1);
         ImGui::End();
 
         // ---- present ------------------------------------------------------------
