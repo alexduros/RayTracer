@@ -400,7 +400,11 @@ int main(int argc, char** argv) {
         ImGui::SetNextWindowPos(ImVec2(10, 20), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(620, 460), ImGuiCond_Always);
         ImGui::Begin("OpenGL Viewer", nullptr, panelFlags);
-        ImGui::Image(static_cast<ImTextureID>(viewportTexture), ImVec2(kViewportWidth, kViewportHeight));
+        // A framebuffer texture stores its first row at the bottom of the scene,
+        // so flip V (uv0 = top-left = 0,1) to show the preview upright, matching
+        // the raytraced panel.
+        ImGui::Image(static_cast<ImTextureID>(viewportTexture), ImVec2(kViewportWidth, kViewportHeight),
+                     ImVec2(0, 1), ImVec2(1, 0));
         viewerHovered = ImGui::IsItemHovered();
         ImGui::End();
 
@@ -418,12 +422,16 @@ int main(int argc, char** argv) {
 
         if (ImGui::Button("Render Scene")) {
             auto toVec3Df = [](const glm::vec3& v) { return Vec3Df(v.x, v.y, v.z); };
-            // Same eye/target/up as the GL preview; square output so aspect = 1.
+            // Match the GL preview exactly: same eye/target/up, same vertical
+            // fov and the same aspect ratio, so the framing is identical. The
+            // resolution slider sets the width; the height follows the aspect.
+            const int renderW = rtResolution;
+            const int renderH = std::max(1, static_cast<int>(rtResolution / viewportAspect + 0.5f));
             const Camera camera = Camera::lookAt(toVec3Df(cameraPos), toVec3Df(cameraTarget), toVec3Df(cameraUp),
-                                                 glm::radians(fov), 1.f);
+                                                 glm::radians(fov), viewportAspect);
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
             rt.setDepthRange(rtDepthNear, rtDepthFar);
-            lastRender = rt.render(scene, camera, rtResolution, rtResolution);
+            lastRender = rt.render(scene, camera, renderW, renderH);
             uploadTexture(rtTexture, rtTexW, rtTexH, lastRender);
             lastSavedPath.clear();
         }
@@ -444,7 +452,17 @@ int main(int argc, char** argv) {
                 ImGui::SameLine();
                 ImGui::TextDisabled("%s", lastSavedPath.c_str());
             }
-            ImGui::Image(static_cast<ImTextureID>(rtTexture), ImVec2(400, 400));
+            // Fit the render into the panel without stretching (its rect keeps
+            // the rendered image's aspect, which is the preview's aspect).
+            const ImVec2 avail = ImGui::GetContentRegionAvail();
+            const float imgAspect = static_cast<float>(rtTexW) / static_cast<float>(rtTexH);
+            float dispW = avail.x;
+            float dispH = dispW / imgAspect;
+            if (dispH > avail.y) {
+                dispH = avail.y;
+                dispW = dispH * imgAspect;
+            }
+            ImGui::Image(static_cast<ImTextureID>(rtTexture), ImVec2(dispW, dispH));
         } else {
             ImGui::SameLine();
             ImGui::TextDisabled("(no render yet)");
