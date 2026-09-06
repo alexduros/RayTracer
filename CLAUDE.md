@@ -55,8 +55,17 @@ build/raymini-cli --help
 - `Camera::primaryRay` -> `RayTracer::closestHit` (brute force over every
   triangle of every object, back faces culled) -> `RayTracer::shade` by mode.
 - Modes: `lit` (Lambert: ambient + sum over lights of diffuse * max(0, n.l);
-  no shadows, no specular), `ambient`, `hitmask`, `normals`, `depth`,
-  `objectid`.
+  no shadows, no specular), `ambient`, `hitmask`, `normals`, `depth`
+  (z-buffer grey: white near, dark grey far, black = miss), `objectid`
+  (golden-ratio hue palette by object index). `RayTracer::info(mode)` holds
+  each mode's name, principle, how to read it and its reference; the GUI
+  shows it under the render, the CLI in `--help`, the README in a table.
+  Keep the three in sync when adding a mode.
+- Anti-aliasing: `RayTracer::setAntiAliasing(n, jitter)` traces n x n rays
+  per pixel; jitter is seeded per pixel (`std::minstd_rand` raw output, no
+  distribution) so it is reproducible and identical across tile orders,
+  threads and platforms. Default 1 in the core and CLI (`--aa n --jitter`),
+  2x2 in the GUI. Stats count rays (sub-samples), not pixels.
 - `RenderJob` traces on one worker thread, tile by tile (32 px), publishing
   each finished tile under a mutex; the GUI shows the partial image with a
   progress bar and can cancel, the CLI prints a percentage on a terminal.

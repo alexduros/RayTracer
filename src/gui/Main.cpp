@@ -351,8 +351,22 @@ void rowWidget(const char* label) {
     ImGui::SetNextItemWidth(-FLT_MIN);
 }
 
-const char* kModeLabels[] = {"Lit (Lambert)", "Ambient", "Hit mask", "Normals", "Depth", "Object id"};
-const char* kModeSlugs[] = {"lit", "ambient", "hitmask", "normals", "depth", "objectid"};
+// "(?)" that explains a setting on hover, from the core's ModeInfo table.
+void helpMarker(const RayTracer::ModeInfo& info) {
+    ImGui::TextDisabled("(?)");
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.f);
+        ImGui::TextUnformatted(info.name);
+        ImGui::Separator();
+        ImGui::TextUnformatted(info.principle);
+        ImGui::Spacing();
+        ImGui::TextUnformatted(info.reading);
+        ImGui::Spacing();
+        ImGui::TextDisabled("%s", info.reference);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
 
 }  // namespace
 
@@ -468,6 +482,13 @@ int main(int argc, char** argv) {
     int rtTexW = 0, rtTexH = 0;
     int rtResolution = 256;
     int rtMode = static_cast<int>(RayTracer::DebugMode::LIT);
+    int rtAA = 2;            // rays per pixel axis: 2 -> 4 rays per pixel
+    bool rtJitter = false;
+    int lastRenderSamples = 1;  // rays per pixel of the render being shown
+    const char* modeLabels[RayTracer::kModeCount];
+    for (int i = 0; i < RayTracer::kModeCount; ++i) {
+        modeLabels[i] = RayTracer::info(static_cast<RayTracer::DebugMode>(i)).name;
+    }
     float rtDepthNear = 0.f, rtDepthFar = 10.f;  // set per model by loadModel
     std::string lastSavedPath;
     bool wireframe = false;
@@ -500,10 +521,10 @@ int main(int argc, char** argv) {
         destroyModel(glModel);
         glModel = createModel(scene);
         frameModel(scene.getBoundingBox());
-        // Depth mode defaults: the model spans initialDistance +- size from the camera.
+        // Depth mode defaults bracket the bounding box as seen from the camera.
         const float modelSize = scene.getBoundingBox().getSize();
-        rtDepthNear = std::max(0.f, initialDistance - modelSize);
-        rtDepthFar = initialDistance + modelSize;
+        rtDepthNear = std::max(0.f, initialDistance - 0.5f * modelSize);
+        rtDepthFar = initialDistance + 0.5f * modelSize;
         renderJob.reset();  // a render of the previous model is meaningless now
         lastRender = Image();
         lastRenderCancelled = false;
@@ -638,6 +659,7 @@ int main(int argc, char** argv) {
                                                  glm::radians(fov), kViewportAspect);
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
             rt.setDepthRange(rtDepthNear, rtDepthFar);
+            rt.setAntiAliasing(static_cast<unsigned int>(rtAA), rtJitter);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
             renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f));
@@ -645,6 +667,7 @@ int main(int argc, char** argv) {
             lastUploadedTiles = 0;
             lastRender = Image();
             lastRenderMode = rtMode;
+            lastRenderSamples = rtAA * rtAA;
             lastRenderCancelled = false;
             lastSavedPath.clear();
             uploadTexture(rtTexture, rtTexW, rtTexH, renderJob->snapshot());  // pending fill
@@ -672,34 +695,51 @@ int main(int argc, char** argv) {
             std::snprintf(label, sizeof(label), "%.0f%%  %.1f s", 100.f * renderJob->progress(),
                           renderJob->elapsedSeconds());
             ImGui::ProgressBar(renderJob->progress(), ImVec2(-FLT_MIN, 0.f), label);
-            showRenderImage();
         } else if (lastRender.isValid()) {
             ImGui::SameLine();
             if (ImGui::Button("Save PNG")) {
                 std::filesystem::create_directories("renders");
                 char name[128];
-                std::snprintf(name, sizeof(name), "renders/render_%s_%dx%d.png", kModeSlugs[lastRenderMode], rtTexW,
+                std::snprintf(name, sizeof(name), "renders/render_%s_%dx%d.png",
+                              RayTracer::info(static_cast<RayTracer::DebugMode>(lastRenderMode)).slug, rtTexW,
                               rtTexH);
                 lastSavedPath = lastRender.save(name) ? name : "save failed";
             }
             ImGui::SameLine();
             if (lastRenderCancelled) {
-                // Stats only cover published tiles, so rays / pixels is the share done.
+                // Stats only cover published tiles: rays / (pixels x rays per pixel) is the share done.
                 ImGui::Text("%dx%d cancelled after %.2fs (%.0f%% done)", rtTexW, rtTexH, lastStats.seconds,
-                            100.0 * static_cast<double>(lastStats.rays) / (static_cast<double>(rtTexW) * rtTexH));
+                            100.0 * static_cast<double>(lastStats.rays) /
+                                (static_cast<double>(rtTexW) * rtTexH * lastRenderSamples));
             } else {
-                ImGui::Text("%dx%d in %.2fs, %.0f%% hits", rtTexW, rtTexH, lastStats.seconds,
+                ImGui::Text("%dx%d, %d ray%s/px, %.2fs, %.0f%% hits", rtTexW, rtTexH, lastRenderSamples,
+                            lastRenderSamples == 1 ? "" : "s", lastStats.seconds,
                             lastStats.rays ? 100.0 * lastStats.hits / lastStats.rays : 0.0);
             }
             if (!lastSavedPath.empty()) {
                 ImGui::SameLine();
                 ImGui::TextDisabled("%s", lastSavedPath.c_str());
             }
-            showRenderImage();
         } else {
             ImGui::SameLine();
             ImGui::TextDisabled("(no render yet)");
         }
+
+        // What the picture means: the mode shown (or about to be), how to read
+        // it, and the study it comes from. Every mode explains itself.
+        {
+            const bool showingRender = renderJob || lastRender.isValid();
+            const int shownMode = showingRender ? lastRenderMode : rtMode;
+            const RayTracer::ModeInfo& info = RayTracer::info(static_cast<RayTracer::DebugMode>(shownMode));
+            ImGui::Separator();
+            ImGui::TextWrapped("%s. %s", info.name, info.principle);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
+            ImGui::TextWrapped("How to read it: %s", info.reading);
+            ImGui::TextWrapped("Reference: %s", info.reference);
+            ImGui::PopStyleColor();
+            ImGui::Separator();
+        }
+        if (renderJob || lastRender.isValid()) showRenderImage();
         ImGui::End();
 
         // ---- controls ---------------------------------------------------------
@@ -781,7 +821,17 @@ int main(int argc, char** argv) {
             ImGui::SliderInt("##width", &rtResolution, 64, 1024, "%d px");
             rowValue("Output", "%d x %d px", rtResolution, renderHeightFor(rtResolution));
             rowWidget("Mode");
-            ImGui::Combo("##mode", &rtMode, kModeLabels, IM_ARRAYSIZE(kModeLabels));
+            ImGui::Combo("##mode", &rtMode, modeLabels, RayTracer::kModeCount);
+            rowWidget("Anti-alias");
+            {
+                const char* aaLabels[] = {"Off (1 ray/px)", "2x2 (4 rays/px)", "3x3 (9 rays/px)", "4x4 (16 rays/px)"};
+                int aaIndex = std::clamp(rtAA, 1, 4) - 1;
+                if (ImGui::Combo("##aa", &aaIndex, aaLabels, IM_ARRAYSIZE(aaLabels))) rtAA = aaIndex + 1;
+            }
+            rowLabel("Jitter");
+            ImGui::Checkbox("##jitter", &rtJitter);
+            ImGui::SameLine();
+            helpMarker(RayTracer::antiAliasingInfo());
             if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
                 rowWidget("Near");
                 ImGui::SliderFloat("##near", &rtDepthNear, 0.f, 10.f * initialDistance, "%.2f");

@@ -88,6 +88,24 @@ TEST_CASE("renderjob: same pixels and statistics as RayTracer::render for any ti
     }
 }
 
+TEST_CASE("renderjob: jittered anti-aliasing does not depend on tile order") {
+    // The jitter seed is per pixel, so tiles (and later threads) must give the
+    // same picture as the synchronous render.
+    const Scene scene = teapotScene();
+    const Camera camera = frameOf(scene);
+    RayTracer rt;
+    rt.setAntiAliasing(2, true);
+    const Image reference = rt.render(scene, camera, 64, 48);
+    RenderJob job(rt, scene, camera, 64, 48, 24);
+    job.start();
+    job.wait();
+    const Image img = job.snapshot();
+    REQUIRE(img.sizeInBytes() == reference.sizeInBytes());
+    CHECK(std::memcmp(img.data(), reference.data(), img.sizeInBytes()) == 0);
+    CHECK_EQ(job.stats().rays, rt.getLastStats().rays);
+    CHECK_EQ(job.stats().rays, 64ul * 48ul * 4ul);
+}
+
 TEST_CASE("renderjob: pending colour fills the image until tiles land") {
     const Scene scene = teapotScene();
     RayTracer rt;

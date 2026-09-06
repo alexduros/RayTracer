@@ -84,8 +84,8 @@ TEST_CASE("render: depth mode and closest object across objects") {
     rt.setDebugMode(RayTracer::DebugMode::DEPTH);
     rt.setDepthRange(1.f, 3.f);
     const Image img = rt.render(s, frontCamera(1.f), 32, 32);
-    CHECK_EQ(px(img, 16, 16), (RGB{0, 0, 255}));    // distance 1 -> t = 0 -> blue
-    CHECK_EQ(px(img, 0, 0), (RGB{255, 0, 0}));      // far quad, distance > 3 -> clamped -> red
+    CHECK_EQ(px(img, 16, 16), (RGB{255, 255, 255}));  // distance 1 -> t = 0 -> white (near)
+    CHECK_EQ(px(img, 0, 0), (RGB{51, 51, 51}));       // far quad, distance > 3 -> clamped -> dark grey
     CHECK_CLOSE(rt.getLastStats().minHitDist, 1.f, 1e-3);
 }
 

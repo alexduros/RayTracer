@@ -8,6 +8,8 @@
 #ifndef RAYTRACER_H
 #define RAYTRACER_H
 
+#include <algorithm>
+
 #include "Vec3D.h"
 #include "Camera.h"
 #include "Ray.h"
@@ -56,7 +58,34 @@ public:
         Vertex vertex;          // interpolated position / normal
     };
 
+    /// What a mode computes, how to read the picture, and the study it comes
+    /// from. Shared by the GUI, the CLI and the docs so every mode explains
+    /// itself instead of looking arbitrary.
+    struct ModeInfo {
+        const char * slug;       // command-line name
+        const char * name;       // label shown in the UI
+        const char * principle;  // what is computed
+        const char * reading;    // how to interpret the colours
+        const char * reference;  // the paper, thesis or book chapter
+    };
+    static constexpr int kModeCount = 6;
+    static const ModeInfo & info (DebugMode mode);
+    /// Same account for anti-aliasing, which is a setting rather than a mode.
+    static const ModeInfo & antiAliasingInfo ();
+
     RayTracer () {}
+
+    /// Anti-aliasing: samplesPerAxis x samplesPerAxis primary rays per pixel
+    /// on a regular sub-pixel grid (1 = one ray through the pixel centre),
+    /// averaged in linear colour. With `jitter` each ray is offset randomly
+    /// inside its grid cell using a seed derived from the pixel, so the
+    /// picture is reproducible and independent of tile order or threads.
+    inline void setAntiAliasing (unsigned int samplesPerAxis, bool jitter) {
+        aaSamplesPerAxis = std::max (1u, samplesPerAxis);
+        aaJitter = jitter;
+    }
+    inline unsigned int getAntiAliasingSamplesPerAxis () const { return aaSamplesPerAxis; }
+    inline bool getAntiAliasingJitter () const { return aaJitter; }
 
     inline void setDebugMode (DebugMode m) { debugMode = m; }
     inline DebugMode getDebugMode () const { return debugMode; }
@@ -99,6 +128,8 @@ private:
     float depthFar = 10.f;
     float ambientIntensity = 0.15f;
     Vec3Df backgroundColor = Vec3Df (0.f, 0.f, 0.f);
+    unsigned int aaSamplesPerAxis = 1;
+    bool aaJitter = false;
     Stats lastStats;
 };
 

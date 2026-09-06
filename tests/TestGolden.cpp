@@ -55,7 +55,8 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
 }
 
 // `model` is a bare name (".off" assumed) or a file name with its extension.
-void goldenModel(const char* model, float yawDeg, float pitchDeg) {
+// Anti-aliasing settings are encoded in the golden's name: "_aa2" / "_aa2j".
+void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int aaSamples = 1, bool jitter = false) {
     Scene scene;
     scene.addObjectsFromFile(test::modelPath(model));
     scene.addDefaultLights();
@@ -66,10 +67,13 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg) {
 
     RayTracer rt;
     rt.setDepthRange(distance - size / 2.f, distance + size / 2.f);
+    rt.setAntiAliasing(aaSamples, jitter);
+    std::string stem = std::filesystem::path(model).stem().string();
+    if (aaSamples > 1) stem += "_aa" + std::to_string(aaSamples) + (jitter ? "j" : "");
     for (const ModeSpec& m : kModes) {
         rt.setDebugMode(m.mode);
         const Image img = rt.render(scene, camera, kSize, kSize);
-        const std::string name = std::filesystem::path(model).stem().string() + "_" + m.slug + ".png";
+        const std::string name = stem + "_" + m.slug + ".png";
         const std::string goldenPath = test::goldenDir() + "/" + name;
         // Always keep what was rendered so a failure can be inspected.
         REQUIRE(img.save(test::outputDir() + "/golden_" + name));
@@ -90,3 +94,5 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg) {
 TEST_CASE("golden: teapot in every mode") { goldenModel("teapot", 25.f, 20.f); }
 TEST_CASE("golden: ram in every mode") { goldenModel("ram", -35.f, 15.f); }
 TEST_CASE("golden: cube.obj (six materials) in every mode") { goldenModel("cube.obj", 25.f, 20.f); }
+TEST_CASE("golden: teapot with 2x2 supersampling") { goldenModel("teapot", 25.f, 20.f, 2, false); }
+TEST_CASE("golden: teapot with 2x2 jittered supersampling") { goldenModel("teapot", 25.f, 20.f, 2, true); }

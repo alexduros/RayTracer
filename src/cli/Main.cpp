@@ -35,7 +35,8 @@
 
 namespace {
 
-const char* kUsage = R"(Usage: raymini-cli <model.off|model.obj> [options]
+void printUsage(std::ostream& out) {
+    out << R"(Usage: raymini-cli <model.off|model.obj> [options]
 
 A bare name such as "teapot" or "cube" resolves to the bundled models/ directory.
 OBJ files load their MTL materials (one object per material).
@@ -44,7 +45,9 @@ Options:
   --out <file.png>       output path, parent directories are created
                          (default renders/<model>_<mode>.png)
   --size <W>x<H>         image size (default 256x256)
-  --mode <mode>          lit | ambient | hitmask | normals | depth | objectid (default lit)
+  --mode <mode>          one of the modes below (default lit)
+  --aa <n>               anti-aliasing: n x n rays per pixel, 1..8 (default 1 = off)
+  --jitter               jitter the anti-aliasing rays inside their cells
   --fov <deg>            vertical field of view (default 45)
   --yaw <deg>            orbit around the model about +Y (default 0: camera on +Z)
   --pitch <deg>          orbit elevation, -89..89 (default 0)
@@ -52,7 +55,22 @@ Options:
   --depth <near> <far>   depth-mode range in world units (default: model extent)
   --quiet                only print errors
   -h, --help             this text
+
+Modes (what each one computes, how to read it, and where it comes from):
 )";
+    for (int i = 0; i < RayTracer::kModeCount; ++i) {
+        const RayTracer::ModeInfo& m = RayTracer::info(static_cast<RayTracer::DebugMode>(i));
+        out << "  " << m.slug << "  " << m.name << "\n"
+            << "      " << m.principle << "\n"
+            << "      Read: " << m.reading << "\n"
+            << "      Ref:  " << m.reference << "\n";
+    }
+    const RayTracer::ModeInfo& aa = RayTracer::antiAliasingInfo();
+    out << "\n--aa / --jitter  " << aa.name << "\n"
+        << "      " << aa.principle << "\n"
+        << "      Read: " << aa.reading << "\n"
+        << "      Ref:  " << aa.reference << "\n";
+}
 
 struct Options {
     std::string model;
@@ -64,18 +82,16 @@ struct Options {
     float yaw = 0.f, pitch = 0.f;
     float distance = 2.f;
     float depthNear = -1.f, depthFar = -1.f;  // < 0: automatic
+    unsigned int aa = 1;
+    bool jitter = false;
     bool quiet = false;
 };
 
 bool parseMode(const std::string& name, RayTracer::DebugMode& mode) {
-    using M = RayTracer::DebugMode;
-    static const struct { const char* name; M mode; } table[] = {
-        {"lit", M::LIT},         {"ambient", M::AMBIENT}, {"hitmask", M::HIT_MASK},
-        {"normals", M::NORMALS}, {"depth", M::DEPTH},     {"objectid", M::OBJECT_ID},
-    };
-    for (const auto& e : table) {
-        if (name == e.name) {
-            mode = e.mode;
+    for (int i = 0; i < RayTracer::kModeCount; ++i) {
+        const RayTracer::DebugMode m = static_cast<RayTracer::DebugMode>(i);
+        if (name == RayTracer::info(m).slug) {
+            mode = m;
             return true;
         }
     }
@@ -95,10 +111,20 @@ bool parseArgs(int argc, char** argv, Options& o) {
         const std::string a = argv[i];
         const char* v = nullptr;
         if (a == "-h" || a == "--help") {
-            std::cout << kUsage;
+            printUsage(std::cout);
             std::exit(0);
         } else if (a == "--quiet") {
             o.quiet = true;
+        } else if (a == "--jitter") {
+            o.jitter = true;
+        } else if (a == "--aa") {
+            if (!(v = value(i, "--aa"))) return false;
+            const int n = std::atoi(v);
+            if (n < 1 || n > 8) {
+                std::cerr << "--aa must be between 1 and 8\n";
+                return false;
+            }
+            o.aa = static_cast<unsigned int>(n);
         } else if (a == "--out") {
             if (!(v = value(i, "--out"))) return false;
             o.out = v;
@@ -135,7 +161,8 @@ bool parseArgs(int argc, char** argv, Options& o) {
             o.depthNear = static_cast<float>(std::atof(argv[++i]));
             o.depthFar = static_cast<float>(std::atof(argv[++i]));
         } else if (!a.empty() && a[0] == '-') {
-            std::cerr << "unknown option '" << a << "'\n" << kUsage;
+            std::cerr << "unknown option '" << a << "'\n";
+            printUsage(std::cerr);
             return false;
         } else if (o.model.empty()) {
             o.model = a;
@@ -145,7 +172,7 @@ bool parseArgs(int argc, char** argv, Options& o) {
         }
     }
     if (o.model.empty()) {
-        std::cerr << kUsage;
+        printUsage(std::cerr);
         return false;
     }
     if (o.fovDeg <= 0.f || o.fovDeg >= 180.f) {
@@ -197,6 +224,7 @@ int main(int argc, char** argv) {
 
     RayTracer rt;
     rt.setDebugMode(o.mode);
+    rt.setAntiAliasing(o.aa, o.jitter);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
         rt.setDepthRange(std::max(0.f, camDistance - 0.5f * size), camDistance + 0.5f * size);
     } else {
@@ -235,8 +263,9 @@ int main(int argc, char** argv) {
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);
-        std::printf("render  %ux%u %s in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
-                    o.width, o.height, o.modeName.c_str(), st.seconds, st.hits, st.rays,
+        std::printf("render  %ux%u %s, %u ray%s/px%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
+                    o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
+                    o.jitter ? " jittered" : "", st.seconds, st.hits, st.rays,
                     st.rays ? 100.0 * st.hits / st.rays : 0.0, st.minHitDist, st.maxHitDist);
         std::printf("wrote   %s\n", o.out.c_str());
     }

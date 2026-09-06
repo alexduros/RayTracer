@@ -66,16 +66,21 @@ private `Stats` merged at the end.
 - CLI: `--threads <n>` (0 = auto). GUI: render time drops enough to make
   "Render Scene" feel interactive on the minion.
 
-## 5. Supersampling anti-aliasing
+## 5. Supersampling anti-aliasing (done)
 
-Regular n x n sub-pixel grid and a jittered variant with a seeded per-pixel
-RNG (`std::minstd_rand` seeded from x, y, sample) so renders stay
-deterministic. Average in linear space.
+Implemented: `RayTracer::setAntiAliasing(n, jitter)` traces an n x n
+sub-pixel grid, optionally jittered with a per-pixel seed
+(`std::minstd_rand`, raw engine output so every platform agrees), averaged
+in linear colour. CLI `--aa <n> --jitter`; GUI Anti-alias / Jitter in the
+Render section (2x2 by default).
 
-- Test: an edge pixel of a quad becomes an intermediate gray (0 < value <
-  255) with 4 spp and stays 0/255 with 1 spp; interior pixels are unchanged;
-  two renders with the same seed are identical.
-- CLI: `--spp <n>`, `--jitter`.
+- Tests (`tests/TestAntiAliasing.cpp`): a pixel 25 % covered by a quad is 0
+  at 1 ray and 64 at 4x4 regular; a 50 % covered pixel is 128 (linear
+  average); interior pixels unchanged; jitter reproducible and different
+  from the grid; `tests/TestRenderJob.cpp` checks jitter is tile-order
+  independent. Goldens `teapot_aa2_*` and `teapot_aa2j_*`.
+- Left for later: adaptive sampling (only refine pixels whose sub-samples
+  disagree) and a proper reconstruction filter instead of the box average.
 
 ## 6. Soft shadows from area lights
 

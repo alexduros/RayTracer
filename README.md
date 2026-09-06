@@ -19,8 +19,10 @@ with the raytracer split into a library that builds without any GL dependency.
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
   with the raytracer, save the result as PNG.
 - Raytracer: ray/triangle intersection (brute force, back faces culled),
-  Lambert shading with point lights, and debug modes: hit mask, normals,
-  depth, object id.
+  Lambert shading with point lights, n x n supersampling with optional
+  jitter, and analysis modes (hit mask, normals, depth, object id). Every
+  mode explains itself in the UI and in `--help`, with the study it comes
+  from; see "Render modes" below.
 - CLI: render any model to a PNG, no display needed.
 - Tests: unit tests on synthetic geometry and golden-image regression on the
   teapot and ram models. CI runs them on Ubuntu and macOS.
@@ -68,6 +70,28 @@ Viewer controls:
   live while the image fills in tile by tile behind a progress bar; Cancel
   stops it. Then Save PNG (into `renders/`), timing and hit ratio. Starts on
   the teapot unless a path is given on the command line.
+
+## Render modes
+
+The same text is shown under the render in the viewer and printed by
+`raymini-cli --help`; it lives in `RayTracer::info()`.
+
+| Mode | What it computes | How to read it | Study |
+|------|------------------|----------------|-------|
+| **Lit (Lambert)** | Per light: material colour × light colour × max(0, n·l), plus a constant ambient term. No shadows, highlights or bounces yet. | Brighter where a surface faces a light. Colour is material × light, so the cyan key light tints the orange default material green. | J. H. Lambert, *Photometria* (1760); Pharr, Jakob & Humphreys, *Physically Based Rendering*, 4th ed., §9.2 |
+| **Ambient (albedo)** | The material's base colour (Kd) at the hit, unlit. | Flat silhouettes per material; checks materials and outlines, shows no shape. | Ambient term of B. T. Phong, "Illumination for Computer Generated Pictures", CACM 18(6), 1975 |
+| **Hit mask (coverage)** | White where the primary ray hits geometry, black where it escapes. | A binary silhouette; with anti-aliasing, edge pixels turn grey in proportion to coverage. | T. Porter & T. Duff, "Compositing Digital Images", SIGGRAPH 1984 |
+| **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
+| **Depth** | Eye-to-hit distance mapped between near and far: white at near, dark grey at far, black = nothing hit. | Brighter is closer; tighten near/far around the model if it is all one shade. | The z-buffer: E. Catmull, PhD thesis, University of Utah, 1974 |
+| **Object id** | One palette colour per object (per material group for OBJ). | Same colour = same object; a one-colour OFF model is expected. | The item buffer: Weghorst, Hooper & Greenberg, "Improved Computational Methods for Ray Tracing", ACM TOG 3(1), 1984 |
+
+**Anti-aliasing** (`--aa n`, `--jitter`; Anti-alias / Jitter in the viewer):
+n × n primary rays per pixel averaged in linear colour. Jitter offsets each
+ray inside its cell with a per-pixel seed, so renders stay reproducible and
+independent of tile order. One ray per pixel gives staircase edges; 2x2 or
+3x3 smooths them at 4x or 9x the cost. Whitted, "An Improved Illumination
+Model for Shaded Display", CACM 23(6), 1980; Cook, "Stochastic Sampling in
+Computer Graphics", ACM TOG 5(1), 1986.
 
 ## Test
 
