@@ -56,14 +56,18 @@ resolve to `models/`.
 
 Viewer controls:
 
-- Controls panel, four sections: Model (picker over every `.off` in
-  `models/`, mesh stats), Camera (FOV, position, target, Reset), Preview
+- The layout follows the window: resize it or go full screen and the panels
+  and the preview scale with it (the preview is re-rendered at the displayed
+  size, so it stays sharp).
+- Controls panel, four sections: Model (picker over every `.off` and `.obj`
+  in `models/`, mesh stats), Camera (FOV, position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id; depth range in Depth mode).
 - Left-drag in the preview to orbit, scroll to zoom.
-- Raytracer panel: Render Scene, Save PNG (into `renders/`), timing and hit
-  ratio, then the image. Starts on the teapot unless a path is given on the
-  command line.
+- Raytracer panel: Render Scene traces on a worker thread, so the UI stays
+  live while the image fills in tile by tile behind a progress bar; Cancel
+  stops it. Then Save PNG (into `renders/`), timing and hit ratio. Starts on
+  the teapot unless a path is given on the command line.
 
 ## Test
 

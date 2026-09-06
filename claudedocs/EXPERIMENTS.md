@@ -54,10 +54,15 @@ the existing `Ray::intersect(BoundingBox)` slab test.
 
 Split the image into 32x32 tiles, hand them out through an atomic counter to
 `std::thread::hardware_concurrency()` workers. Stats are accumulated per
-thread and merged.
+thread and merged. Most of the plumbing exists: `RenderJob` already traces
+32x32 tiles on one worker, publishes them under a mutex and exposes
+progress/cancel, and `Stats::accumulate` merges per-tile counters. What is
+left is N workers pulling tile indices from an atomic counter, each with a
+private `Stats` merged at the end.
 
-- Test: the image is byte-identical to the single-threaded render; stats
-  (rays, hits, min/max distance) match. Report the speedup in the test log.
+- Test: the image is byte-identical to `RayTracer::render()`; stats (rays,
+  hits, min/max distance) match. The one-worker version of this test is in
+  `tests/TestRenderJob.cpp`; extend it to N workers and report the speedup.
 - CLI: `--threads <n>` (0 = auto). GUI: render time drops enough to make
   "Render Scene" feel interactive on the minion.
 

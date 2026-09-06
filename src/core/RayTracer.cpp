@@ -80,32 +80,38 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & /*ray*/, const Hit & h
     }
 }
 
-Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray) {
-    lastStats.rays++;
+Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats) const {
+    stats.rays++;
     Hit hit;
     if (!closestHit (scene, ray, hit))
         return backgroundColor;
-    lastStats.hits++;
-    if (lastStats.hits == 1 || hit.distance < lastStats.minHitDist)
-        lastStats.minHitDist = hit.distance;
-    if (hit.distance > lastStats.maxHitDist)
-        lastStats.maxHitDist = hit.distance;
+    stats.hits++;
+    if (stats.hits == 1 || hit.distance < stats.minHitDist)
+        stats.minHitDist = hit.distance;
+    if (hit.distance > stats.maxHitDist)
+        stats.maxHitDist = hit.distance;
     return shade (scene, ray, hit);
+}
+
+void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
+                              unsigned int width, unsigned int height,
+                              unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1,
+                              Image & image, Stats & stats) const {
+    for (unsigned int y = y0; y < y1; y++) {
+        for (unsigned int x = x0; x < x1; x++) {
+            const Vec3Df color = trace (scene, camera.primaryRay (x, y, width, height), stats);
+            image.setPixel (x, y, toByte (color[0]), toByte (color[1]), toByte (color[2]));
+        }
+    }
 }
 
 Image RayTracer::render (const Scene & scene, const Camera & camera,
                          unsigned int width, unsigned int height) {
     Image image (width, height, Image::RGB888);
-    lastStats = Stats ();
+    Stats stats;
     const auto start = std::chrono::steady_clock::now ();
-
-    for (unsigned int y = 0; y < height; y++) {
-        for (unsigned int x = 0; x < width; x++) {
-            const Vec3Df color = trace (scene, camera.primaryRay (x, y, width, height));
-            image.setPixel (x, y, toByte (color[0]), toByte (color[1]), toByte (color[2]));
-        }
-    }
-
-    lastStats.seconds = std::chrono::duration<double> (std::chrono::steady_clock::now () - start).count ();
+    renderRegion (scene, camera, width, height, 0, 0, width, height, image, stats);
+    stats.seconds = std::chrono::duration<double> (std::chrono::steady_clock::now () - start).count ();
+    lastStats = stats;
     return image;
 }

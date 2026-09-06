@@ -34,6 +34,19 @@ public:
         float minHitDist = 0.f;
         float maxHitDist = 0.f;
         double seconds = 0.0;
+
+        /// Fold in the counters of another region (tile, thread). `seconds`
+        /// is left alone: it is wall time, not additive.
+        inline void accumulate (const Stats & other) {
+            if (other.hits) {
+                if (hits == 0 || other.minHitDist < minHitDist)
+                    minHitDist = other.minHitDist;
+                if (other.maxHitDist > maxHitDist)
+                    maxHitDist = other.maxHitDist;
+            }
+            rays += other.rays;
+            hits += other.hits;
+        }
     };
 
     /// Closest intersection of a ray with the scene.
@@ -59,13 +72,24 @@ public:
     /// Brute-force closest front-facing triangle over every object.
     bool closestHit (const Scene & scene, const Ray & ray, Hit & hit) const;
 
-    /// Color of one ray in linear [0,1] RGB (background if nothing is hit).
-    /// Updates the stats of the current render.
-    Vec3Df trace (const Scene & scene, const Ray & ray);
+    /// Color of one ray in linear [0,1] RGB (background if nothing is hit),
+    /// counting it in `stats`. Const and reentrant: safe from several threads.
+    Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats) const;
 
     /// Color for a known hit, in linear [0,1] RGB, according to the mode.
     Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit) const;
 
+    /// Trace pixels [x0, x1) x [y0, y1) of a width x height frame into `image`
+    /// (which must already have that size), accumulating `stats`. Pixels are
+    /// independent, so any partition of the frame gives the same picture; this
+    /// is what RenderJob calls per tile.
+    void renderRegion (const Scene & scene, const Camera & camera,
+                       unsigned int width, unsigned int height,
+                       unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1,
+                       Image & image, Stats & stats) const;
+
+    /// Synchronous full-frame render; the reference the tests compare against.
+    /// Records the statistics in getLastStats().
     Image render (const Scene & scene, const Camera & camera,
                   unsigned int width, unsigned int height);
 

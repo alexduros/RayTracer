@@ -57,8 +57,13 @@ build/raymini-cli --help
 - Modes: `lit` (Lambert: ambient + sum over lights of diffuse * max(0, n.l);
   no shadows, no specular), `ambient`, `hitmask`, `normals`, `depth`,
   `objectid`.
-- Single-threaded. On an M-series Mac: teapot (880 triangles) at 256x256 in
-  about 0.3 s; minion (84k triangles) at 160x160 in about 9 s.
+- `RenderJob` traces on one worker thread, tile by tile (32 px), publishing
+  each finished tile under a mutex; the GUI shows the partial image with a
+  progress bar and can cancel, the CLI prints a percentage on a terminal.
+  `RayTracer::render()` is the synchronous reference and a test asserts the
+  job's pixels and statistics are byte-identical. Still one tracing thread:
+  on an M-series Mac, teapot (880 triangles) at 256x256 in about 0.3 s;
+  minion (84k triangles) at 160x160 in about 9 s. Experiment 4 adds workers.
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.

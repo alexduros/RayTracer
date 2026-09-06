@@ -19,6 +19,8 @@ else()
   set(RAYMINI_WARNINGS -Wall -Wextra)
 endif()
 
+find_package(Threads REQUIRED)  # RenderJob renders on a std::thread
+
 if(RAYMINI_BUILD_GUI)
   find_package(OpenGL REQUIRED)
   find_package(glfw3 3.3 REQUIRED)

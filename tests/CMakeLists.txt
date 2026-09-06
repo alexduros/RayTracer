@@ -10,6 +10,7 @@ add_executable(raymini_tests
   TestRender.cpp
   TestImage.cpp
   TestObj.cpp
+  TestRenderJob.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
 target_compile_definitions(raymini_tests PRIVATE

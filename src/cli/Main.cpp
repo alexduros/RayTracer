@@ -11,12 +11,22 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#define fileno _fileno
+#else
+#include <unistd.h>
+#endif
 
 #include "Camera.h"
 #include "Image.h"
 #include "RayTracer.h"
+#include "RenderJob.h"
 #include "Scene.h"
 
 #ifndef RAYMINI_MODELS_DIR
@@ -193,8 +203,18 @@ int main(int argc, char** argv) {
         rt.setDepthRange(o.depthNear, o.depthFar);
     }
 
-    const Image image = rt.render(scene, camera, o.width, o.height);
-    const RayTracer::Stats& st = rt.getLastStats();
+    // Same tile-by-tile worker as the GUI; on a terminal, show a percentage.
+    RenderJob job(rt, scene, camera, o.width, o.height, 32);
+    const bool showProgress = !o.quiet && isatty(fileno(stderr));
+    job.start();
+    while (!job.isDone()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (showProgress) std::fprintf(stderr, "\rrendering %3.0f%%", 100.f * job.progress());
+    }
+    job.wait();
+    if (showProgress) std::fprintf(stderr, "\r                \r");
+    const Image image = job.snapshot();
+    const RayTracer::Stats st = job.stats();
 
     const auto parent = std::filesystem::path(o.out).parent_path();
     if (!parent.empty()) std::filesystem::create_directories(parent);

@@ -10,11 +10,12 @@ add_library(raymini_core STATIC
   core/ObjLoader.cpp
   core/Ray.cpp
   core/RayTracer.cpp
+  core/RenderJob.cpp
   core/Scene.cpp
   core/Triangle.cpp
   core/Vertex.cpp)
 target_include_directories(raymini_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
-target_link_libraries(raymini_core PUBLIC stb)
+target_link_libraries(raymini_core PUBLIC stb Threads::Threads)  # RenderJob runs on a std::thread
 target_compile_options(raymini_core PRIVATE ${RAYMINI_WARNINGS})
 
 # ---------------------------------------------------------------------------

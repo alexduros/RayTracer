@@ -23,6 +23,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -34,6 +35,7 @@
 #include "Image.h"
 #include "Mesh.h"
 #include "RayTracer.h"
+#include "RenderJob.h"
 #include "Scene.h"
 
 // Absolute path of the bundled models/ directory, baked in by CMake.
@@ -43,12 +45,30 @@
 
 namespace {
 
-constexpr int kWindowWidth = 1400;
+constexpr int kWindowWidth = 1400;  // initial size; the layout follows resizes and full screen
 constexpr int kWindowHeight = 800;
-constexpr int kViewportWidth = 600;
-constexpr int kViewportHeight = 400;
-// Shared by the GL projection and the raytracer camera so both frame the same view.
-constexpr float kViewportAspect = static_cast<float>(kViewportWidth) / kViewportHeight;
+constexpr int kMinWindowWidth = 900;
+constexpr int kMinWindowHeight = 600;
+// The GL preview and the raytraced render share this aspect so both frame the same view.
+constexpr float kViewportAspect = 3.f / 2.f;
+// Layout: two panels on top (preview | render), the Controls strip below.
+constexpr float kMargin = 10.f;
+constexpr float kControlsHeight = 280.f;
+constexpr float kMinTopHeight = 200.f;
+constexpr float kPreviewShare = 0.46f;  // share of the top row's width given to the preview
+
+// Largest w x h rectangle with the given aspect that fits in `avail`.
+ImVec2 fitAspect(const ImVec2& avail, float aspect) {
+    float w = std::max(1.f, avail.x);
+    float h = w / aspect;
+    if (h > avail.y) {
+        h = std::max(1.f, avail.y);
+        w = h * aspect;
+    }
+    return ImVec2(std::floor(w), std::floor(h));
+}
+// Tile edge for the background render; each finished tile is shown as it lands.
+constexpr unsigned int kRenderTileSize = 32;
 
 // Render height that keeps square pixels at the preview's aspect.
 int renderHeightFor(int width) {
@@ -378,6 +398,7 @@ int main(int argc, char** argv) {
     }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
+    glfwSetWindowSizeLimits(window, kMinWindowWidth, kMinWindowHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
     // Our callbacks are installed first; ImGui's backend chains to them.
     glfwSetCursorPosCallback(window, cursorPosCallback);
     glfwSetScrollCallback(window, scrollCallback);
@@ -407,25 +428,42 @@ int main(int argc, char** argv) {
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    // Offscreen framebuffer the GL preview is rendered into, then shown via ImGui::Image.
+    // Offscreen framebuffer the GL preview is rendered into, then shown via
+    // ImGui::Image. Its size follows the panel (ensureViewportSize), so the
+    // preview stays sharp at any window size, full screen included.
     GLuint viewportFBO, viewportTexture, depthBuffer;
+    int fboW = 0, fboH = 0;
     glGenFramebuffers(1, &viewportFBO);
     glGenTextures(1, &viewportTexture);
-    glBindTexture(GL_TEXTURE_2D, viewportTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kViewportWidth, kViewportHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindFramebuffer(GL_FRAMEBUFFER, viewportFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, viewportTexture, 0);
     glGenRenderbuffers(1, &depthBuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kViewportWidth, kViewportHeight);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    auto ensureViewportSize = [&](int w, int h) {
+        w = std::max(1, w);
+        h = std::max(1, h);
+        if (w == fboW && h == fboH) return;
+        fboW = w;
+        fboH = h;
+        glBindTexture(GL_TEXTURE_2D, viewportTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, w, h);
+        glBindFramebuffer(GL_FRAMEBUFFER, viewportFBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, viewportTexture, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    };
 
-    // Raytracer state.
+    // Raytracer state. `rt` holds the settings; a RenderJob copies them when a
+    // render starts and traces on its own thread, so the UI never blocks.
     RayTracer rt;
-    Image lastRender;
+    std::unique_ptr<RenderJob> renderJob;  // in-flight render, if any
+    unsigned int lastUploadedTiles = 0;
+    Image lastRender;  // last finished (or cancelled) render
+    RayTracer::Stats lastStats;
+    int lastRenderMode = 0;
+    bool lastRenderCancelled = false;
     GLuint rtTexture = 0;
     int rtTexW = 0, rtTexH = 0;
     int rtResolution = 256;
@@ -466,7 +504,9 @@ int main(int argc, char** argv) {
         const float modelSize = scene.getBoundingBox().getSize();
         rtDepthNear = std::max(0.f, initialDistance - modelSize);
         rtDepthFar = initialDistance + modelSize;
+        renderJob.reset();  // a render of the previous model is meaningless now
         lastRender = Image();
+        lastRenderCancelled = false;
         lastSavedPath.clear();
 
         modelIndex = -1;
@@ -516,9 +556,28 @@ int main(int argc, char** argv) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // ---- layout: follows the window, so resizing and full screen work ----
+        const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+        const ImVec2 areaPos = mainViewport->WorkPos;
+        const ImVec2 areaSize = mainViewport->WorkSize;
+        const float topHeight = std::max(kMinTopHeight, areaSize.y - kControlsHeight - 3.f * kMargin);
+        const float leftWidth = std::max(1.f, std::floor((areaSize.x - 3.f * kMargin) * kPreviewShare));
+        const float rightWidth = std::max(1.f, areaSize.x - 3.f * kMargin - leftWidth);
+        int displayW, displayH;
+        glfwGetFramebufferSize(window, &displayW, &displayH);
+        const float pixelScale = areaSize.x > 0.f ? static_cast<float>(displayW) / areaSize.x : 1.f;
+
         // ---- GL preview -----------------------------------------------------
+        ImGui::SetNextWindowPos(ImVec2(areaPos.x + kMargin, areaPos.y + kMargin), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(leftWidth, topHeight), ImGuiCond_Always);
+        ImGui::Begin("OpenGL Viewer", nullptr, panelFlags);
+        // Fit a 3:2 image in the panel and render the preview at that size in
+        // framebuffer pixels, so it is sharp on any window and any display.
+        const ImVec2 previewSize = fitAspect(ImGui::GetContentRegionAvail(), kViewportAspect);
+        ensureViewportSize(static_cast<int>(previewSize.x * pixelScale), static_cast<int>(previewSize.y * pixelScale));
+
         glBindFramebuffer(GL_FRAMEBUFFER, viewportFBO);
-        glViewport(0, 0, kViewportWidth, kViewportHeight);
+        glViewport(0, 0, fboW, fboH);
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
@@ -543,25 +602,32 @@ int main(int argc, char** argv) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        ImGui::SetNextWindowPos(ImVec2(10, 20), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(620, 460), ImGuiCond_Always);
-        ImGui::Begin("OpenGL Viewer", nullptr, panelFlags);
         // A framebuffer texture stores its first row at the bottom of the scene,
         // so flip V (uv0 = top-left = 0,1) to show the preview upright, matching
         // the raytraced panel.
-        ImGui::Image(static_cast<ImTextureID>(viewportTexture), ImVec2(kViewportWidth, kViewportHeight),
-                     ImVec2(0, 1), ImVec2(1, 0));
+        ImGui::Image(static_cast<ImTextureID>(viewportTexture), previewSize, ImVec2(0, 1), ImVec2(1, 0));
         viewerHovered = ImGui::IsItemHovered();
         ImGui::End();
 
         // ---- raytracer panel -------------------------------------------------
-        ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(730, 460), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(areaPos.x + 2.f * kMargin + leftWidth, areaPos.y + kMargin), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(rightWidth, topHeight), ImGuiCond_Always);
         ImGui::Begin("Raytracer", nullptr, panelFlags);
 
         // Settings live in the Render section of the Controls panel; this
-        // panel holds the actions and the result.
-        if (ImGui::Button("Render Scene")) {
+        // panel holds the actions, the progress and the result. Rendering
+        // runs on a worker thread (RenderJob), so the UI stays live and the
+        // image fills in tile by tile.
+        auto showRenderImage = [&]() {
+            // Fit the render into the panel without stretching (its rect keeps
+            // the rendered image's aspect, which is the preview's aspect).
+            const float imgAspect = static_cast<float>(rtTexW) / static_cast<float>(std::max(1, rtTexH));
+            ImGui::Image(static_cast<ImTextureID>(rtTexture), fitAspect(ImGui::GetContentRegionAvail(), imgAspect));
+        };
+
+        if (renderJob) {
+            if (ImGui::Button("Cancel")) renderJob->cancel();
+        } else if (ImGui::Button("Render Scene")) {
             auto toVec3Df = [](const glm::vec3& v) { return Vec3Df(v.x, v.y, v.z); };
             // Match the GL preview exactly: same eye/target/up, same vertical
             // fov and the same aspect ratio, so the framing is identical. The
@@ -572,38 +638,64 @@ int main(int argc, char** argv) {
                                                  glm::radians(fov), kViewportAspect);
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
             rt.setDepthRange(rtDepthNear, rtDepthFar);
-            lastRender = rt.render(scene, camera, renderW, renderH);
-            uploadTexture(rtTexture, rtTexW, rtTexH, lastRender);
+            // The job copies tracer, scene and camera: editing them meanwhile is safe.
+            renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
+                                                    Vec3Df(0.12f, 0.12f, 0.12f));
+            renderJob->start();
+            lastUploadedTiles = 0;
+            lastRender = Image();
+            lastRenderMode = rtMode;
+            lastRenderCancelled = false;
             lastSavedPath.clear();
+            uploadTexture(rtTexture, rtTexW, rtTexH, renderJob->snapshot());  // pending fill
         }
 
-        if (lastRender.isValid()) {
+        if (renderJob) {
+            // Pull what the worker finished since the last frame.
+            const unsigned int done = renderJob->completedTiles();
+            const bool finished = renderJob->isDone();
+            if (done != lastUploadedTiles || finished) {
+                uploadTexture(rtTexture, rtTexW, rtTexH, renderJob->snapshot());
+                lastUploadedTiles = done;
+            }
+            if (finished) {
+                lastRender = renderJob->snapshot();
+                lastStats = renderJob->stats();
+                lastRenderCancelled = renderJob->isCancelled();
+                renderJob.reset();
+            }
+        }
+
+        if (renderJob) {
+            ImGui::SameLine();
+            char label[64];
+            std::snprintf(label, sizeof(label), "%.0f%%  %.1f s", 100.f * renderJob->progress(),
+                          renderJob->elapsedSeconds());
+            ImGui::ProgressBar(renderJob->progress(), ImVec2(-FLT_MIN, 0.f), label);
+            showRenderImage();
+        } else if (lastRender.isValid()) {
             ImGui::SameLine();
             if (ImGui::Button("Save PNG")) {
                 std::filesystem::create_directories("renders");
                 char name[128];
-                std::snprintf(name, sizeof(name), "renders/render_%s_%dx%d.png", kModeSlugs[rtMode], rtTexW, rtTexH);
+                std::snprintf(name, sizeof(name), "renders/render_%s_%dx%d.png", kModeSlugs[lastRenderMode], rtTexW,
+                              rtTexH);
                 lastSavedPath = lastRender.save(name) ? name : "save failed";
             }
-            const RayTracer::Stats& st = rt.getLastStats();
             ImGui::SameLine();
-            ImGui::Text("%dx%d in %.2fs, %.0f%% hits", rtTexW, rtTexH, st.seconds,
-                        st.rays ? 100.0 * st.hits / st.rays : 0.0);
+            if (lastRenderCancelled) {
+                // Stats only cover published tiles, so rays / pixels is the share done.
+                ImGui::Text("%dx%d cancelled after %.2fs (%.0f%% done)", rtTexW, rtTexH, lastStats.seconds,
+                            100.0 * static_cast<double>(lastStats.rays) / (static_cast<double>(rtTexW) * rtTexH));
+            } else {
+                ImGui::Text("%dx%d in %.2fs, %.0f%% hits", rtTexW, rtTexH, lastStats.seconds,
+                            lastStats.rays ? 100.0 * lastStats.hits / lastStats.rays : 0.0);
+            }
             if (!lastSavedPath.empty()) {
                 ImGui::SameLine();
                 ImGui::TextDisabled("%s", lastSavedPath.c_str());
             }
-            // Fit the render into the panel without stretching (its rect keeps
-            // the rendered image's aspect, which is the preview's aspect).
-            const ImVec2 avail = ImGui::GetContentRegionAvail();
-            const float imgAspect = static_cast<float>(rtTexW) / static_cast<float>(rtTexH);
-            float dispW = avail.x;
-            float dispH = dispW / imgAspect;
-            if (dispH > avail.y) {
-                dispH = avail.y;
-                dispW = dispH * imgAspect;
-            }
-            ImGui::Image(static_cast<ImTextureID>(rtTexture), ImVec2(dispW, dispH));
+            showRenderImage();
         } else {
             ImGui::SameLine();
             ImGui::TextDisabled("(no render yet)");
@@ -611,8 +703,8 @@ int main(int argc, char** argv) {
         ImGui::End();
 
         // ---- controls ---------------------------------------------------------
-        ImGui::SetNextWindowPos(ImVec2(10, 500), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(1370, 280), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(areaPos.x + kMargin, areaPos.y + 2.f * kMargin + topHeight), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(std::max(1.f, areaSize.x - 2.f * kMargin), kControlsHeight), ImGuiCond_Always);
         ImGui::Begin("Controls", nullptr, panelFlags);
         // Four sections, one per thing a setting affects: the model, the camera
         // both views share, the GL preview, and the raytraced render. Sections
@@ -703,8 +795,6 @@ int main(int argc, char** argv) {
 
         // ---- present ------------------------------------------------------------
         ImGui::Render();
-        int displayW, displayH;
-        glfwGetFramebufferSize(window, &displayW, &displayH);
         glViewport(0, 0, displayW, displayH);
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
