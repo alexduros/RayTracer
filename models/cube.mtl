@@ -1,0 +1,20 @@
+# Materials for cube.obj: one colour per face. Kd is the colour, Ks the
+# specular strength (kept for the specular experiment; unused by Lambert).
+newmtl front
+Kd 0.9 0.2 0.2
+Ks 0.3 0.3 0.3
+
+newmtl back
+Kd 0.2 0.9 0.2
+
+newmtl right
+Kd 0.2 0.2 0.9
+
+newmtl left
+Kd 0.9 0.9 0.2
+
+newmtl top
+Kd 0.9 0.9 0.9
+
+newmtl bottom
+Kd 0.3 0.3 0.3

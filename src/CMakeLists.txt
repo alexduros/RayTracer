@@ -7,6 +7,7 @@ add_library(raymini_core STATIC
   core/Image.cpp
   core/Mesh.cpp
   core/Object.cpp
+  core/ObjLoader.cpp
   core/Ray.cpp
   core/RayTracer.cpp
   core/Scene.cpp

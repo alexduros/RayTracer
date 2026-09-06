@@ -130,6 +130,8 @@ point of the pinhole ray. Uses the sampling infrastructure from experiment 5.
 
 ## After these
 
-Textures need UVs the OFF models do not have (procedural checker and noise
-first), an interactive material/light editor in the GUI, and a progressive
-preview in the raytracer panel (render at 64x64 first, then refine).
+Textures: OBJ files carry UVs (parsed, not yet stored) and MTL `map_Kd`
+names, so image textures are within reach; procedural checker and noise
+come first for the OFF models, which have no UVs. Also an interactive
+material/light editor in the GUI, and a progressive preview in the
+raytracer panel (render at 64x64 first, then refine).

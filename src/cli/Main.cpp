@@ -25,9 +25,10 @@
 
 namespace {
 
-const char* kUsage = R"(Usage: raymini-cli <model.off> [options]
+const char* kUsage = R"(Usage: raymini-cli <model.off|model.obj> [options]
 
-A bare name such as "teapot" resolves to the bundled models/ directory.
+A bare name such as "teapot" or "cube" resolves to the bundled models/ directory.
+OBJ files load their MTL materials (one object per material).
 
 Options:
   --out <file.png>       output path, parent directories are created
@@ -148,9 +149,12 @@ bool parseArgs(int argc, char** argv, Options& o) {
 std::string resolveModel(const std::string& given) {
     namespace fs = std::filesystem;
     if (fs::exists(given)) return given;
-    const bool hasExt = given.size() > 4 && given.compare(given.size() - 4, 4, ".off") == 0;
-    const std::string bundled = std::string(RAYMINI_MODELS_DIR) + "/" + given + (hasExt ? "" : ".off");
-    if (fs::exists(bundled)) return bundled;
+    // Bare name: the bundled directory, as given and with each supported extension.
+    const fs::path dir = RAYMINI_MODELS_DIR;
+    for (const char* ext : {"", ".off", ".obj"}) {
+        const fs::path candidate = dir / (given + ext);
+        if (fs::exists(candidate)) return candidate.string();
+    }
     return given;  // let the loader report the error with the name the user typed
 }
 
@@ -167,7 +171,7 @@ int main(int argc, char** argv) {
 
     Scene scene;
     try {
-        scene.addObjectFromOFF(path);
+        scene.addObjectsFromFile(path);
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";
         return 1;
@@ -200,10 +204,14 @@ int main(int argc, char** argv) {
     }
 
     if (!o.quiet) {
-        const Mesh& mesh = scene.getObjects()[0].getMesh();
+        size_t nv = 0, nt = 0;
+        for (const Object& o : scene.getObjects()) {
+            nv += o.getMesh().getVertices().size();
+            nt += o.getMesh().getTriangles().size();
+        }
         const Vec3Df c = bbox.getCenter();
-        std::printf("model   %s: %zu vertices, %zu triangles, size %.3f, centre (%.3f, %.3f, %.3f)\n",
-                    path.c_str(), mesh.getVertices().size(), mesh.getTriangles().size(), size, c[0], c[1], c[2]);
+        std::printf("model   %s: %zu object(s), %zu vertices, %zu triangles, size %.3f, centre (%.3f, %.3f, %.3f)\n",
+                    path.c_str(), scene.getObjects().size(), nv, nt, size, c[0], c[1], c[2]);
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);

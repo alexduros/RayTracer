@@ -52,13 +52,16 @@ inline Mesh cube(const Vec3Df& c, float side) {
     return m;
 }
 
-/// Write an OFF file into the test output directory and return its path.
-inline std::string writeOFF(const std::string& name, const std::string& body) {
+/// Write a text file into the test output directory and return its path.
+inline std::string writeFile(const std::string& name, const std::string& body) {
     const std::string path = test::outputDir() + "/" + name;
     std::ofstream out(path);
     out << body;
     return path;
 }
+
+/// Same as writeFile; the name the mesh tests use for their OFF fixtures.
+inline std::string writeOFF(const std::string& name, const std::string& body) { return writeFile(name, body); }
 
 inline Material white() { return Material(1.f, 0.f, Vec3Df(1.f, 1.f, 1.f)); }
 

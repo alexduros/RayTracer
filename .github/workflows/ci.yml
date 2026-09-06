@@ -40,6 +40,7 @@ jobs:
           build/raymini-cli teapot --mode lit     --size 512x512 --yaw 25  --pitch 20 --out renders/teapot_lit.png
           build/raymini-cli teapot --mode normals --size 512x512 --yaw 25  --pitch 20 --out renders/teapot_normals.png
           build/raymini-cli ram    --mode lit     --size 512x512 --yaw -35 --pitch 15 --out renders/ram_lit.png
+          build/raymini-cli cube   --mode lit     --size 512x512 --yaw 25  --pitch 20 --out renders/cube_lit.png
 
       # Renders plus whatever the golden tests produced (useful when they fail).
       - name: Upload renders

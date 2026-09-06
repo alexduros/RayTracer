@@ -1,0 +1,32 @@
+# Unit cube centred at the origin, one material per face.
+# Exercises OBJ + MTL loading: quads, per-face materials, normals from the file.
+mtllib cube.mtl
+
+v -0.5 -0.5 -0.5
+v  0.5 -0.5 -0.5
+v  0.5  0.5 -0.5
+v -0.5  0.5 -0.5
+v -0.5 -0.5  0.5
+v  0.5 -0.5  0.5
+v  0.5  0.5  0.5
+v -0.5  0.5  0.5
+
+vn  0  0  1
+vn  0  0 -1
+vn  1  0  0
+vn -1  0  0
+vn  0  1  0
+vn  0 -1  0
+
+usemtl front
+f 5//1 6//1 7//1 8//1
+usemtl back
+f 2//2 1//2 4//2 3//2
+usemtl right
+f 6//3 2//3 3//3 7//3
+usemtl left
+f 1//4 5//4 8//4 4//4
+usemtl top
+f 8//5 7//5 3//5 4//5
+usemtl bottom
+f 1//6 2//6 6//6 5//6

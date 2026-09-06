@@ -8,8 +8,9 @@ tests that prove each one.
 ## Layout
 
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
-  loader), BoundingBox, Ray (triangle + slab tests), Camera, Material, Light,
-  Object, Scene, RayTracer, Image (stb). No GL, no GLFW: it links anywhere.
+  loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
+  Camera, Material, Light, Object, Scene, RayTracer, Image (stb). No GL, no
+  GLFW: it links anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
 - `src/cli/Main.cpp` — `raymini-cli`: OFF in, PNG out. What the tests, CI and
@@ -17,7 +18,8 @@ tests that prove each one.
 - `tests/` — `raymini_tests` (tiny harness in `tests/Test.h`, no external
   dependency) plus `tests/golden/*.png`.
 - `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
-  backends), glad, stb. `models/` — 26 OFF files.
+  backends), glad, stb. `models/` — 26 OFF files plus `cube.obj`/`cube.mtl`
+  (six materials, one per face).
 - `claudedocs/EXPERIMENTS.md` — the next ten experiments, each with the test
   that proves it. `claudedocs/MODERNIZATION_ROADMAP.md` — the longer view.
 - `Rendu.png` — reference render from the original project (ram on a ground
@@ -46,6 +48,10 @@ build/raymini-cli --help
 
 ## Rendering pipeline as it exists today
 
+- Formats: OFF (one object with the default material) and OBJ, optionally
+  with MTL (one object per material, `Kd` -> colour, mean `Ks` -> specular;
+  `vt` is parsed but dropped, `map_*` ignored). `Scene::addObjectsFromFile`
+  dispatches on the extension, case-insensitively.
 - `Camera::primaryRay` -> `RayTracer::closestHit` (brute force over every
   triangle of every object, back faces culled) -> `RayTracer::shade` by mode.
 - Modes: `lit` (Lambert: ambient + sum over lights of diffuse * max(0, n.l);
@@ -77,7 +83,8 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
 - No acceleration structure: the old KdTree was removed (never built, unsafe
   to copy). A BVH is experiment 3.
 - No shadows, specular, reflections, anti-aliasing, ambient occlusion,
-  textures or threading yet. See `claudedocs/EXPERIMENTS.md`.
+  textures or threading yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd`
+  textures are ignored; OBJ texture coordinates are parsed but not stored.
 - Some OFF files are Z-up (teapot); the viewer and CLI assume Y-up.
 - GL preview and raytraced panel share eye, target, up, vertical fov and
   aspect (3:2), so a render reproduces the preview exactly.

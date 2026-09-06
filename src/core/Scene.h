@@ -33,9 +33,17 @@ public:
     void addObject (const Object & object);
     void addLight (const Light & light);
 
-    /// Load an OFF file as a new object. Throws std::runtime_error on failure.
+    /// Load an OFF file as one object. Throws std::runtime_error on failure.
     void addObjectFromOFF (const std::string & filename,
                            const Material & material = defaultMaterial ());
+
+    /// Load any supported file by extension (case-insensitive): .off becomes
+    /// one object with `material`; .obj becomes one object per material used,
+    /// with `material` as the fallback (see ObjLoader.h). Returns the number
+    /// of objects added. Throws std::runtime_error on failure or on an
+    /// unsupported extension.
+    size_t addObjectsFromFile (const std::string & filename,
+                               const Material & material = defaultMaterial ());
 
     /// The original project's three-light rig (cyan key, yellow fill, white
     /// rim), scaled and centred on the current bounding box so it works for

@@ -7,6 +7,13 @@
 
 #include "Scene.h"
 
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
+#include <stdexcept>
+
+#include "ObjLoader.h"
+
 void Scene::updateBoundingBox () {
     if (objects.empty ())
         bbox = BoundingBox ();
@@ -30,6 +37,23 @@ void Scene::addObjectFromOFF (const std::string & filename, const Material & mat
     Mesh mesh;
     mesh.loadOFF (filename);
     addObject (Object (mesh, material));
+}
+
+size_t Scene::addObjectsFromFile (const std::string & filename, const Material & material) {
+    std::string ext = std::filesystem::path (filename).extension ().string ();
+    std::transform (ext.begin (), ext.end (), ext.begin (), [] (unsigned char c) { return std::tolower (c); });
+    if (ext == ".off") {
+        addObjectFromOFF (filename, material);
+        return 1;
+    }
+    if (ext == ".obj") {
+        const std::vector<Object> objects = loadOBJ (filename, material);
+        for (const Object & o : objects)
+            addObject (o);
+        return objects.size ();
+    }
+    throw std::runtime_error ("Scene: unsupported model format '" + ext + "' for " + filename +
+                              " (expected .off or .obj)");
 }
 
 void Scene::addDefaultLights () {

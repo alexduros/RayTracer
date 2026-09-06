@@ -44,7 +44,9 @@ const std::string& goldenDir() {
 }
 
 std::string modelPath(const char* name) {
-    return std::string(RAYMINI_MODELS_DIR) + "/" + name + ".off";
+    std::string file = name;
+    if (file.find('.') == std::string::npos) file += ".off";  // bare names are OFF models
+    return std::string(RAYMINI_MODELS_DIR) + "/" + file;
 }
 
 }  // namespace test

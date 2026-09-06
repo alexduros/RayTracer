@@ -3,6 +3,7 @@
 //   build/raymini_tests --filter golden --update-golden
 // after an intentional change, and look at the diff of the PNGs.
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 
 #include "Camera.h"
@@ -53,9 +54,10 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
     return double(different) / double(pixels) <= kMaxDifferentFraction;
 }
 
+// `model` is a bare name (".off" assumed) or a file name with its extension.
 void goldenModel(const char* model, float yawDeg, float pitchDeg) {
     Scene scene;
-    scene.addObjectFromOFF(test::modelPath(model));
+    scene.addObjectsFromFile(test::modelPath(model));
     scene.addDefaultLights();
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
@@ -67,7 +69,7 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg) {
     for (const ModeSpec& m : kModes) {
         rt.setDebugMode(m.mode);
         const Image img = rt.render(scene, camera, kSize, kSize);
-        const std::string name = std::string(model) + "_" + m.slug + ".png";
+        const std::string name = std::filesystem::path(model).stem().string() + "_" + m.slug + ".png";
         const std::string goldenPath = test::goldenDir() + "/" + name;
         // Always keep what was rendered so a failure can be inspected.
         REQUIRE(img.save(test::outputDir() + "/golden_" + name));
@@ -87,3 +89,4 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg) {
 
 TEST_CASE("golden: teapot in every mode") { goldenModel("teapot", 25.f, 20.f); }
 TEST_CASE("golden: ram in every mode") { goldenModel("ram", -35.f, 15.f); }
+TEST_CASE("golden: cube.obj (six materials) in every mode") { goldenModel("cube.obj", 25.f, 20.f); }

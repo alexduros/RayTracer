@@ -9,6 +9,7 @@ add_executable(raymini_tests
   TestCamera.cpp
   TestRender.cpp
   TestImage.cpp
+  TestObj.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
 target_compile_definitions(raymini_tests PRIVATE

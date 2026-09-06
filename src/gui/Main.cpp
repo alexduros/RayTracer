@@ -58,7 +58,7 @@ int renderHeightFor(int width) {
 struct GLVertex {
     float x, y, z;     // position
     float nx, ny, nz;  // smooth normal from Mesh::loadOFF
-    float r, g, b;     // vertex colour (Y gradient)
+    float r, g, b;     // material colour of the owning object
 };
 
 // ---- orbit camera state (shared with the GLFW callbacks) -------------------
@@ -140,7 +140,7 @@ std::vector<std::filesystem::path> listModels(const std::filesystem::path& dir) 
         if (!entry.is_regular_file(ec)) continue;
         std::string ext = entry.path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
-        if (ext == ".off") out.push_back(entry.path());
+        if (ext == ".off" || ext == ".obj") out.push_back(entry.path());
     }
     std::sort(out.begin(), out.end());
     return out;
@@ -173,34 +173,25 @@ void destroyModel(GLModel& m) {
     m = GLModel();
 }
 
-GLModel createModel(const Mesh& mesh) {
-    const std::vector<Vertex>& V = mesh.getVertices();
-    const std::vector<Triangle>& T = mesh.getTriangles();
-
-    float minY = V.empty() ? 0.f : V[0].getPos()[1];
-    float maxY = minY;
-    for (const Vertex& v : V) {
-        minY = std::min(minY, v.getPos()[1]);
-        maxY = std::max(maxY, v.getPos()[1]);
-    }
-
+// One VAO for the whole scene: every object's vertices carry its material
+// colour, so the preview shows the same materials the raytracer uses.
+GLModel createModel(const Scene& scene) {
     std::vector<GLVertex> vertices;
-    vertices.reserve(V.size());
-    for (const Vertex& v : V) {
-        const Vec3Df& p = v.getPos();
-        const Vec3Df& n = v.getNormal();
-        const float t = (maxY > minY) ? (p[1] - minY) / (maxY - minY) : 0.5f;
-        vertices.push_back({p[0], p[1], p[2],
-                            n[0], n[1], n[2],
-                            0.8f + 0.2f * t, 0.6f + 0.4f * (1.f - t), 0.4f + 0.6f * t});
-    }
-
     std::vector<unsigned int> indices;
-    indices.reserve(T.size() * 3);
-    for (const Triangle& t : T) {
-        indices.push_back(t.getVertex(0));
-        indices.push_back(t.getVertex(1));
-        indices.push_back(t.getVertex(2));
+    for (const Object& object : scene.getObjects()) {
+        const Mesh& mesh = object.getMesh();
+        const Vec3Df c = object.getMaterial().getColor();
+        const unsigned int base = static_cast<unsigned int>(vertices.size());
+        for (const Vertex& v : mesh.getVertices()) {
+            const Vec3Df& p = v.getPos();
+            const Vec3Df& n = v.getNormal();
+            vertices.push_back({p[0], p[1], p[2], n[0], n[1], n[2], c[0], c[1], c[2]});
+        }
+        for (const Triangle& t : mesh.getTriangles()) {
+            indices.push_back(base + t.getVertex(0));
+            indices.push_back(base + t.getVertex(1));
+            indices.push_back(base + t.getVertex(2));
+        }
     }
     GLModel m;
     m.numIndices = indices.size();
@@ -350,15 +341,15 @@ int main(int argc, char** argv) {
     // the models directory. A path on the command line is loaded first.
     const char* givenModel = argc >= 2 ? argv[1] : nullptr;
     if (givenModel && (std::string(givenModel) == "-h" || std::string(givenModel) == "--help")) {
-        std::cout << "Usage: " << argv[0] << " [model.off]" << std::endl;
+        std::cout << "Usage: " << argv[0] << " [model.off|model.obj]" << std::endl;
         return 0;
     }
     const std::vector<std::filesystem::path> modelPaths = listModels(modelsDirectory(givenModel));
     std::vector<std::string> modelNames;
     for (const auto& p : modelPaths) modelNames.push_back(p.stem().string());
     if (!givenModel && modelPaths.empty()) {
-        std::cerr << "No .off models found in " << RAYMINI_MODELS_DIR << " or ./models; pass one: "
-                  << argv[0] << " <model.off>" << std::endl;
+        std::cerr << "No .off/.obj models found in " << RAYMINI_MODELS_DIR << " or ./models; pass one: "
+                  << argv[0] << " <model.off|model.obj>" << std::endl;
         return 1;
     }
     std::string initialPath;
@@ -457,7 +448,7 @@ int main(int argc, char** argv) {
     auto loadModel = [&](const std::string& path) -> bool {
         Scene next;
         try {
-            next.addObjectFromOFF(path);
+            next.addObjectsFromFile(path);
         } catch (const std::exception& e) {
             loadError = e.what();
             std::cerr << loadError << std::endl;
@@ -469,7 +460,7 @@ int main(int argc, char** argv) {
         loadError.clear();
 
         destroyModel(glModel);
-        glModel = createModel(scene.getObjects()[0].getMesh());
+        glModel = createModel(scene);
         frameModel(scene.getBoundingBox());
         // Depth mode defaults: the model spans initialDistance +- size from the camera.
         const float modelSize = scene.getBoundingBox().getSize();
@@ -486,9 +477,13 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-        const Mesh& mesh = scene.getObjects()[0].getMesh();
-        std::cout << "Loaded " << path << ": " << mesh.getVertices().size() << " vertices, "
-                  << mesh.getTriangles().size() << " triangles" << std::endl;
+        size_t nv = 0, nt = 0;
+        for (const Object& o : scene.getObjects()) {
+            nv += o.getMesh().getVertices().size();
+            nt += o.getMesh().getTriangles().size();
+        }
+        std::cout << "Loaded " << path << ": " << scene.getObjects().size() << " object(s), " << nv
+                  << " vertices, " << nt << " triangles" << std::endl;
         glfwSetWindowTitle(window, ("Raymini - " + std::filesystem::path(path).filename().string()).c_str());
         return true;
     };
@@ -656,10 +651,15 @@ int main(int argc, char** argv) {
                 ImGui::PopStyleColor();
             }
             {
-                const Mesh& mesh = scene.getObjects()[0].getMesh();
+                size_t nv = 0, nt = 0;
+                for (const Object& o : scene.getObjects()) {
+                    nv += o.getMesh().getVertices().size();
+                    nt += o.getMesh().getTriangles().size();
+                }
                 const BoundingBox& bbox = scene.getBoundingBox();
-                rowValue("Vertices", "%zu", mesh.getVertices().size());
-                rowValue("Triangles", "%zu", mesh.getTriangles().size());
+                rowValue("Objects", "%zu", scene.getObjects().size());
+                rowValue("Vertices", "%zu", nv);
+                rowValue("Triangles", "%zu", nt);
                 rowValue("Bounds", "%.2f x %.2f x %.2f", bbox.getWidth(), bbox.getHeight(), bbox.getLength());
             }
 
