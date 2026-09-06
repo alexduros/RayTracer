@@ -30,6 +30,8 @@ target_compile_options(raymini-cli PRIVATE ${RAYMINI_WARNINGS})
 if(RAYMINI_BUILD_GUI)
   add_executable(raymini gui/Main.cpp)
   target_link_libraries(raymini PRIVATE raymini_core imgui glad glfw OpenGL::GL glm::glm)
-  target_compile_definitions(raymini PRIVATE GLFW_INCLUDE_NONE)
+  target_compile_definitions(raymini PRIVATE
+    GLFW_INCLUDE_NONE
+    RAYMINI_MODELS_DIR="${RAYMINI_MODELS_DIR}")
   target_compile_options(raymini PRIVATE ${RAYMINI_WARNINGS})
 endif()

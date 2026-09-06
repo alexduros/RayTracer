@@ -30,7 +30,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 
-build/raymini models/minion.off                                   # viewer
+build/raymini [models/minion.off]     # viewer; model optional, picker in Controls
 build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20 \
     --out renders/teapot.png                                      # headless
 build/raymini-cli --help
@@ -79,5 +79,5 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
 - No shadows, specular, reflections, anti-aliasing, ambient occlusion,
   textures or threading yet. See `claudedocs/EXPERIMENTS.md`.
 - Some OFF files are Z-up (teapot); the viewer and CLI assume Y-up.
-- GL preview is 3:2, the raytraced panel is square; they share eye, target,
-  up and vertical fov.
+- GL preview and raytraced panel share eye, target, up, vertical fov and
+  aspect (3:2), so a render reproduces the preview exactly.

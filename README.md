@@ -42,7 +42,7 @@ cmake --build build -j
 ## Run
 
 ```bash
-build/raymini models/minion.off                       # viewer
+build/raymini [models/minion.off]                     # viewer (model optional)
 build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20
 build/raymini-cli --help                              # all options
 ```
@@ -52,6 +52,9 @@ resolve to `models/`.
 
 Viewer controls:
 
+- Model picker (Controls panel) lists every `.off` in `models/`; choosing one
+  reloads the scene and re-frames the camera. Starts on the teapot unless a
+  path is given on the command line.
 - Left-drag in the preview to orbit, scroll to zoom, FOV slider, Reset Camera.
 - Raytracer panel: resolution, mode (Lit, Ambient, Hit mask, Normals, Depth,
   Object id), Render Scene, Save PNG (into `renders/`).

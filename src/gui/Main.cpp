@@ -14,6 +14,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -32,6 +33,11 @@
 #include "Mesh.h"
 #include "RayTracer.h"
 #include "Scene.h"
+
+// Absolute path of the bundled models/ directory, baked in by CMake.
+#ifndef RAYMINI_MODELS_DIR
+#define RAYMINI_MODELS_DIR ""
+#endif
 
 namespace {
 
@@ -116,8 +122,49 @@ void scrollCallback(GLFWwindow*, double, double yoffset) {
     fov = std::clamp(fov - static_cast<float>(yoffset), 10.f, 120.f);
 }
 
+// ---- model discovery --------------------------------------------------------
+// Every *.off file in `dir`, sorted by name (empty if `dir` is not a directory).
+std::vector<std::filesystem::path> listModels(const std::filesystem::path& dir) {
+    std::vector<std::filesystem::path> out;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        if (!entry.is_regular_file(ec)) continue;
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (ext == ".off") out.push_back(entry.path());
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// Where the picker looks: next to a model given on the command line, else the
+// bundled models/ directory known at build time, else ./models.
+std::filesystem::path modelsDirectory(const char* givenModel) {
+    std::vector<std::filesystem::path> candidates;
+    if (givenModel) candidates.push_back(std::filesystem::path(givenModel).parent_path());
+    candidates.push_back(RAYMINI_MODELS_DIR);
+    candidates.push_back("models");
+    for (const auto& dir : candidates) {
+        std::error_code ec;
+        if (!dir.empty() && std::filesystem::is_directory(dir, ec)) return dir;
+    }
+    return {};
+}
+
 // ---- GL resources ----------------------------------------------------------
-GLuint createModel(const Mesh& mesh, size_t& numIndices) {
+struct GLModel {
+    GLuint vao = 0, vbo = 0, ebo = 0;
+    size_t numIndices = 0;
+};
+
+void destroyModel(GLModel& m) {
+    if (m.vao) glDeleteVertexArrays(1, &m.vao);
+    if (m.vbo) glDeleteBuffers(1, &m.vbo);
+    if (m.ebo) glDeleteBuffers(1, &m.ebo);
+    m = GLModel();
+}
+
+GLModel createModel(const Mesh& mesh) {
     const std::vector<Vertex>& V = mesh.getVertices();
     const std::vector<Triangle>& T = mesh.getTriangles();
 
@@ -146,17 +193,16 @@ GLuint createModel(const Mesh& mesh, size_t& numIndices) {
         indices.push_back(t.getVertex(1));
         indices.push_back(t.getVertex(2));
     }
-    numIndices = indices.size();
+    GLModel m;
+    m.numIndices = indices.size();
+    glGenVertexArrays(1, &m.vao);
+    glGenBuffers(1, &m.vbo);
+    glGenBuffers(1, &m.ebo);
 
-    GLuint vao, vbo, ebo;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
-
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindVertexArray(m.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(GLVertex), vertices.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLVertex), reinterpret_cast<void*>(offsetof(GLVertex, x)));
@@ -168,7 +214,7 @@ GLuint createModel(const Mesh& mesh, size_t& numIndices) {
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-    return vao;
+    return m;
 }
 
 const char* kVertexShader = R"(
@@ -265,23 +311,29 @@ const char* kModeSlugs[] = {"lit", "ambient", "hitmask", "normals", "depth", "ob
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <model.off>" << std::endl;
+    // The model is optional: the Controls panel has a picker for every .off in
+    // the models directory. A path on the command line is loaded first.
+    const char* givenModel = argc >= 2 ? argv[1] : nullptr;
+    if (givenModel && (std::string(givenModel) == "-h" || std::string(givenModel) == "--help")) {
+        std::cout << "Usage: " << argv[0] << " [model.off]" << std::endl;
+        return 0;
+    }
+    const std::vector<std::filesystem::path> modelPaths = listModels(modelsDirectory(givenModel));
+    std::vector<std::string> modelNames;
+    for (const auto& p : modelPaths) modelNames.push_back(p.stem().string());
+    if (!givenModel && modelPaths.empty()) {
+        std::cerr << "No .off models found in " << RAYMINI_MODELS_DIR << " or ./models; pass one: "
+                  << argv[0] << " <model.off>" << std::endl;
         return 1;
     }
-    const std::string modelPath = argv[1];
-
-    Scene scene;
-    try {
-        scene.addObjectFromOFF(modelPath);
-    } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-        return 1;
+    std::string initialPath;
+    if (givenModel) {
+        initialPath = givenModel;
+    } else {
+        const auto teapot = std::find_if(modelPaths.begin(), modelPaths.end(),
+                                         [](const std::filesystem::path& p) { return p.filename() == "teapot.off"; });
+        initialPath = (teapot != modelPaths.end() ? *teapot : modelPaths.front()).string();
     }
-    scene.addDefaultLights();
-    const Mesh& mesh = scene.getObjects()[0].getMesh();
-    std::cout << "Loaded " << modelPath << ": " << mesh.getVertices().size() << " vertices, "
-              << mesh.getTriangles().size() << " triangles" << std::endl;
 
     if (!glfwInit()) {
         std::cerr << "Failed to initialise GLFW" << std::endl;
@@ -316,10 +368,6 @@ int main(int argc, char** argv) {
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
-
-    size_t numIndices = 0;
-    const GLuint vao = createModel(mesh, numIndices);
-    frameModel(scene.getBoundingBox());
 
     const GLuint shaderProgram = createShaderProgram();
     const GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
@@ -356,12 +404,76 @@ int main(int argc, char** argv) {
     int rtTexW = 0, rtTexH = 0;
     int rtResolution = 256;
     int rtMode = static_cast<int>(RayTracer::DebugMode::LIT);
-    // Depth mode defaults: the model spans initialDistance +- size/2 from the camera.
-    const float modelSize = scene.getBoundingBox().getSize();
-    float rtDepthNear = std::max(0.f, initialDistance - modelSize);
-    float rtDepthFar = initialDistance + modelSize;
+    float rtDepthNear = 0.f, rtDepthFar = 10.f;  // set per model by loadModel
     std::string lastSavedPath;
     bool wireframe = false;
+
+    // Scene / model state. The picker in the Controls panel swaps models at
+    // runtime, so everything derived from the mesh is rebuilt by loadModel.
+    Scene scene;
+    GLModel glModel;
+    std::string modelPath;
+    std::string loadError;
+    int modelIndex = -1;  // index into modelPaths; -1 if the current file is not in the list
+
+    // Load `path`: new scene, new GL buffers, camera re-framed, previous render
+    // discarded. On failure the previous model stays and the error is shown.
+    auto loadModel = [&](const std::string& path) -> bool {
+        Scene next;
+        try {
+            next.addObjectFromOFF(path);
+        } catch (const std::exception& e) {
+            loadError = e.what();
+            std::cerr << loadError << std::endl;
+            return false;
+        }
+        next.addDefaultLights();
+        scene = std::move(next);
+        modelPath = path;
+        loadError.clear();
+
+        destroyModel(glModel);
+        glModel = createModel(scene.getObjects()[0].getMesh());
+        frameModel(scene.getBoundingBox());
+        // Depth mode defaults: the model spans initialDistance +- size from the camera.
+        const float modelSize = scene.getBoundingBox().getSize();
+        rtDepthNear = std::max(0.f, initialDistance - modelSize);
+        rtDepthFar = initialDistance + modelSize;
+        lastRender = Image();
+        lastSavedPath.clear();
+
+        modelIndex = -1;
+        for (size_t i = 0; i < modelPaths.size(); ++i) {
+            std::error_code ec;
+            if (std::filesystem::equivalent(modelPaths[i], path, ec)) {
+                modelIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        const Mesh& mesh = scene.getObjects()[0].getMesh();
+        std::cout << "Loaded " << path << ": " << mesh.getVertices().size() << " vertices, "
+                  << mesh.getTriangles().size() << " triangles" << std::endl;
+        glfwSetWindowTitle(window, ("Raymini - " + std::filesystem::path(path).filename().string()).c_str());
+        return true;
+    };
+
+    if (!loadModel(initialPath)) {
+        // A bad path on the command line falls back to the bundled models but
+        // keeps telling the user what went wrong with theirs.
+        const std::string firstError = loadError;
+        bool loaded = false;
+        for (const auto& p : modelPaths) {
+            if (loadModel(p.string())) {
+                loaded = true;
+                break;
+            }
+        }
+        if (!loaded) {
+            std::cerr << "Could not load any model." << std::endl;
+            return 1;
+        }
+        loadError = firstError;
+    }
 
     const ImGuiWindowFlags panelFlags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
@@ -391,8 +503,8 @@ int main(int argc, char** argv) {
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
         glUniform3fv(cameraPosLoc, 1, glm::value_ptr(cameraPos));
 
-        glBindVertexArray(vao);
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(numIndices), GL_UNSIGNED_INT, nullptr);
+        glBindVertexArray(glModel.vao);
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(glModel.numIndices), GL_UNSIGNED_INT, nullptr);
         glBindVertexArray(0);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -491,6 +603,23 @@ int main(int argc, char** argv) {
 
         ImGui::Text("Model");
         ImGui::Separator();
+        if (modelNames.empty()) {
+            ImGui::TextDisabled("(no models directory found)");
+        } else {
+            // Picker over every .off in the models directory. If a load fails
+            // modelIndex is untouched, so the combo snaps back next frame.
+            std::vector<const char*> names;
+            names.reserve(modelNames.size());
+            for (const std::string& n : modelNames) names.push_back(n.c_str());
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            int pick = modelIndex;
+            if (ImGui::Combo("##model", &pick, names.data(), static_cast<int>(names.size())) && pick >= 0 &&
+                pick != modelIndex) {
+                loadModel(modelPaths[static_cast<size_t>(pick)].string());
+            }
+        }
+        if (!loadError.empty()) ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s", loadError.c_str());
+        const Mesh& mesh = scene.getObjects()[0].getMesh();
         ImGui::TextWrapped("%s", modelPath.c_str());
         ImGui::Text("Vertices:  %zu", mesh.getVertices().size());
         ImGui::Text("Triangles: %zu", mesh.getTriangles().size());
@@ -509,6 +638,7 @@ int main(int argc, char** argv) {
         glfwSwapBuffers(window);
     }
 
+    destroyModel(glModel);
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
