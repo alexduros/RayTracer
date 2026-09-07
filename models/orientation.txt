@@ -1,0 +1,35 @@
+# Which axis of each model file points up. The scene is Y-up; a model is
+# rotated on load so that the axis given here becomes +Y (see
+# src/core/Orientation.h). Format: <name without extension> <axis>, axis one of
+# +x -x +y -y +z -z. Models missing here fall back to the "flattest side is
+# the bottom" heuristic; the viewer and raymini-cli --up can override.
+#
+# Curated by looking at each model. Most of the original course models are
+# Z-up (ground.off is a quad in the XY plane); later additions are Y-up.
+Apple          +z
+Sword01        +y
+asu            +y
+b-wing-v2      +z
+dragon         +y
+goblet         +z
+ground         +z
+ground_HD      +z
+head           +y
+heart          +y
+helm           +y
+house          +y
+king           +y
+klingon        +z
+minion         +y
+mushroom       +y
+pear           +y
+r2             +z
+ram            +z
+ram_HD         +z
+seashell       +y
+space_shuttle  +z
+space_station  +y
+teapot         +z
+volks          +y
+x29_plane      +z
+cube           +y

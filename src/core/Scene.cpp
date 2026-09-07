@@ -54,6 +54,80 @@ void Scene::removeBackdrops () {
     updateBoundingBox ();
 }
 
+namespace {
+
+/// Integer rotation matrices (rows = scene axes) taking file coordinates to
+/// scene coordinates so that the given file axis lands on scene +Y. Exact,
+/// proper rotations (determinant +1).
+typedef int Mat3[3][3];
+
+void rotationFor (UpAxis up, Mat3 m) {
+    static const Mat3 kPosY = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+    static const Mat3 kPosZ = {{1, 0, 0}, {0, 0, 1}, {0, -1, 0}};   // (x, y, z) -> (x, z, -y)
+    static const Mat3 kNegZ = {{1, 0, 0}, {0, 0, -1}, {0, 1, 0}};   // (x, y, z) -> (x, -z, y)
+    static const Mat3 kPosX = {{0, -1, 0}, {1, 0, 0}, {0, 0, 1}};   // (x, y, z) -> (-y, x, z)
+    static const Mat3 kNegX = {{0, 1, 0}, {-1, 0, 0}, {0, 0, 1}};   // (x, y, z) -> (y, -x, z)
+    static const Mat3 kNegY = {{1, 0, 0}, {0, -1, 0}, {0, 0, -1}};  // (x, y, z) -> (x, -y, -z)
+    const int (*src)[3] = kPosY;
+    switch (up) {
+        case UpAxis::PosY: src = kPosY; break;
+        case UpAxis::PosZ: src = kPosZ; break;
+        case UpAxis::NegZ: src = kNegZ; break;
+        case UpAxis::PosX: src = kPosX; break;
+        case UpAxis::NegX: src = kNegX; break;
+        case UpAxis::NegY: src = kNegY; break;
+    }
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c)
+            m[r][c] = src[r][c];
+}
+
+Vec3Df apply (const Mat3 m, const Vec3Df & v) {
+    return Vec3Df (m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+                   m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
+                   m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]);
+}
+
+} // namespace
+
+void Scene::setUpAxis (UpAxis up) {
+    if (up == upAxis)
+        return;
+    // Scene coordinates are s = M_current * f. To reach s' = M_new * f apply
+    // M_new * M_current^T, which is another exact permutation.
+    Mat3 current, target, transform;
+    rotationFor (upAxis, current);
+    rotationFor (up, target);
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c) {
+            transform[r][c] = 0;
+            for (int k = 0; k < 3; ++k)
+                transform[r][c] += target[r][k] * current[c][k];  // current transposed
+        }
+
+    // Remember the ground (a backdrop) so it can be rebuilt under the new bottom.
+    bool hadGround = false;
+    Material groundMat;
+    for (const Object & o : objects)
+        if (o.isBackdrop ()) {
+            hadGround = true;
+            groundMat = o.getMaterial ();
+        }
+    removeBackdrops ();
+
+    for (Object & o : objects) {
+        for (Vertex & v : o.getMesh ().getVertices ()) {
+            v.setPos (apply (transform, v.getPos ()));
+            v.setNormal (apply (transform, v.getNormal ()));
+        }
+        o.updateBoundingBox ();
+    }
+    upAxis = up;
+    updateBoundingBox ();
+    if (hadGround)
+        addGroundPlane (groundMat);
+}
+
 void Scene::addObject (const Object & object) {
     objects.push_back (object);
     updateBoundingBox ();

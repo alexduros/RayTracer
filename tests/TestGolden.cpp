@@ -9,6 +9,7 @@
 #include "Camera.h"
 #include "Fixtures.h"
 #include "Image.h"
+#include "Orientation.h"
 #include "RayTracer.h"
 #include "Scene.h"
 #include "Test.h"
@@ -60,6 +61,7 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int a
                  bool ground = false) {
     Scene scene;
     scene.addObjectsFromFile(test::modelPath(model));
+    scene.setUpAxis(resolveUpAxis(test::modelPath(model), scene));  // as the CLI and the viewer do
     scene.addDefaultLights();
     if (ground) scene.addGroundPlane();
     const BoundingBox& bbox = scene.getBoundingBox();

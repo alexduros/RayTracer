@@ -21,6 +21,43 @@ TEST_CASE("mesh: loadOFF triangulates quads and computes unit normals") {
     }
 }
 
+TEST_CASE("mesh: loadOFF ignores colours, comments, CRLF and counts on the OFF line") {
+    // Per-vertex extras, per-face colours after the indices (as in
+    // seashell.off), a comment line, and the counts on the "OFF" line.
+    const std::string path = fixtures::writeOFF("extras.off",
+        "OFF 4 2 0\n"
+        "# a comment\n"
+        "-1 -1 0 255 0 0\n 1 -1 0 0 255 0\n 1 1 0 0 0 255\n-1 1 0 9 9 9\n"
+        "3 0 1 2 0.5 0.5 0.5\n"
+        "3 0 2 3 0.1 0.2 0.3 1.0\n");
+    Mesh m;
+    m.loadOFF(path);
+    CHECK_EQ(m.getVertices().size(), 4u);
+    CHECK_EQ(m.getTriangles().size(), 2u);
+    CHECK(m.getTriangles()[1] == Triangle(0, 2, 3));
+    CHECK(m.getVertices()[2].getPos() == Vec3Df(1.f, 1.f, 0.f));
+
+    // The bundled models with face colours load with their full face count.
+    Mesh shell;
+    shell.loadOFF(test::modelPath("seashell"));
+    CHECK_EQ(shell.getVertices().size(), 915u);
+    CHECK_EQ(shell.getTriangles().size(), 1680u);
+
+    // Windows line endings and blank lines.
+    Mesh crlf;
+    crlf.loadOFF(fixtures::writeOFF("crlf.off", "OFF\r\n3 1 0\r\n\r\n0 0 0\r\n1 0 0\r\n0 1 0\r\n3 0 1 2\r\n"));
+    CHECK_EQ(crlf.getTriangles().size(), 1u);
+
+    // Fewer face lines than announced is still an error.
+    bool threw = false;
+    try {
+        m.loadOFF(fixtures::writeOFF("fewfaces.off", "OFF\n3 2 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n"));
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    CHECK_MSG(threw, "truncated face list");
+}
+
 TEST_CASE("mesh: loadOFF reports missing or malformed files") {
     Mesh m;
     bool threw = false;

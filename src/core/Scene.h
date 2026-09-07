@@ -15,11 +15,22 @@
 #include "Light.h"
 #include "BoundingBox.h"
 
+/// Which axis of a model file's coordinates points up (see Orientation.h).
+enum class UpAxis { PosX, NegX, PosY, NegY, PosZ, NegZ };
+
 /// Objects + lights. Plain value type: the GUI, the CLI and the tests each
-/// build their own.
+/// build their own. The scene is Y-up: the floor is horizontal and the
+/// camera orbits about Y.
 class Scene {
 public:
     Scene () {}
+
+    /// Rotate every model object so that file axis `up` points along scene
+    /// +Y (exact axis permutations, so switching back and forth is lossless).
+    /// A ground plane, if present, is rebuilt under the new bottom. Lights
+    /// are left alone: place them after orienting.
+    void setUpAxis (UpAxis up);
+    UpAxis getUpAxis () const { return upAxis; }
 
     inline std::vector<Object> & getObjects () { return objects; }
     inline const std::vector<Object> & getObjects () const { return objects; }
@@ -68,6 +79,7 @@ private:
     std::vector<Object> objects;
     std::vector<Light> lights;
     BoundingBox bbox;
+    UpAxis upAxis = UpAxis::PosY;  // file axis currently mapped to scene +Y
 };
 
 #endif // SCENE_H

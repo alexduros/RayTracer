@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
 #ifdef _WIN32
@@ -25,6 +26,7 @@
 
 #include "Camera.h"
 #include "Image.h"
+#include "Orientation.h"
 #include "RayTracer.h"
 #include "RenderJob.h"
 #include "Scene.h"
@@ -48,6 +50,8 @@ Options:
   --mode <mode>          one of the modes below (default lit)
   --aa <n>               anti-aliasing: n x n rays per pixel, 1..8 (default 1 = off)
   --jitter               jitter the anti-aliasing rays inside their cells
+  --up <axis>            which file axis points up: auto (orientation.txt next to the
+                         model, else the flattest side is the bottom), +y, +z, -z, +x, -x, -y
   --ground               add a ground plane under the model (receives its shadows)
   --no-shadows           lit mode without shadow rays
   --no-specular          lit mode without the Blinn-Phong highlight
@@ -98,6 +102,7 @@ struct Options {
     bool ground = false;
     bool shadows = true;
     bool specular = true;
+    std::optional<UpAxis> up;  // empty = auto
     bool quiet = false;
 };
 
@@ -129,6 +134,15 @@ bool parseArgs(int argc, char** argv, Options& o) {
             std::exit(0);
         } else if (a == "--quiet") {
             o.quiet = true;
+        } else if (a == "--up") {
+            if (!(v = value(i, "--up"))) return false;
+            if (std::string(v) != "auto") {
+                o.up = parseUpAxis(v);
+                if (!o.up) {
+                    std::cerr << "--up must be auto, +x, -x, +y, -y, +z or -z\n";
+                    return false;
+                }
+            }
         } else if (a == "--ground") {
             o.ground = true;
         } else if (a == "--no-shadows") {
@@ -233,6 +247,10 @@ int main(int argc, char** argv) {
         std::cerr << e.what() << "\n";
         return 1;
     }
+    // Orient before placing lights: the scene is Y-up, the file may not be.
+    std::string upSource = "option";
+    const UpAxis up = o.up ? *o.up : resolveUpAxis(path, scene, &upSource);
+    scene.setUpAxis(up);
     scene.addDefaultLights();
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
 
@@ -281,8 +299,9 @@ int main(int argc, char** argv) {
             nt += o.getMesh().getTriangles().size();
         }
         const Vec3Df c = bbox.getCenter();
-        std::printf("model   %s: %zu object(s), %zu vertices, %zu triangles, size %.3f, centre (%.3f, %.3f, %.3f)\n",
-                    path.c_str(), scene.getObjects().size(), nv, nt, size, c[0], c[1], c[2]);
+        std::printf("model   %s: %zu object(s), %zu vertices, %zu triangles, size %.3f, centre (%.3f, %.3f, %.3f), up %s (%s)\n",
+                    path.c_str(), scene.getObjects().size(), nv, nt, size, c[0], c[1], c[2], upAxisName(up),
+                    upSource.c_str());
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);

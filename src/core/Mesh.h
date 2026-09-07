@@ -47,7 +47,9 @@ public:
     void markBorderEdges (EdgeMapIndex & edgeMap);
 
     // Load an ASCII OFF file. Polygons with more than three vertices are
-    // fan-triangulated and smooth vertex normals are recomputed.
+    // fan-triangulated and smooth vertex normals are recomputed. Extra
+    // columns after a vertex or after a face's indices (colours) and '#'
+    // comment lines are ignored; the counts may sit on the "OFF" line.
     // Throws std::runtime_error if the file is missing or malformed.
     void loadOFF (const std::string & filename);
 

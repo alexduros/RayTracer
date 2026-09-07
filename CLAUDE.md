@@ -19,7 +19,7 @@ tests that prove each one.
   dependency) plus `tests/golden/*.png`.
 - `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
   backends), glad, stb. `models/` — 26 OFF files plus `cube.obj`/`cube.mtl`
-  (six materials, one per face).
+  (six materials, one per face) and `orientation.txt` (up axis per model).
 - `claudedocs/RENDERING_ROADMAP.md` — every rendering mode the raytracer
   could offer next, one-sentence principle each; mirrored by
   `RayTracer::plannedMode()` (greyed out in the viewer's mode menu, printed
@@ -109,6 +109,12 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
 - No soft shadows, reflections, ambient occlusion, textures or threading
   yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
   OBJ texture coordinates are parsed but not stored.
-- Some OFF files are Z-up (teapot); the viewer and CLI assume Y-up.
+- Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
+  load (exact axis permutation) so its own up axis becomes +Y; call it
+  before `addDefaultLights`. `Orientation.h` resolves "Auto" from
+  `models/orientation.txt` (curated for every bundled model) and otherwise
+  from the flattest-side heuristic, which is wrong for models with a flat
+  back (the minion), hence the manifest and the `--up` / "Up axis"
+  override. Add new bundled models to the manifest.
 - GL preview and raytraced panel share eye, target, up, vertical fov and
   aspect (3:2), so a render reproduces the preview exactly.

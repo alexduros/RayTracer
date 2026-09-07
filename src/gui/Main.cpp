@@ -34,6 +34,7 @@
 #include "Camera.h"
 #include "Image.h"
 #include "Mesh.h"
+#include "Orientation.h"
 #include "RayTracer.h"
 #include "RenderJob.h"
 #include "Scene.h"
@@ -498,6 +499,13 @@ int main(int argc, char** argv) {
     bool rtShadows = true;
     bool rtSpecular = true;
     bool showGround = true;  // ground plane under the model, in both views
+    // Up axis of the model file: 0 = Auto (orientation.txt, else heuristic), else kUpChoices[choice - 1].
+    static const char* kUpLabels[] = {"Auto", "+Y", "+Z", "-Z", "+X", "-X", "-Y"};
+    static const UpAxis kUpChoices[] = {UpAxis::PosY, UpAxis::PosZ, UpAxis::NegZ,
+                                        UpAxis::PosX, UpAxis::NegX, UpAxis::NegY};
+    int upChoice = 0;
+    UpAxis autoUp = UpAxis::PosY;  // what Auto resolved to for the current model
+    std::string upSource;
     int lastRenderSamples = 1;  // rays per pixel of the render being shown
     const char* modeLabels[RayTracer::kModeCount];
     for (int i = 0; i < RayTracer::kModeCount; ++i) {
@@ -516,6 +524,24 @@ int main(int argc, char** argv) {
     std::string loadError;
     int modelIndex = -1;  // index into modelPaths; -1 if the current file is not in the list
 
+    // Everything derived from the scene's geometry: GL buffers, camera framing
+    // and depth defaults (when `reframe`), and any render in flight or shown.
+    auto rebuildAfterSceneChange = [&](bool reframe) {
+        destroyModel(glModel);
+        glModel = createModel(scene);
+        if (reframe) {
+            frameModel(scene.getBoundingBox());
+            // Depth mode defaults bracket the bounding box as seen from the camera.
+            const float modelSize = scene.getBoundingBox().getSize();
+            rtDepthNear = std::max(0.f, initialDistance - 0.5f * modelSize);
+            rtDepthFar = initialDistance + 0.5f * modelSize;
+        }
+        renderJob.reset();  // a render of the previous geometry is meaningless now
+        lastRender = Image();
+        lastRenderCancelled = false;
+        lastSavedPath.clear();
+    };
+
     // Load `path`: new scene, new GL buffers, camera re-framed, previous render
     // discarded. On failure the previous model stays and the error is shown.
     auto loadModel = [&](const std::string& path) -> bool {
@@ -527,23 +553,15 @@ int main(int argc, char** argv) {
             std::cerr << loadError << std::endl;
             return false;
         }
+        // The scene is Y-up; the file may not be. Orient before the lights.
+        autoUp = resolveUpAxis(path, next, &upSource);
+        next.setUpAxis(upChoice == 0 ? autoUp : kUpChoices[upChoice - 1]);
         next.addDefaultLights();
         if (showGround) next.addGroundPlane();
         scene = std::move(next);
         modelPath = path;
         loadError.clear();
-
-        destroyModel(glModel);
-        glModel = createModel(scene);
-        frameModel(scene.getBoundingBox());
-        // Depth mode defaults bracket the bounding box as seen from the camera.
-        const float modelSize = scene.getBoundingBox().getSize();
-        rtDepthNear = std::max(0.f, initialDistance - 0.5f * modelSize);
-        rtDepthFar = initialDistance + 0.5f * modelSize;
-        renderJob.reset();  // a render of the previous model is meaningless now
-        lastRender = Image();
-        lastRenderCancelled = false;
-        lastSavedPath.clear();
+        rebuildAfterSceneChange(true);
 
         modelIndex = -1;
         for (size_t i = 0; i < modelPaths.size(); ++i) {
@@ -559,7 +577,8 @@ int main(int argc, char** argv) {
             nt += o.getMesh().getTriangles().size();
         }
         std::cout << "Loaded " << path << ": " << scene.getObjects().size() << " object(s), " << nv
-                  << " vertices, " << nt << " triangles" << std::endl;
+                  << " vertices, " << nt << " triangles, up " << upAxisName(scene.getUpAxis()) << " ("
+                  << (upChoice == 0 ? upSource : "chosen") << ")" << std::endl;
         glfwSetWindowTitle(window, ("Raymini - " + std::filesystem::path(path).filename().string()).c_str());
         return true;
     };
@@ -799,15 +818,26 @@ int main(int argc, char** argv) {
                 ImGui::TextWrapped("%s", loadError.c_str());
                 ImGui::PopStyleColor();
             }
+            rowWidget("Up axis");
+            if (ImGui::Combo("##up", &upChoice, kUpLabels, IM_ARRAYSIZE(kUpLabels))) {
+                // Re-orient in place (exact), rebuild the ground under the new
+                // bottom, and re-place the light rig around the new box.
+                scene.setUpAxis(upChoice == 0 ? autoUp : kUpChoices[upChoice - 1]);
+                scene.getLights().clear();
+                scene.addDefaultLights();
+                rebuildAfterSceneChange(true);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Which axis of the file points up. Auto reads models/orientation.txt,\n"
+                                  "else takes the flattest side as the bottom. Currently %s (%s).",
+                                  upAxisName(scene.getUpAxis()), upChoice == 0 ? upSource.c_str() : "chosen");
+            }
             rowLabel("Ground");
             if (ImGui::Checkbox("##ground", &showGround)) {
                 // A backdrop: framing and the light rig keep following the model.
                 scene.removeBackdrops();
                 if (showGround) scene.addGroundPlane();
-                destroyModel(glModel);
-                glModel = createModel(scene);
-                renderJob.reset();
-                lastRender = Image();
+                rebuildAfterSceneChange(false);
             }
             ImGui::SameLine();
             ImGui::TextDisabled("plane under the model, catches its shadows");

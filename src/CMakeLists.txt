@@ -8,6 +8,7 @@ add_library(raymini_core STATIC
   core/Mesh.cpp
   core/Object.cpp
   core/ObjLoader.cpp
+  core/Orientation.cpp
   core/Ray.cpp
   core/RayTracer.cpp
   core/RenderJob.cpp

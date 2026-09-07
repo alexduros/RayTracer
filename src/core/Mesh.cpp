@@ -8,6 +8,7 @@
 #include "Mesh.h"
 #include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 
 using namespace std;
@@ -138,36 +139,73 @@ void Mesh::markBorderEdges (EdgeMapIndex & edgeMap) {
     }
 }
 
+namespace {
+
+/// Next line that is neither blank nor a '#' comment, CR stripped.
+bool nextContentLine (std::istream & in, std::string & line) {
+    while (std::getline (in, line)) {
+        if (!line.empty () && line.back () == '\r')
+            line.pop_back ();
+        const size_t first = line.find_first_not_of (" \t");
+        if (first == std::string::npos || line[first] == '#')
+            continue;
+        return true;
+    }
+    return false;
+}
+
+} // namespace
+
 void Mesh::loadOFF (const std::string & filename) {
     clear ();
     ifstream input (filename.c_str ());
     if (!input)
         throw runtime_error ("Mesh::loadOFF: cannot open " + filename);
+    // Line based on purpose: OFF allows extra columns after a vertex (colour,
+    // normal) and after a face's indices (a colour), which a token stream
+    // would read as the next vertex or face.
+    string line;
+    if (!nextContentLine (input, line))
+        throw runtime_error ("Mesh::loadOFF: empty file " + filename);
+    istringstream header (line);
     string magic_word;
-    input >> magic_word;
+    header >> magic_word;
     if (magic_word != "OFF")
         throw runtime_error ("Mesh::loadOFF: not an OFF file: " + filename);
+    // Counts follow either on the same line ("OFF 8 6 0") or on the next one.
     unsigned int numOfVertices = 0, numOfFaces = 0, numOfEdges = 0;
-    input >> numOfVertices >> numOfFaces >> numOfEdges;
-    if (!input)
-        throw runtime_error ("Mesh::loadOFF: malformed header in " + filename);
+    if (header >> numOfVertices >> numOfFaces) {
+        header >> numOfEdges;
+    } else {
+        if (!nextContentLine (input, line))
+            throw runtime_error ("Mesh::loadOFF: malformed header in " + filename);
+        istringstream counts (line);
+        if (!(counts >> numOfVertices >> numOfFaces))
+            throw runtime_error ("Mesh::loadOFF: malformed header in " + filename);
+        counts >> numOfEdges;  // optional
+    }
+    // One vertex per line: x y z, anything after is ignored.
     vertices.reserve (numOfVertices);
     for (unsigned int i = 0; i < numOfVertices; i++) {
-        Vec3Df pos;
-        input >> pos;
-        if (!input)
+        if (!nextContentLine (input, line))
             throw runtime_error ("Mesh::loadOFF: truncated vertex list in " + filename);
+        istringstream ss (line);
+        Vec3Df pos;
+        if (!(ss >> pos))
+            throw runtime_error ("Mesh::loadOFF: malformed vertex in " + filename);
         vertices.push_back (Vertex (pos));
     }
+    // One face per line: n i0 .. i(n-1), anything after (a colour) is ignored.
     for (unsigned int i = 0; i < numOfFaces; i++) {
+        if (!nextContentLine (input, line))
+            throw runtime_error ("Mesh::loadOFF: truncated face list in " + filename);
+        istringstream ss (line);
         unsigned int polygonSize = 0;
-        input >> polygonSize;
-        if (!input || polygonSize < 3)
+        if (!(ss >> polygonSize) || polygonSize < 3)
             throw runtime_error ("Mesh::loadOFF: bad face in " + filename);
         vector<unsigned int> index (polygonSize);
         for (unsigned int j = 0; j < polygonSize; j++) {
-            input >> index[j];
-            if (!input || index[j] >= numOfVertices)
+            if (!(ss >> index[j]) || index[j] >= numOfVertices)
                 throw runtime_error ("Mesh::loadOFF: vertex index out of range in " + filename);
         }
         // Fan-triangulate: (0,1,2), (0,2,3), ...
