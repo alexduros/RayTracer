@@ -116,6 +116,99 @@ const RayTracer::ModeInfo & RayTracer::antiAliasingInfo () {
     return kAntiAliasingInfo;
 }
 
+namespace {
+
+// The roadmap, one sentence of principle each. Order = suggested order of
+// implementation within each family; the document groups them.
+const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
+    {"specular", "Blinn-Phong specular",
+     "Adds a highlight where the half-vector between the light and view directions lines up with the normal, "
+     "sharpened by a shininess exponent.",
+     "Needs a shininess value on Material (MTL Ns). Experiment 2.",
+     "B. T. Phong, CACM 18(6), 1975; J. Blinn, \"Models of Light Reflection for Computer Synthesized Pictures\", "
+     "SIGGRAPH 1977."},
+    {"shadows", "Hard shadows",
+     "A shadow ray from the hit point toward each light drops that light's contribution when any surface blocks "
+     "it.",
+     "Needs a ground plane to receive shadows and an epsilon offset along the normal. Experiment 1.",
+     "A. Appel, \"Some Techniques for Shading Machine Renderings of Solids\", AFIPS 1968; T. Whitted, CACM 23(6), "
+     "1980."},
+    {"softshadows", "Soft shadows (area lights)",
+     "Many shadow rays toward points spread over the light's disk estimate the fraction of it that is visible, "
+     "giving penumbrae instead of hard edges.",
+     "Needs hard shadows and the per-pixel sampling from anti-aliasing. Experiment 6.",
+     "R. L. Cook, T. Porter & L. Carpenter, \"Distributed Ray Tracing\", SIGGRAPH 1984."},
+    {"ao", "Ambient occlusion",
+     "Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases "
+     "and contact points.",
+     "Needs hemisphere sampling and a BVH to stay fast. Experiment 8.",
+     "S. Zhukov, A. Iones & G. Kronin, \"An Ambient Light Illumination Model\", Eurographics Rendering Workshop "
+     "1998."},
+    {"reflection", "Mirror reflections",
+     "Rays bounce off reflective surfaces recursively and add what they see, scaled by the material's "
+     "reflectivity, up to a depth limit.",
+     "Needs a reflectivity value on Material and recursion in shade(). Experiment 7.",
+     "T. Whitted, \"An Improved Illumination Model for Shaded Display\", CACM 23(6), 1980."},
+    {"refraction", "Refraction (glass)",
+     "Rays bend through transparent surfaces following Snell's law and split between reflection and "
+     "transmission by the Fresnel term.",
+     "Needs reflections, an index of refraction (MTL Ni) and transparency (MTL d). Experiment 7.",
+     "T. Whitted, CACM 23(6), 1980; C. Schlick, \"An Inexpensive BRDF Model for Physically-based Rendering\", "
+     "Computer Graphics Forum 13(3), 1994."},
+    {"pathtracing", "Path tracing (global illumination)",
+     "Each pixel averages many random light paths bouncing through the scene, converging on the rendering "
+     "equation with indirect light and colour bleeding.",
+     "Needs emissive materials, a BVH, many samples per pixel and the progressive display that already exists.",
+     "J. T. Kajiya, \"The Rendering Equation\", SIGGRAPH 1986."},
+    {"environment", "Environment lighting (HDR sky)",
+     "A panoramic image lights the scene: rays that miss geometry return the sky's colour and diffuse surfaces "
+     "integrate it over the hemisphere.",
+     "Needs HDR image loading (stb reads .hdr) and hemisphere sampling.",
+     "P. Debevec, \"Rendering Synthetic Objects into Real Scenes\", SIGGRAPH 1998."},
+    {"textures", "Textures (procedural and image)",
+     "The material colour becomes a function of the hit: a checker or noise of the position, or a bitmap looked "
+     "up through interpolated texture coordinates.",
+     "Needs UVs kept from OBJ files and MTL map_Kd; procedural patterns first, since OFF models have no UVs.",
+     "E. Catmull, PhD thesis, University of Utah, 1974 (texture mapping); K. Perlin, \"An Image Synthesizer\", "
+     "SIGGRAPH 1985 (noise)."},
+    {"pbr", "Physically based materials (GGX)",
+     "A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and "
+     "masking terms, driven by roughness and metalness.",
+     "Needs roughness and metalness on Material; supersedes Blinn-Phong.",
+     "R. Cook & K. Torrance, \"A Reflectance Model for Computer Graphics\", SIGGRAPH 1981; B. Walter et al., "
+     "\"Microfacet Models for Refraction through Rough Surfaces\", EGSR 2007."},
+    {"dof", "Depth of field",
+     "Rays start from random points on a lens disk and converge on the focal plane, blurring whatever lies "
+     "nearer or farther.",
+     "Needs an aperture and a focus distance on Camera plus per-pixel sampling. Experiment 10.",
+     "M. Potmesil & I. Chakravarty, \"A Lens and Aperture Camera Model for Synthetic Image Generation\", SIGGRAPH "
+     "1981; Cook, Porter & Carpenter, SIGGRAPH 1984."},
+    {"tonemap", "Tone mapping and exposure",
+     "Radiance stays linear in floats and is mapped to the display range by an exposure and a tone curve before "
+     "sRGB encoding, so bright scenes no longer clip.",
+     "Needs a floating-point image buffer. Experiment 9.",
+     "E. Reinhard, M. Stark, P. Shirley & J. Ferwerda, \"Photographic Tone Reproduction for Digital Images\", "
+     "SIGGRAPH 2002."},
+    {"wireframe", "Wireframe overlay",
+     "Pixels whose barycentric coordinates lie close to a triangle edge are drawn dark over the shaded image, "
+     "showing the tessellation of the model.",
+     "Needs the barycentric coordinates Ray::hit already computes but does not return.",
+     "J. A. Baerentzen, S. L. Nielsen, M. Gjoel, B. D. Larsen & N. J. Christensen, \"Single-pass Wireframe "
+     "Rendering\", SIGGRAPH 2006 Sketches."},
+    {"cost", "Cost heatmap",
+     "Each pixel is coloured by how many triangle or bounding-box tests its rays needed, showing where the time "
+     "goes on complex models.",
+     "Needs counters in closestHit and in the BVH; the diagnostic that justifies experiment 3.",
+     "I. Wald, \"Realtime Ray Tracing and Interactive Global Illumination\", PhD thesis, Saarland University, "
+     "2004."},
+};
+
+} // namespace
+
+const RayTracer::ModeInfo & RayTracer::plannedMode (int index) {
+    return kPlannedModes[(index >= 0 && index < kPlannedModeCount) ? index : 0];
+}
+
 bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) const {
     bool found = false;
     best.distance = std::numeric_limits<float>::max ();

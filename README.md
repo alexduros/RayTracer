@@ -120,10 +120,12 @@ claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
 
 ## Next steps
 
-`claudedocs/EXPERIMENTS.md` lists the next ten experiments (ground plane and
-hard shadows, Blinn-Phong, BVH, threads, anti-aliasing, soft shadows,
-reflections, ambient occlusion, tone mapping, depth of field), each with the
-test that proves it.
+`claudedocs/RENDERING_ROADMAP.md` maps the rendering modes the raytracer can
+offer next (shading, light transport, textures, camera effects, analysis
+modes, and what complex scenes need), each with a one-sentence principle;
+the viewer lists them greyed out under "Planned" in the mode menu and
+`raymini-cli --help` prints them. `claudedocs/EXPERIMENTS.md` is the
+implementation order, each step with the test that proves it.
 
 ## Notes
 

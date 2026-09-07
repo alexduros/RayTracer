@@ -70,6 +70,14 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << aa.principle << "\n"
         << "      Read: " << aa.reading << "\n"
         << "      Ref:  " << aa.reference << "\n";
+    out << "\nPlanned modes, not available yet (map: claudedocs/RENDERING_ROADMAP.md):\n";
+    for (int i = 0; i < RayTracer::kPlannedModeCount; ++i) {
+        const RayTracer::ModeInfo& p = RayTracer::plannedMode(i);
+        out << "  " << p.name << "\n"
+            << "      " << p.principle << "\n"
+            << "      " << p.reading << "\n"
+            << "      Ref:  " << p.reference << "\n";
+    }
 }
 
 struct Options {

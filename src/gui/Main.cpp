@@ -351,6 +351,17 @@ void rowWidget(const char* label) {
     ImGui::SetNextItemWidth(-FLT_MIN);
 }
 
+// Wrapped tooltip for the last item, also when that item is disabled.
+void itemTooltip(const char* text) {
+    if (!ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled | ImGuiHoveredFlags_DelayShort)) return;
+    if (ImGui::BeginTooltip()) {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.f);
+        ImGui::TextUnformatted(text);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
+
 // "(?)" that explains a setting on hover, from the core's ModeInfo table.
 void helpMarker(const RayTracer::ModeInfo& info) {
     ImGui::TextDisabled("(?)");
@@ -821,7 +832,24 @@ int main(int argc, char** argv) {
             ImGui::SliderInt("##width", &rtResolution, 64, 1024, "%d px");
             rowValue("Output", "%d x %d px", rtResolution, renderHeightFor(rtResolution));
             rowWidget("Mode");
-            ImGui::Combo("##mode", &rtMode, modeLabels, RayTracer::kModeCount);
+            if (ImGui::BeginCombo("##mode", modeLabels[rtMode], ImGuiComboFlags_HeightLarge)) {
+                for (int i = 0; i < RayTracer::kModeCount; ++i) {
+                    const bool selected = i == rtMode;
+                    if (ImGui::Selectable(modeLabels[i], selected)) rtMode = i;
+                    itemTooltip(RayTracer::info(static_cast<RayTracer::DebugMode>(i)).principle);
+                    if (selected) ImGui::SetItemDefaultFocus();
+                }
+                // The roadmap, greyed out: hover for the one-sentence principle.
+                ImGui::SeparatorText("Planned");
+                for (int i = 0; i < RayTracer::kPlannedModeCount; ++i) {
+                    const RayTracer::ModeInfo& p = RayTracer::plannedMode(i);
+                    ImGui::Selectable(p.name, false, ImGuiSelectableFlags_Disabled);
+                    char tip[1024];
+                    std::snprintf(tip, sizeof(tip), "%s\n\n%s\n\n%s", p.principle, p.reading, p.reference);
+                    itemTooltip(tip);
+                }
+                ImGui::EndCombo();
+            }
             rowWidget("Anti-alias");
             {
                 const char* aaLabels[] = {"Off (1 ray/px)", "2x2 (4 rays/px)", "3x3 (9 rays/px)", "4x4 (16 rays/px)"};

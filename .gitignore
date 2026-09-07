@@ -23,3 +23,6 @@ renders/
 *.swp
 *.tmp
 .claude/settings.local.json
+
+# Personal test models dropped into models/ (not bundled, never committed)
+models/cat.*

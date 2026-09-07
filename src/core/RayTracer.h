@@ -73,6 +73,13 @@ public:
     /// Same account for anti-aliasing, which is a setting rather than a mode.
     static const ModeInfo & antiAliasingInfo ();
 
+    /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
+    /// is the full map): same fields, with `reading` holding what the mode
+    /// needs. Listed greyed out in the viewer's mode menu and in --help so
+    /// the roadmap is visible where the modes are chosen.
+    static constexpr int kPlannedModeCount = 14;
+    static const ModeInfo & plannedMode (int index);
+
     RayTracer () {}
 
     /// Anti-aliasing: samplesPerAxis x samplesPerAxis primary rays per pixel

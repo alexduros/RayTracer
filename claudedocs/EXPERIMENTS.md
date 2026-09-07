@@ -1,6 +1,8 @@
 # Next ten experiments
 
-Ordered so that each one builds on the previous ones. Every experiment ships
+The map of every mode the raytracer could offer, with a one-sentence
+principle each, is `RENDERING_ROADMAP.md`; this file is the implementation
+order. Ordered so that each one builds on the previous ones. Every experiment ships
 with (a) a unit test on synthetic geometry, (b) regenerated goldens reviewed
 by eye, (c) a `raymini-cli` flag, (d) a PNG to look at.
 

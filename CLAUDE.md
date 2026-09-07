@@ -20,8 +20,12 @@ tests that prove each one.
 - `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
   backends), glad, stb. `models/` — 26 OFF files plus `cube.obj`/`cube.mtl`
   (six materials, one per face).
-- `claudedocs/EXPERIMENTS.md` — the next ten experiments, each with the test
-  that proves it. `claudedocs/MODERNIZATION_ROADMAP.md` — the longer view.
+- `claudedocs/RENDERING_ROADMAP.md` — every rendering mode the raytracer
+  could offer next, one-sentence principle each; mirrored by
+  `RayTracer::plannedMode()` (greyed out in the viewer's mode menu, printed
+  by `--help`). Keep the three in sync. `claudedocs/EXPERIMENTS.md` — the
+  implementation order, each step with the test that proves it.
+  `claudedocs/MODERNIZATION_ROADMAP.md` — the longer view.
 - `Rendu.png` — reference render from the original project (ram on a ground
   plane with shadows). That look is the first target.
 
