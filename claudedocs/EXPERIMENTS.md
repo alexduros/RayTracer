@@ -9,7 +9,7 @@ by eye, (c) a `raymini-cli` flag, (d) a PNG to look at.
 Timings quoted are for an M-series Mac, single thread, brute-force
 intersection unless stated otherwise.
 
-## 1. Ground plane and hard shadows
+## 1. Ground plane and hard shadows (done)
 
 Recreate the look of `Rendu.png`: a model standing on a plane, casting a
 shadow. Add `Scene::addGroundPlane(material)` (a large quad at the bottom of
@@ -25,8 +25,12 @@ light if `closestHit` finds anything closer than the light.
 - CLI: `--ground`, `--shadows`.
 - Cost: shadow rays multiply intersection work by (1 + lights); fine on teapot,
   slow on minion until experiment 3.
+- Done: `Scene::addGroundPlane` (a backdrop the bounding box ignores),
+  `RayTracer::setShadows`, CLI `--ground` / `--no-shadows`, GUI "Ground" and
+  "Shadows"; tests in `tests/TestShading.cpp`, golden `teapot_ground_*`. The
+  checkerboard waits for procedural textures.
 
-## 2. Blinn-Phong specular
+## 2. Blinn-Phong specular (done)
 
 Use `Material::specular` plus a new shininess exponent. Add
 `specular * intensity * pow(max(0, n.h), shininess) * lightColor` with
@@ -37,6 +41,9 @@ Use `Material::specular` plus a new shininess exponent. Add
   highlight shrinks when shininess grows, and a specular of 0 reproduces the
   Lambert golden exactly.
 - CLI: `--specular <k> --shininess <n>`.
+- Done: `Material::shininess` (MTL `Ns`, default 32), `RayTracer::setSpecularEnabled`,
+  CLI `--no-specular`, GUI "Specular"; tests in `tests/TestShading.cpp`.
+  Per-material overrides on the CLI wait for the material editor.
 
 ## 3. BVH acceleration structure
 

@@ -15,13 +15,43 @@
 #include "ObjLoader.h"
 
 void Scene::updateBoundingBox () {
-    if (objects.empty ())
-        bbox = BoundingBox ();
-    else {
-        bbox = objects[0].getBoundingBox ();
-        for (unsigned int i = 1; i < objects.size (); i++)
-            bbox.extendTo (objects[i].getBoundingBox ());
+    // Backdrops (the ground plane) are left out on purpose: the box drives
+    // framing and light placement, which must follow the model itself.
+    bool first = true;
+    bbox = BoundingBox ();
+    for (const Object & o : objects) {
+        if (o.isBackdrop ())
+            continue;
+        if (first) {
+            bbox = o.getBoundingBox ();
+            first = false;
+        } else {
+            bbox.extendTo (o.getBoundingBox ());
+        }
     }
+}
+
+void Scene::addGroundPlane (const Material & material, float extent) {
+    const float size = std::max (bbox.getSize (), 1e-3f);
+    const float h = extent * size;
+    const Vec3Df c = bbox.getCenter ();
+    const float y = bbox.getMin ()[1];
+    const Vec3Df n (0.f, 1.f, 0.f);
+    // Counter-clockwise seen from above (+Y), so the front face points up.
+    const std::vector<Vertex> v = {
+        Vertex (Vec3Df (c[0] - h, y, c[2] - h), n), Vertex (Vec3Df (c[0] - h, y, c[2] + h), n),
+        Vertex (Vec3Df (c[0] + h, y, c[2] + h), n), Vertex (Vec3Df (c[0] + h, y, c[2] - h), n)};
+    const std::vector<Triangle> t = {Triangle (0, 1, 2), Triangle (0, 2, 3)};
+    Object ground (Mesh (v, t), material);
+    ground.setBackdrop (true);
+    objects.push_back (ground);  // a backdrop never changes bbox
+}
+
+void Scene::removeBackdrops () {
+    objects.erase (std::remove_if (objects.begin (), objects.end (),
+                                   [] (const Object & o) { return o.isBackdrop (); }),
+                   objects.end ());
+    updateBoundingBox ();
 }
 
 void Scene::addObject (const Object & object) {
@@ -57,13 +87,16 @@ size_t Scene::addObjectsFromFile (const std::string & filename, const Material &
 }
 
 void Scene::addDefaultLights () {
-    // Positions/radii below were tuned for a model of size ~2 centred at the
-    // origin; scale them by half the bounding box size and re-centre.
+    // The original rig's colours and strengths (cyan key, yellow fill, white
+    // rim), tuned for a model of size ~2 at the origin: scale by half the
+    // bounding box size and re-centre. The fill and rim used to sit below the
+    // model; they are raised above its bottom so a ground plane cannot block
+    // them (every light stays above y = centre, hence above the floor).
     const Vec3Df c = bbox.getCenter ();
     const float s = std::max (bbox.getSize (), 1e-3f) / 2.f;
-    lights.push_back (Light (c + s * Vec3Df (3.0f, 3.0f, 3.0f),   Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, 3.0f * s));
-    lights.push_back (Light (c + s * Vec3Df (-2.0f, -2.0f, 2.0f), Vec3Df (1.0f, 1.0f, 0.0f), 0.5f, 3.0f * s));
-    lights.push_back (Light (c + s * Vec3Df (0.0f, -2.0f, 2.0f),  Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, 3.0f * s));
+    lights.push_back (Light (c + s * Vec3Df (3.0f, 3.0f, 3.0f),  Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, 3.0f * s));  // key
+    lights.push_back (Light (c + s * Vec3Df (-3.0f, 1.0f, 2.0f), Vec3Df (1.0f, 1.0f, 0.0f), 0.5f, 3.0f * s));  // fill
+    lights.push_back (Light (c + s * Vec3Df (0.0f, 2.0f, -3.0f), Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, 3.0f * s));  // rim
 }
 
 void Scene::clear () {

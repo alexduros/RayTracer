@@ -12,6 +12,9 @@ the implementation order with tests; this page is the map.
 | Mode | Principle |
 |------|-----------|
 | Lit (Lambert) | Each light adds material colour x light colour x the cosine between the normal and the light direction, plus a constant ambient term. |
+| Blinn-Phong specular | A white highlight where the half-vector between the light and view directions lines up with the normal, raised to the material's shininess. |
+| Hard shadows | A shadow ray from the hit point toward each light drops that light when any surface blocks it. |
+| Ground plane | A large backdrop quad at the bottom of the model's box that catches its shadows without changing the framing. |
 | Ambient (albedo) | The material's base colour at the hit, with no lighting at all. |
 | Hit mask (coverage) | White where the primary ray hits geometry, black where it escapes. |
 | Normals | The surface normal remapped from [-1, 1] to [0, 1] per axis as red, green, blue. |
@@ -21,13 +24,13 @@ the implementation order with tests; this page is the map.
 
 ## 1. Local shading
 
-### Blinn-Phong specular
+### Blinn-Phong specular (done)
 **Principle:** Adds a highlight where the half-vector between the light and view directions lines up with the normal, sharpened by a shininess exponent.
-Needs: shininess on `Material` (MTL `Ns`). Test: the highlight pixel is brighter than its neighbours, shrinks with shininess, and specular 0 reproduces the Lambert golden. Reference: Phong 1975; Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977. (Experiment 2)
+Done: `Material::shininess` (MTL `Ns`), `RayTracer::setSpecularEnabled`, tests in `tests/TestShading.cpp` (peaks with the light at the eye, shrinks with shininess, white whatever the material colour). Reference: Phong 1975; Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977. (Experiment 2)
 
-### Hard shadows
+### Hard shadows (done)
 **Principle:** A shadow ray from the hit point toward each light drops that light's contribution when any surface blocks it.
-Needs: a ground plane under the model (`Scene::addGroundPlane`), an epsilon offset along the normal. Test: the pixel under an occluder equals the ambient term, its neighbour equals ambient + diffuse, a bare plane has no acne. Reference: Appel 1968; Whitted 1980. (Experiment 1)
+Done: `RayTracer::setShadows`, shadow origin offset along the normal by 1e-4 of the model size, `Scene::addGroundPlane` (CLI `--ground`, GUI "Ground"). Tests: a point behind a cube gets the ambient term only, its neighbour ambient + diffuse, a lone plane never shadows itself, the ground catches the model's shadow; golden `teapot_ground_*`. Reference: Appel 1968; Whitted 1980. (Experiment 1)
 
 ### Soft shadows (area lights)
 **Principle:** Many shadow rays toward points spread over the light's disk estimate the fraction of it that is visible, giving penumbrae instead of hard edges.
@@ -123,13 +126,13 @@ Needs: object transforms (see instancing), a small JSON or TOML reader. Test: a 
 **Principle:** An object carries a transform, so one mesh can appear many times at different positions, sizes and orientations without copying it.
 Needs: transforming rays into object space in `closestHit`. Test: two instances of the teapot give twice the hits of one.
 
-### Ground plane
+### Ground plane (done)
 **Principle:** A large quad under the model receives shadows and gives every render a floor, recreating the look of the original `Rendu.png`.
-(Part of experiment 1)
+Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 
 ## Suggested order
 
-1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene.
+1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
 2. BVH, then tile threads: the cat and the minion become interactive.
 3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop.
 4. Reflections and refraction, then textures from OBJ UVs.

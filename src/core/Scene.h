@@ -50,9 +50,19 @@ public:
     /// any model size. Call after the objects are added.
     void addDefaultLights ();
 
+    /// A large quad at the bottom of the model's bounding box that receives
+    /// its shadows and gives every render a floor. It is a *backdrop*: it
+    /// does not count toward getBoundingBox(), so framing and the light rig
+    /// keep following the model. `extent` is the half-size in multiples of
+    /// the model's size.
+    void addGroundPlane (const Material & material = groundMaterial (), float extent = 3.f);
+    /// Remove backdrop objects (the ground plane).
+    void removeBackdrops ();
+
     void clear ();
 
     static Material defaultMaterial () { return Material (1.f, 1.f, Vec3Df (1.f, .6f, .2f)); }
+    static Material groundMaterial () { return Material (1.f, 0.f, Vec3Df (0.75f, 0.75f, 0.75f)); }
 
 private:
     std::vector<Object> objects;

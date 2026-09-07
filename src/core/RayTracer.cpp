@@ -51,14 +51,16 @@ float uniform01 (std::minstd_rand & rng) {
 }
 
 const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
-    {"lit", "Lit (Lambert)",
-     "Diffuse shading: for each light, material colour x light colour x max(0, n.l), the cosine between the "
-     "surface normal and the direction to the light, plus a constant ambient term. No shadows, highlights or "
-     "bounces yet.",
-     "Brighter where a surface faces a light, darker as it turns away; faces turned from every light show only "
-     "the ambient term. Colour is material x light, so the cyan key light tints the orange default material green.",
-     "J. H. Lambert, Photometria (1760): the cosine law. Modern treatment: Pharr, Jakob & Humphreys, Physically "
-     "Based Rendering, 4th ed., section 9.2 \"Diffuse Reflection\"."},
+    {"lit", "Lit (Lambert + Blinn-Phong, shadows)",
+     "For each light: material colour x light colour x max(0, n.l), the cosine between the normal and the light "
+     "direction (Lambert); plus a white highlight where the half-vector between the light and view directions "
+     "lines up with the normal, raised to the shininess (Blinn-Phong); a shadow ray toward the light drops it "
+     "when something is in the way; plus a constant ambient term. No bounces yet.",
+     "Brighter where a surface faces a light; tight bright spots are highlights; where a light is blocked only "
+     "the ambient term and the other lights remain. Colour is material x light, so the cyan key light tints the "
+     "orange default material green. Turn on the ground plane to see the shadows fall.",
+     "J. H. Lambert, Photometria (1760); J. Blinn, \"Models of Light Reflection for Computer Synthesized "
+     "Pictures\", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968 and T. Whitted, CACM 23(6), 1980."},
     {"ambient", "Ambient (albedo)",
      "The material's base colour (Kd) at the hit point with no lighting at all: what the surface would reflect "
      "under uniform white light.",
@@ -121,18 +123,6 @@ namespace {
 // The roadmap, one sentence of principle each. Order = suggested order of
 // implementation within each family; the document groups them.
 const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
-    {"specular", "Blinn-Phong specular",
-     "Adds a highlight where the half-vector between the light and view directions lines up with the normal, "
-     "sharpened by a shininess exponent.",
-     "Needs a shininess value on Material (MTL Ns). Experiment 2.",
-     "B. T. Phong, CACM 18(6), 1975; J. Blinn, \"Models of Light Reflection for Computer Synthesized Pictures\", "
-     "SIGGRAPH 1977."},
-    {"shadows", "Hard shadows",
-     "A shadow ray from the hit point toward each light drops that light's contribution when any surface blocks "
-     "it.",
-     "Needs a ground plane to receive shadows and an epsilon offset along the normal. Experiment 1.",
-     "A. Appel, \"Some Techniques for Shading Machine Renderings of Solids\", AFIPS 1968; T. Whitted, CACM 23(6), "
-     "1980."},
     {"softshadows", "Soft shadows (area lights)",
      "Many shadow rays toward points spread over the light's disk estimate the fraction of it that is visible, "
      "giving penumbrae instead of hard edges.",
@@ -226,7 +216,7 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
     return found;
 }
 
-Vec3Df RayTracer::shade (const Scene & scene, const Ray & /*ray*/, const Hit & hit) const {
+Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit) const {
     const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
     switch (debugMode) {
         case DebugMode::HIT_MASK:
@@ -254,16 +244,38 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & /*ray*/, const Hit & h
             return mat.getColor ();
         case DebugMode::LIT:
         default: {
-            // Lambert. No shadows, no specular, no attenuation yet.
+            // Lambert diffuse + Blinn-Phong highlight + hard shadows. No
+            // attenuation, no bounces.
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
             const Vec3Df & p = hit.vertex.getPos ();
+            Vec3Df v = -ray.getDirection ();
+            v.normalize ();
+            // Shadow rays start a little off the surface along the normal so
+            // the surface cannot shadow itself ("acne"); scaled to the model.
+            const float bias = 1e-4f * std::max (scene.getBoundingBox ().getSize (), 1e-3f);
+            const Vec3Df shadowOrigin = p + n * bias;
+
             Vec3Df color = ambientIntensity * mat.getColor ();
             for (const Light & light : scene.getLights ()) {
                 Vec3Df l = light.getPos () - p;
-                l.normalize ();
-                const float nDotL = std::max (0.f, Vec3Df::dotProduct (n, l));
+                const float distanceToLight = l.normalize ();
+                const float nDotL = Vec3Df::dotProduct (n, l);
+                if (nDotL <= 0.f)
+                    continue;  // light behind the surface
+                if (shadows) {
+                    Hit blocker;
+                    if (closestHit (scene, Ray (shadowOrigin, l), blocker) && blocker.distance < distanceToLight)
+                        continue;  // something between the point and the light
+                }
                 color += (mat.getDiffuse () * light.getIntensity () * nDotL) * (mat.getColor () * light.getColor ());
+                if (specularEnabled && mat.getSpecular () > 0.f) {
+                    Vec3Df h = l + v;
+                    h.normalize ();
+                    const float nDotH = std::max (0.f, Vec3Df::dotProduct (n, h));
+                    color += (mat.getSpecular () * light.getIntensity () * std::pow (nDotH, mat.getShininess ())) *
+                             light.getColor ();
+                }
             }
             return color;
         }

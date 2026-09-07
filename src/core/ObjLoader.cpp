@@ -1,6 +1,7 @@
 // Wavefront OBJ + MTL loader. See ObjLoader.h for how a file maps onto objects.
 #include "ObjLoader.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -115,8 +116,12 @@ std::map<std::string, Material> loadMTL (const std::string & filename) {
             Vec3Df s;
             if (ss >> s)
                 materials[current].setSpecular ((s[0] + s[1] + s[2]) / 3.f);
+        } else if (key == "Ns") {
+            float ns = 0.f;
+            if (ss >> ns)
+                materials[current].setShininess (std::max (1.f, ns));  // 0 would flatten the highlight to white
         }
-        // Ka, Ns, d, Tr, illum, map_*: not represented by Material yet.
+        // Ka, d, Tr, illum, map_*: not represented by Material yet.
     }
     return materials;
 }

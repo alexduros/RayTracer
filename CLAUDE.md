@@ -58,8 +58,10 @@ build/raymini-cli --help
   dispatches on the extension, case-insensitively.
 - `Camera::primaryRay` -> `RayTracer::closestHit` (brute force over every
   triangle of every object, back faces culled) -> `RayTracer::shade` by mode.
-- Modes: `lit` (Lambert: ambient + sum over lights of diffuse * max(0, n.l);
-  no shadows, no specular), `ambient`, `hitmask`, `normals`, `depth`
+- Modes: `lit` (ambient + per light: Lambert diffuse, Blinn-Phong highlight
+  from Material::shininess, dropped when a shadow ray toward the light is
+  blocked; `setShadows` / `setSpecularEnabled` switch the last two),
+  `ambient`, `hitmask`, `normals`, `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
   (golden-ratio hue palette by object index). `RayTracer::info(mode)` holds
   each mode's name, principle, how to read it and its reference; the GUI
@@ -100,9 +102,13 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
 
 - No acceleration structure: the old KdTree was removed (never built, unsafe
   to copy). A BVH is experiment 3.
-- No shadows, specular, reflections, anti-aliasing, ambient occlusion,
-  textures or threading yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd`
-  textures are ignored; OBJ texture coordinates are parsed but not stored.
+- `Scene::addGroundPlane()` adds a *backdrop* quad at the bottom of the
+  model's box; backdrops are skipped by `updateBoundingBox`, so framing,
+  depth defaults and the light rig keep following the model. CLI
+  `--ground`, GUI "Ground" checkbox (on by default).
+- No soft shadows, reflections, ambient occlusion, textures or threading
+  yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
+  OBJ texture coordinates are parsed but not stored.
 - Some OFF files are Z-up (teapot); the viewer and CLI assume Y-up.
 - GL preview and raytraced panel share eye, target, up, vertical fov and
   aspect (3:2), so a render reproduces the preview exactly.

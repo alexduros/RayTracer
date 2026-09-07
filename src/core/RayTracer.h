@@ -77,7 +77,7 @@ public:
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 14;
+    static constexpr int kPlannedModeCount = 12;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -93,6 +93,14 @@ public:
     }
     inline unsigned int getAntiAliasingSamplesPerAxis () const { return aaSamplesPerAxis; }
     inline bool getAntiAliasingJitter () const { return aaJitter; }
+
+    /// Hard shadows: a shadow ray toward each light drops that light when
+    /// something is in the way (Lit mode only).
+    inline void setShadows (bool on) { shadows = on; }
+    inline bool getShadows () const { return shadows; }
+    /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
+    inline void setSpecularEnabled (bool on) { specularEnabled = on; }
+    inline bool isSpecularEnabled () const { return specularEnabled; }
 
     inline void setDebugMode (DebugMode m) { debugMode = m; }
     inline DebugMode getDebugMode () const { return debugMode; }
@@ -137,6 +145,8 @@ private:
     Vec3Df backgroundColor = Vec3Df (0.f, 0.f, 0.f);
     unsigned int aaSamplesPerAxis = 1;
     bool aaJitter = false;
+    bool shadows = true;
+    bool specularEnabled = true;
     Stats lastStats;
 };
 

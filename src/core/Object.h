@@ -31,10 +31,16 @@ public:
     inline const BoundingBox & getBoundingBox () const { return bbox; }
     void updateBoundingBox ();
 
+    /// Backdrops (the ground plane) are scenery: Scene leaves them out of its
+    /// bounding box so framing and the light rig keep following the model.
+    inline bool isBackdrop () const { return backdrop; }
+    inline void setBackdrop (bool b) { backdrop = b; }
+
 private:
     Mesh mesh;
     Material mat;
     BoundingBox bbox;
+    bool backdrop = false;
 };
 
 #endif // OBJECT_H

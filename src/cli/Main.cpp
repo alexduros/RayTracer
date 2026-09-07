@@ -48,6 +48,9 @@ Options:
   --mode <mode>          one of the modes below (default lit)
   --aa <n>               anti-aliasing: n x n rays per pixel, 1..8 (default 1 = off)
   --jitter               jitter the anti-aliasing rays inside their cells
+  --ground               add a ground plane under the model (receives its shadows)
+  --no-shadows           lit mode without shadow rays
+  --no-specular          lit mode without the Blinn-Phong highlight
   --fov <deg>            vertical field of view (default 45)
   --yaw <deg>            orbit around the model about +Y (default 0: camera on +Z)
   --pitch <deg>          orbit elevation, -89..89 (default 0)
@@ -92,6 +95,9 @@ struct Options {
     float depthNear = -1.f, depthFar = -1.f;  // < 0: automatic
     unsigned int aa = 1;
     bool jitter = false;
+    bool ground = false;
+    bool shadows = true;
+    bool specular = true;
     bool quiet = false;
 };
 
@@ -123,6 +129,12 @@ bool parseArgs(int argc, char** argv, Options& o) {
             std::exit(0);
         } else if (a == "--quiet") {
             o.quiet = true;
+        } else if (a == "--ground") {
+            o.ground = true;
+        } else if (a == "--no-shadows") {
+            o.shadows = false;
+        } else if (a == "--no-specular") {
+            o.specular = false;
         } else if (a == "--jitter") {
             o.jitter = true;
         } else if (a == "--aa") {
@@ -222,6 +234,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     scene.addDefaultLights();
+    if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
 
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
@@ -233,6 +246,8 @@ int main(int argc, char** argv) {
     RayTracer rt;
     rt.setDebugMode(o.mode);
     rt.setAntiAliasing(o.aa, o.jitter);
+    rt.setShadows(o.shadows);
+    rt.setSpecularEnabled(o.specular);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
         rt.setDepthRange(std::max(0.f, camDistance - 0.5f * size), camDistance + 0.5f * size);
     } else {

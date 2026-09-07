@@ -59,9 +59,11 @@ TEST_CASE("obj: MTL parsing maps Kd to colour and mean Ks to specular") {
     CHECK(red.getColor() == Vec3Df(0.9f, 0.1f, 0.2f));
     CHECK_CLOSE(red.getSpecular(), 0.6f, 1e-6);
     CHECK_CLOSE(red.getDiffuse(), 1.f, 1e-6);
+    CHECK_CLOSE(red.getShininess(), 50.f, 1e-6);  // Ns
     const Material& plain = materials.at("plain");
     CHECK(plain.getColor() == Vec3Df(0.8f, 0.8f, 0.8f));  // default when Kd is absent
     CHECK_CLOSE(plain.getSpecular(), 0.f, 1e-6);
+    CHECK_CLOSE(plain.getShininess(), 32.f, 1e-6);  // default when Ns is absent
     CHECK(throwsRuntimeError([] { loadMTL(test::outputDir() + "/missing.mtl"); }));
 }
 

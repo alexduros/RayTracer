@@ -19,10 +19,11 @@ with the raytracer split into a library that builds without any GL dependency.
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
   with the raytracer, save the result as PNG.
 - Raytracer: ray/triangle intersection (brute force, back faces culled),
-  Lambert shading with point lights, n x n supersampling with optional
-  jitter, and analysis modes (hit mask, normals, depth, object id). Every
-  mode explains itself in the UI and in `--help`, with the study it comes
-  from; see "Render modes" below.
+  Lambert + Blinn-Phong shading with point lights and hard shadows, an
+  optional ground plane that catches them, n x n supersampling with
+  optional jitter, and analysis modes (hit mask, normals, depth, object id).
+  Every mode explains itself in the UI and in `--help`, with the study it
+  comes from; see "Render modes" below.
 - CLI: render any model to a PNG, no display needed.
 - Tests: unit tests on synthetic geometry and golden-image regression on the
   teapot and ram models. CI runs them on Ubuntu and macOS.
@@ -50,6 +51,7 @@ cmake --build build -j
 build/raymini [models/minion.off]                     # viewer (model optional)
 build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20
 build/raymini-cli cube --mode lit --yaw 25 --pitch 20  # OBJ + MTL sample
+build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15   # floor + shadows, the Rendu.png look
 build/raymini-cli --help                              # all options
 ```
 
@@ -78,7 +80,7 @@ The same text is shown under the render in the viewer and printed by
 
 | Mode | What it computes | How to read it | Study |
 |------|------------------|----------------|-------|
-| **Lit (Lambert)** | Per light: material colour × light colour × max(0, n·l), plus a constant ambient term. No shadows, highlights or bounces yet. | Brighter where a surface faces a light. Colour is material × light, so the cyan key light tints the orange default material green. | J. H. Lambert, *Photometria* (1760); Pharr, Jakob & Humphreys, *Physically Based Rendering*, 4th ed., §9.2 |
+| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), and a shadow ray toward the light that drops it when blocked; plus a constant ambient term. No bounces yet. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
 | **Ambient (albedo)** | The material's base colour (Kd) at the hit, unlit. | Flat silhouettes per material; checks materials and outlines, shows no shape. | Ambient term of B. T. Phong, "Illumination for Computer Generated Pictures", CACM 18(6), 1975 |
 | **Hit mask (coverage)** | White where the primary ray hits geometry, black where it escapes. | A binary silhouette; with anti-aliasing, edge pixels turn grey in proportion to coverage. | T. Porter & T. Duff, "Compositing Digital Images", SIGGRAPH 1984 |
 | **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |

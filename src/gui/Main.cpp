@@ -495,6 +495,9 @@ int main(int argc, char** argv) {
     int rtMode = static_cast<int>(RayTracer::DebugMode::LIT);
     int rtAA = 2;            // rays per pixel axis: 2 -> 4 rays per pixel
     bool rtJitter = false;
+    bool rtShadows = true;
+    bool rtSpecular = true;
+    bool showGround = true;  // ground plane under the model, in both views
     int lastRenderSamples = 1;  // rays per pixel of the render being shown
     const char* modeLabels[RayTracer::kModeCount];
     for (int i = 0; i < RayTracer::kModeCount; ++i) {
@@ -525,6 +528,7 @@ int main(int argc, char** argv) {
             return false;
         }
         next.addDefaultLights();
+        if (showGround) next.addGroundPlane();
         scene = std::move(next);
         modelPath = path;
         loadError.clear();
@@ -671,6 +675,8 @@ int main(int argc, char** argv) {
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
             rt.setDepthRange(rtDepthNear, rtDepthFar);
             rt.setAntiAliasing(static_cast<unsigned int>(rtAA), rtJitter);
+            rt.setShadows(rtShadows);
+            rt.setSpecularEnabled(rtSpecular);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
             renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f));
@@ -793,6 +799,18 @@ int main(int argc, char** argv) {
                 ImGui::TextWrapped("%s", loadError.c_str());
                 ImGui::PopStyleColor();
             }
+            rowLabel("Ground");
+            if (ImGui::Checkbox("##ground", &showGround)) {
+                // A backdrop: framing and the light rig keep following the model.
+                scene.removeBackdrops();
+                if (showGround) scene.addGroundPlane();
+                destroyModel(glModel);
+                glModel = createModel(scene);
+                renderJob.reset();
+                lastRender = Image();
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("plane under the model, catches its shadows");
             {
                 size_t nv = 0, nt = 0;
                 for (const Object& o : scene.getObjects()) {
@@ -860,6 +878,10 @@ int main(int argc, char** argv) {
             ImGui::Checkbox("##jitter", &rtJitter);
             ImGui::SameLine();
             helpMarker(RayTracer::antiAliasingInfo());
+            rowLabel("Lighting");
+            ImGui::Checkbox("Shadows", &rtShadows);
+            ImGui::SameLine();
+            ImGui::Checkbox("Specular", &rtSpecular);
             if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
                 rowWidget("Near");
                 ImGui::SliderFloat("##near", &rtDepthNear, 0.f, 10.f * initialDistance, "%.2f");
