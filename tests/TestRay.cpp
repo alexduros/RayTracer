@@ -77,3 +77,35 @@ TEST_CASE("ray: bounding box slab test") {
     CHECK_MSG(!Ray(Vec3Df(0.f, 0.f, 5.f), Vec3Df(0.f, 0.f, 1.f)).intersect(box), "pointing away");
     CHECK_MSG(!Ray(Vec3Df(3.f, 0.f, 5.f), Vec3Df(0.f, 0.f, -1.f)).intersect(box), "passes beside the box");
 }
+
+TEST_CASE("ray: traversal slab test gives the entry distance, honours tMax and survives axis-parallel rays") {
+    const BoundingBox box(Vec3Df(-1.f, -1.f, -1.f), Vec3Df(1.f, 1.f, 1.f));
+    const auto inverse = [](const Vec3Df& d) { return Vec3Df(1.f / d[0], 1.f / d[1], 1.f / d[2]); };
+    const Vec3Df down(0.f, 0.f, -1.f);
+    float t = -1.f;
+    CHECK(Ray(Vec3Df(0.f, 0.f, 5.f), down).intersect(box, inverse(down), 100.f, t));
+    CHECK_CLOSE(t, 4.f, 1e-6);
+    CHECK_MSG(!Ray(Vec3Df(0.f, 0.f, 5.f), down).intersect(box, inverse(down), 3.5f, t), "box starts beyond tMax");
+    CHECK_MSG(Ray(Vec3Df(0.f, 0.f, 5.f), down).intersect(box, inverse(down), 4.f, t), "entry exactly at tMax counts");
+    CHECK_MSG(!Ray(Vec3Df(0.f, 0.f, 5.f), -down).intersect(box, inverse(-down), 100.f, t), "pointing away");
+    CHECK_MSG(Ray(Vec3Df(0.f, 0.f, 0.f), Vec3Df(1.f, 0.f, 0.f)).intersect(box, inverse(Vec3Df(1.f, 0.f, 0.f)), 100.f, t) &&
+                  t == 0.f,
+              "origin inside: entry at 0");
+
+    // Parallel to x and y (1 / 0 = +inf): outside the x slab misses; exactly
+    // on a slab plane (0 x inf = NaN) still counts as inside it.
+    CHECK_MSG(!Ray(Vec3Df(3.f, 0.f, 5.f), down).intersect(box, inverse(down), 100.f, t), "beside the box");
+    CHECK_MSG(Ray(Vec3Df(1.f, 0.f, 5.f), down).intersect(box, inverse(down), 100.f, t), "on the +x plane");
+    CHECK_MSG(Ray(Vec3Df(-1.f, 0.f, 5.f), down).intersect(box, inverse(down), 100.f, t), "on the -x plane");
+    // Same with negative zeros (1 / -0 = -inf), as a negated direction gives.
+    const Vec3Df negativeZeros(-0.f, -0.f, -1.f);
+    CHECK_MSG(Ray(Vec3Df(1.f, 0.f, 5.f), negativeZeros).intersect(box, inverse(negativeZeros), 100.f, t), "-0, +x plane");
+    CHECK_MSG(Ray(Vec3Df(-1.f, 0.f, 5.f), negativeZeros).intersect(box, inverse(negativeZeros), 100.f, t), "-0, -x plane");
+    CHECK_MSG(!Ray(Vec3Df(3.f, 0.f, 5.f), negativeZeros).intersect(box, inverse(negativeZeros), 100.f, t), "-0, beside");
+    CHECK_MSG(!Ray(Vec3Df(-3.f, 0.f, 5.f), negativeZeros).intersect(box, inverse(negativeZeros), 100.f, t), "-0, other side");
+
+    // A flat box (zero thickness in z, like the ground plane's) is still entered.
+    const BoundingBox flat(Vec3Df(-1.f, -1.f, 0.f), Vec3Df(1.f, 1.f, 0.f));
+    CHECK(Ray(Vec3Df(0.5f, 0.5f, 2.f), down).intersect(flat, inverse(down), 100.f, t));
+    CHECK_CLOSE(t, 2.f, 1e-6);
+}

@@ -38,7 +38,7 @@ Needs: hard shadows, the per-pixel sampling from anti-aliasing, `Light::radius` 
 
 ### Ambient occlusion
 **Principle:** Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases and contact points.
-Needs: cosine-weighted hemisphere sampling, a maximum ray length, a BVH to stay fast. Test: the inner corner of two quads is darker than open plane, a lone plane is 1 everywhere, variance drops with samples. Reference: Zhukov, Iones & Kronin, "An Ambient Light Illumination Model", EGWR 1998. (Experiment 8)
+Needs: cosine-weighted hemisphere sampling, a maximum ray length; the BVH (done) keeps the extra rays affordable. Test: the inner corner of two quads is darker than open plane, a lone plane is 1 everywhere, variance drops with samples. Reference: Zhukov, Iones & Kronin, "An Ambient Light Illumination Model", EGWR 1998. (Experiment 8)
 
 ### Physically based materials (GGX)
 **Principle:** A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and masking terms, driven by roughness and metalness.
@@ -60,7 +60,7 @@ Needs: an emission colour on `Material`, light sampling over triangles. Test: an
 
 ### Path tracing (global illumination)
 **Principle:** Each pixel averages many random light paths bouncing through the scene, converging on the rendering equation with indirect light and colour bleeding.
-Needs: emissive materials, a BVH, many samples per pixel, the progressive display (done). Test: a white furnace converges to the emission, a Cornell box shows red and green bleeding on the white walls. Reference: Kajiya, "The Rendering Equation", SIGGRAPH 1986.
+Needs: emissive materials, many samples per pixel; the BVH and the progressive display are done. Test: a white furnace converges to the emission, a Cornell box shows red and green bleeding on the white walls. Reference: Kajiya, "The Rendering Equation", SIGGRAPH 1986.
 
 ### Environment lighting (HDR sky)
 **Principle:** A panoramic image lights the scene: rays that miss geometry return the sky's colour and diffuse surfaces integrate it over the hemisphere.
@@ -106,13 +106,13 @@ Needs: UVs kept from OBJ files.
 
 ### Cost heatmap
 **Principle:** Each pixel is coloured by how many triangle or bounding-box tests its rays needed, showing where the time goes on complex models.
-Needs: counters in `closestHit` and in the BVH; it is the diagnostic that justifies experiment 3. Reference: Wald, PhD thesis, Saarland University, 2004.
+Needs: box and triangle test counters in `closestHit` and the BVH traversal; it shows what the BVH saves and where it cannot. Reference: Wald, PhD thesis, Saarland University, 2004.
 
 ## 6. Scene and scale (what complex scenes need)
 
-### Bounding-volume hierarchy
-**Principle:** A tree of bounding boxes lets each ray skip almost every triangle, turning minutes into seconds on large models.
-Test: identical pixels to brute force on 10 000 random rays, minion at 256x256 under a second. Reference: Kay & Kajiya, "Ray Tracing Complex Scenes", SIGGRAPH 1986; Wald, "On Fast Construction of SAH-based Bounding Volume Hierarchies", RT 2007. (Experiment 3)
+### Bounding-volume hierarchy (done)
+**Principle:** A tree of bounding boxes lets each ray skip almost every triangle, turning minutes into milliseconds on large models.
+Done as one tree per object (median split, leaves of 4): hits identical to brute force on random rays, edge-aimed rays and whole renders; the minion on its ground renders in 17 ms instead of 60 s. Reference: Kay & Kajiya, "Ray Tracing Complex Scenes", SIGGRAPH 1986; Wald, "On Fast Construction of SAH-based Bounding Volume Hierarchies", RT 2007. (Experiment 3)
 
 ### Tile-parallel rendering
 **Principle:** Several workers pull tiles from a shared counter so every core traces at once; `RenderJob` already owns the tiles.
@@ -133,8 +133,8 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 ## Suggested order
 
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
-2. BVH, then tile threads: the cat and the minion become interactive.
+2. BVH, then tile threads: the cat and the minion become interactive. **BVH done** (the minion renders in milliseconds); threads next, for the sampled effects that multiply the rays.
 3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop.
 4. Reflections and refraction, then textures from OBJ UVs.
 5. Tone mapping, then environment lighting and path tracing.
-6. Analysis modes (wireframe, cost heatmap) as soon as the BVH exists; scene files and instancing when there is more than one thing to place.
+6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.

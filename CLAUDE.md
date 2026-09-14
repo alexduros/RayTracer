@@ -9,7 +9,7 @@ tests that prove each one.
 
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
-  Camera, Material, Light, Object, Scene, RayTracer, Image (stb). No GL, no
+  Bvh, Camera, Material, Light, Object, Scene, RayTracer, Image (stb). No GL, no
   GLFW: it links anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
@@ -56,8 +56,14 @@ build/raymini-cli --help
   with MTL (one object per material, `Kd` -> colour, mean `Ks` -> specular;
   `vt` is parsed but dropped, `map_*` ignored). `Scene::addObjectsFromFile`
   dispatches on the extension, case-insensitively.
-- `Camera::primaryRay` -> `RayTracer::closestHit` (brute force over every
-  triangle of every object, back faces culled) -> `RayTracer::shade` by mode.
+- `Camera::primaryRay` -> `RayTracer::closestHit` (each object's BVH, back
+  faces culled) -> `RayTracer::shade` by mode.
+- BVH (`src/core/Bvh.h`): median split, leaves of 4, a flat node array of
+  indices, boxes padded by 1e-4 of the mesh's size. Built by
+  `Object::update`, which must follow any in-place mesh edit. Ties at equal
+  distance go to the lowest object, then triangle, index, so
+  `setBvhEnabled(false)` / `--no-bvh` (brute force) gives identical hits;
+  `tests/TestBvh.cpp` holds both paths to that, bit for bit.
 - Modes: `lit` (ambient + per light: Lambert diffuse, Blinn-Phong highlight
   from Material::shininess, dropped when a shadow ray toward the light is
   blocked; `setShadows` / `setSpecularEnabled` switch the last two),
@@ -76,9 +82,11 @@ build/raymini-cli --help
   each finished tile under a mutex; the GUI shows the partial image with a
   progress bar and can cancel, the CLI prints a percentage on a terminal.
   `RayTracer::render()` is the synchronous reference and a test asserts the
-  job's pixels and statistics are byte-identical. Still one tracing thread:
-  on an M-series Mac, teapot (880 triangles) at 256x256 in about 0.3 s;
-  minion (84k triangles) at 160x160 in about 9 s. Experiment 4 adds workers.
+  job's pixels and statistics are byte-identical. Still one tracing thread,
+  but with the BVH, on an M-series Mac, teapot at 256x256 renders in about
+  5 ms (0.29 s brute force) and minion (84k triangles) on its ground with
+  shadows in about 20 ms (60 s brute force); loading the OFF file (0.1 s)
+  now dominates. Experiment 4 adds workers.
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.
@@ -100,8 +108,9 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
 
 ## Known gaps
 
-- No acceleration structure: the old KdTree was removed (never built, unsafe
-  to copy). A BVH is experiment 3.
+- One BVH per object, no tree over the objects: `closestHit` still loops
+  over every object. Fine for a model, its ground plane and an OBJ's few
+  material groups; a scene of many objects would want a top-level BVH.
 - `Scene::addGroundPlane()` adds a *backdrop* quad at the bottom of the
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI

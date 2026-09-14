@@ -19,7 +19,8 @@ with the raytracer split into a library that builds without any GL dependency.
   recomputed. Models are stood upright on load (see Notes).
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
   with the raytracer, save the result as PNG.
-- Raytracer: ray/triangle intersection (brute force, back faces culled),
+- Raytracer: ray/triangle intersection through a bounding-volume hierarchy
+  per object (back faces culled; `--no-bvh` gives the brute-force reference),
   Lambert + Blinn-Phong shading with point lights and hard shadows, an
   optional ground plane that catches them, n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id).
@@ -112,7 +113,7 @@ regeneration.
 
 ```
 CMakeLists.txt          root project; options RAYMINI_BUILD_GUI / RAYMINI_BUILD_TESTS
-src/core/               raymini_core: mesh, ray, camera, scene, raytracer, image
+src/core/               raymini_core: mesh, ray, bvh, camera, scene, raytracer, image
 src/gui/Main.cpp        raymini (GLFW + Dear ImGui viewer)
 src/cli/Main.cpp        raymini-cli (headless renderer)
 tests/                  raymini_tests + tests/golden/*.png

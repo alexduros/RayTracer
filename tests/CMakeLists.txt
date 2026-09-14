@@ -6,6 +6,7 @@ add_executable(raymini_tests
   TestVec3D.cpp
   TestMesh.cpp
   TestRay.cpp
+  TestBvh.cpp
   TestCamera.cpp
   TestRender.cpp
   TestImage.cpp

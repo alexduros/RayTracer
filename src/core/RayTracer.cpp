@@ -131,7 +131,7 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
     {"ao", "Ambient occlusion",
      "Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases "
      "and contact points.",
-     "Needs hemisphere sampling and a BVH to stay fast. Experiment 8.",
+     "Needs hemisphere sampling; the BVH keeps the extra rays affordable. Experiment 8.",
      "S. Zhukov, A. Iones & G. Kronin, \"An Ambient Light Illumination Model\", Eurographics Rendering Workshop "
      "1998."},
     {"reflection", "Mirror reflections",
@@ -148,7 +148,7 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
     {"pathtracing", "Path tracing (global illumination)",
      "Each pixel averages many random light paths bouncing through the scene, converging on the rendering "
      "equation with indirect light and colour bleeding.",
-     "Needs emissive materials, a BVH, many samples per pixel and the progressive display that already exists.",
+     "Needs emissive materials and many samples per pixel; the BVH and the progressive display already exist.",
      "J. T. Kajiya, \"The Rendering Equation\", SIGGRAPH 1986."},
     {"environment", "Environment lighting (HDR sky)",
      "A panoramic image lights the scene: rays that miss geometry return the sky's colour and diffuse surfaces "
@@ -188,7 +188,8 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
     {"cost", "Cost heatmap",
      "Each pixel is coloured by how many triangle or bounding-box tests its rays needed, showing where the time "
      "goes on complex models.",
-     "Needs counters in closestHit and in the BVH; the diagnostic that justifies experiment 3.",
+     "Needs box and triangle test counters in closestHit and the BVH traversal; shows what the BVH saves and "
+     "where it cannot.",
      "I. Wald, \"Realtime Ray Tracing and Interactive Global Illumination\", PhD thesis, Saarland University, "
      "2004."},
 };
@@ -204,9 +205,12 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
     best.distance = std::numeric_limits<float>::max ();
     const std::vector<Object> & objects = scene.getObjects ();
     for (unsigned int i = 0; i < objects.size (); ++i) {
+        const Object & object = objects[i];
         Vertex v;
-        float t = 0.f;
-        if (ray.nearestHit (objects[i].getMesh (), v, t) && t < best.distance) {
+        float t = best.distance;  // the BVH only looks for hits closer than this
+        const bool hit = bvhEnabled ? object.getBvh ().nearestHit (ray, object.getMesh (), v, t)
+                                    : ray.nearestHit (object.getMesh (), v, t);
+        if (hit && t < best.distance) {
             best.distance = t;
             best.vertex = v;
             best.objectIndex = i;

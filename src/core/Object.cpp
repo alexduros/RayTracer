@@ -7,6 +7,7 @@
 
 #include "Object.h"
 
-void Object::updateBoundingBox () {
+void Object::update () {
     bbox = BoundingBox::computeBoundingBox (mesh.getVertices ());
+    bvh.build (mesh);
 }

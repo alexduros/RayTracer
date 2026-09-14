@@ -55,6 +55,8 @@ Options:
   --ground               add a ground plane under the model (receives its shadows)
   --no-shadows           lit mode without shadow rays
   --no-specular          lit mode without the Blinn-Phong highlight
+  --no-bvh               test every triangle (brute force) instead of the BVH, to compare
+                         timings; the picture is identical
   --fov <deg>            vertical field of view (default 45)
   --yaw <deg>            orbit around the model about +Y (default 0: camera on +Z)
   --pitch <deg>          orbit elevation, -89..89 (default 0)
@@ -102,6 +104,7 @@ struct Options {
     bool ground = false;
     bool shadows = true;
     bool specular = true;
+    bool bvh = true;
     std::optional<UpAxis> up;  // empty = auto
     bool quiet = false;
 };
@@ -149,6 +152,8 @@ bool parseArgs(int argc, char** argv, Options& o) {
             o.shadows = false;
         } else if (a == "--no-specular") {
             o.specular = false;
+        } else if (a == "--no-bvh") {
+            o.bvh = false;
         } else if (a == "--jitter") {
             o.jitter = true;
         } else if (a == "--aa") {
@@ -266,6 +271,7 @@ int main(int argc, char** argv) {
     rt.setAntiAliasing(o.aa, o.jitter);
     rt.setShadows(o.shadows);
     rt.setSpecularEnabled(o.specular);
+    rt.setBvhEnabled(o.bvh);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
         rt.setDepthRange(std::max(0.f, camDistance - 0.5f * size), camDistance + 0.5f * size);
     } else {
@@ -305,9 +311,9 @@ int main(int argc, char** argv) {
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);
-        std::printf("render  %ux%u %s, %u ray%s/px%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
+        std::printf("render  %ux%u %s, %u ray%s/px%s, %s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
                     o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
-                    o.jitter ? " jittered" : "", st.seconds, st.hits, st.rays,
+                    o.jitter ? " jittered" : "", o.bvh ? "bvh" : "brute force", st.seconds, st.hits, st.rays,
                     st.rays ? 100.0 * st.hits / st.rays : 0.0, st.minHitDist, st.maxHitDist);
         std::printf("wrote   %s\n", o.out.c_str());
     }

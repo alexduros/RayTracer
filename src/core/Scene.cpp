@@ -120,7 +120,7 @@ void Scene::setUpAxis (UpAxis up) {
             v.setPos (apply (transform, v.getPos ()));
             v.setNormal (apply (transform, v.getNormal ()));
         }
-        o.updateBoundingBox ();
+        o.update ();  // bounding box and BVH follow the rotated vertices
     }
     upAxis = up;
     updateBoundingBox ();

@@ -3,6 +3,7 @@
 # library is linked into the GUI, the headless CLI and the tests.
 # ---------------------------------------------------------------------------
 add_library(raymini_core STATIC
+  core/Bvh.cpp
   core/Camera.cpp
   core/Image.cpp
   core/Mesh.cpp

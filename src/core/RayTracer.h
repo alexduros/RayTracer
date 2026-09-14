@@ -101,6 +101,11 @@ public:
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
     inline void setSpecularEnabled (bool on) { specularEnabled = on; }
     inline bool isSpecularEnabled () const { return specularEnabled; }
+    /// Traverse each object's BVH instead of testing every triangle. Same
+    /// hits, same pixels; turn it off only to compare against the brute-force
+    /// reference.
+    inline void setBvhEnabled (bool on) { bvhEnabled = on; }
+    inline bool isBvhEnabled () const { return bvhEnabled; }
 
     inline void setDebugMode (DebugMode m) { debugMode = m; }
     inline DebugMode getDebugMode () const { return debugMode; }
@@ -113,7 +118,10 @@ public:
     inline const Vec3Df & getBackgroundColor () const { return backgroundColor; }
     inline const Stats & getLastStats () const { return lastStats; }
 
-    /// Brute-force closest front-facing triangle over every object.
+    /// Closest front-facing triangle over every object, through each object's
+    /// BVH or, when it is disabled, by testing every triangle. At equal
+    /// distance the lowest object index wins, then the lowest triangle index,
+    /// so both paths return the same hit.
     bool closestHit (const Scene & scene, const Ray & ray, Hit & hit) const;
 
     /// Color of one ray in linear [0,1] RGB (background if nothing is hit),
@@ -147,6 +155,7 @@ private:
     bool aaJitter = false;
     bool shadows = true;
     bool specularEnabled = true;
+    bool bvhEnabled = true;
     Stats lastStats;
 };
 
