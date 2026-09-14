@@ -11,7 +11,6 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
-#include <random>
 
 namespace {
 
@@ -36,29 +35,39 @@ Vec3Df hsvToRgb (float h, float s, float v) {
     }
 }
 
-/// Per-pixel seed for jittered sampling: depends on the pixel only, so the
-/// result does not change with tile order or thread count.
-unsigned int pixelSeed (unsigned int x, unsigned int y) {
-    return (x * 73856093u) ^ (y * 19349663u) ^ 0x9E3779B9u;
-}
-
-/// Uniform in [0, 1) from the raw engine output. std::minstd_rand is fully
-/// specified by the standard, unlike the distributions, so this is the same
-/// on every platform.
-float uniform01 (std::minstd_rand & rng) {
-    return static_cast<float> (rng () - std::minstd_rand::min ()) /
-           (static_cast<float> (std::minstd_rand::max () - std::minstd_rand::min ()) + 1.f);
+/// Maps [0,1]^2 onto the unit disk so that equal areas stay equal and
+/// neighbouring points stay neighbours: jittered grid cells land on the disk
+/// as compact patches (P. Shirley & K. Chiu's concentric map).
+void concentricDisk (float a, float b, float & x, float & y) {
+    const float sx = 2.f * a - 1.f, sy = 2.f * b - 1.f;
+    if (sx == 0.f && sy == 0.f) {
+        x = y = 0.f;
+        return;
+    }
+    const float quarterPi = 0.78539816f;
+    float r, theta;
+    if (std::fabs (sx) > std::fabs (sy)) {
+        r = sx;
+        theta = quarterPi * (sy / sx);
+    } else {
+        r = sy;
+        theta = 2.f * quarterPi - quarterPi * (sx / sy);
+    }
+    x = r * std::cos (theta);
+    y = r * std::sin (theta);
 }
 
 const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
     {"lit", "Lit (Lambert + Blinn-Phong, shadows)",
      "For each light: material colour x light colour x max(0, n.l), the cosine between the normal and the light "
      "direction (Lambert); plus a white highlight where the half-vector between the light and view directions "
-     "lines up with the normal, raised to the shininess (Blinn-Phong); a shadow ray toward the light drops it "
-     "when something is in the way; plus a constant ambient term. No bounces yet.",
+     "lines up with the normal, raised to the shininess (Blinn-Phong); both scaled by the fraction of the light "
+     "that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid of rays over the light's "
+     "disk); plus a constant ambient term. No bounces yet.",
      "Brighter where a surface faces a light; tight bright spots are highlights; where a light is blocked only "
-     "the ambient term and the other lights remain. Colour is material x light, so the cyan key light tints the "
-     "orange default material green. Turn on the ground plane to see the shadows fall.",
+     "the ambient term and the other lights remain, and with soft shadows the edge fades across a penumbra. "
+     "Colour is material x light, so the cyan key light tints the orange default material green. Turn on the "
+     "ground plane to see the shadows fall.",
      "J. H. Lambert, Photometria (1760); J. Blinn, \"Models of Light Reflection for Computer Synthesized "
      "Pictures\", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968 and T. Whitted, CACM 23(6), 1980."},
     {"ambient", "Ambient (albedo)",
@@ -107,6 +116,17 @@ const RayTracer::ModeInfo kAntiAliasingInfo = {
     "(supersampling in ray tracing); R. L. Cook, \"Stochastic Sampling in Computer Graphics\", ACM Transactions "
     "on Graphics 5(1), 1986 (jittered sampling)."};
 
+const RayTracer::ModeInfo kSoftShadowsInfo = {
+    "softshadows", "Soft shadows (area lights)",
+    "Each light is a disk instead of a point: n x n shadow rays toward points spread over it (one jittered ray per "
+    "cell of a grid mapped onto the disk) measure the fraction of the light a surface point sees, and the light's "
+    "contribution is scaled by that fraction.",
+    "Shadows gain a penumbra, a gradient from full shadow (umbra) to full light, wider for bigger lights and for "
+    "occluders farther from the surface: contact shadows stay sharp. Few samples leave grain in the penumbra; each "
+    "light costs n x n shadow rays per shaded point.",
+    "R. L. Cook, T. Porter & L. Carpenter, \"Distributed Ray Tracing\", SIGGRAPH 1984; P. Shirley & K. Chiu, \"A Low "
+    "Distortion Map Between Disk and Square\", Journal of Graphics Tools 2(3), 1997 (concentric map)."};
+
 } // namespace
 
 const RayTracer::ModeInfo & RayTracer::info (DebugMode mode) {
@@ -118,16 +138,15 @@ const RayTracer::ModeInfo & RayTracer::antiAliasingInfo () {
     return kAntiAliasingInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::softShadowsInfo () {
+    return kSoftShadowsInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
 // implementation within each family; the document groups them.
 const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
-    {"softshadows", "Soft shadows (area lights)",
-     "Many shadow rays toward points spread over the light's disk estimate the fraction of it that is visible, "
-     "giving penumbrae instead of hard edges.",
-     "Needs hard shadows and the per-pixel sampling from anti-aliasing. Experiment 6.",
-     "R. L. Cook, T. Porter & L. Carpenter, \"Distributed Ray Tracing\", SIGGRAPH 1984."},
     {"ao", "Ambient occlusion",
      "Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases "
      "and contact points.",
@@ -236,7 +255,44 @@ bool RayTracer::occluded (const Scene & scene, const Ray & ray, float maxDistanc
     return false;
 }
 
-Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit) const {
+float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
+                                  Sampler & sampler) const {
+    // Shadow rays start a little off the surface along the normal so the
+    // surface cannot shadow itself ("acne"); scaled to the model.
+    const float bias = 1e-4f * std::max (scene.getBoundingBox ().getSize (), 1e-3f);
+    const Vec3Df origin = p + n * bias;
+    Vec3Df l = light.getPos () - p;
+    const float distanceToLight = l.normalize ();
+
+    const unsigned int count = shadowSamplesPerAxis;
+    if (count <= 1 || light.getRadius () <= 0.f)
+        return occluded (scene, Ray (origin, l), distanceToLight) ? 0.f : 1.f;  // a point: all or nothing
+
+    // A disk of the light's radius facing the point, split into count x count
+    // cells with one jittered sample each. Both numbers of a cell are drawn
+    // whatever happens to its ray, so the sequence never depends on the scene.
+    Vec3Df u, w;
+    l.getTwoOrthogonals (u, w);
+    u.normalize ();
+    w.normalize ();
+    unsigned int unblocked = 0;
+    for (unsigned int j = 0; j < count; ++j) {
+        for (unsigned int i = 0; i < count; ++i) {
+            const float a = (static_cast<float> (i) + sampler.next ()) / static_cast<float> (count);
+            const float b = (static_cast<float> (j) + sampler.next ()) / static_cast<float> (count);
+            float dx = 0.f, dy = 0.f;
+            concentricDisk (a, b, dx, dy);
+            Vec3Df d = light.getPos () + light.getRadius () * (dx * u + dy * w) - origin;
+            const float distance = d.normalize ();
+            // The part of the disk below the surface's horizon is hidden.
+            if (Vec3Df::dotProduct (d, n) > 0.f && !occluded (scene, Ray (origin, d), distance))
+                ++unblocked;
+        }
+    }
+    return static_cast<float> (unblocked) / static_cast<float> (count * count);
+}
+
+Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler) const {
     const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
     switch (debugMode) {
         case DebugMode::HIT_MASK:
@@ -264,33 +320,33 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit) 
             return mat.getColor ();
         case DebugMode::LIT:
         default: {
-            // Lambert diffuse + Blinn-Phong highlight + hard shadows. No
+            // Lambert diffuse + Blinn-Phong highlight, each light scaled by
+            // how much of it the point sees (hard or soft shadows). No
             // attenuation, no bounces.
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
             const Vec3Df & p = hit.vertex.getPos ();
             Vec3Df v = -ray.getDirection ();
             v.normalize ();
-            // Shadow rays start a little off the surface along the normal so
-            // the surface cannot shadow itself ("acne"); scaled to the model.
-            const float bias = 1e-4f * std::max (scene.getBoundingBox ().getSize (), 1e-3f);
-            const Vec3Df shadowOrigin = p + n * bias;
 
             Vec3Df color = ambientIntensity * mat.getColor ();
             for (const Light & light : scene.getLights ()) {
                 Vec3Df l = light.getPos () - p;
-                const float distanceToLight = l.normalize ();
+                l.normalize ();
                 const float nDotL = Vec3Df::dotProduct (n, l);
                 if (nDotL <= 0.f)
                     continue;  // light behind the surface
-                if (shadows && occluded (scene, Ray (shadowOrigin, l), distanceToLight))
-                    continue;  // something between the point and the light
-                color += (mat.getDiffuse () * light.getIntensity () * nDotL) * (mat.getColor () * light.getColor ());
+                const float visibility = shadows ? lightVisibility (scene, p, n, light, sampler) : 1.f;
+                if (visibility <= 0.f)
+                    continue;  // the whole light is blocked
+                color += (visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
+                         (mat.getColor () * light.getColor ());
                 if (specularEnabled && mat.getSpecular () > 0.f) {
                     Vec3Df h = l + v;
                     h.normalize ();
                     const float nDotH = std::max (0.f, Vec3Df::dotProduct (n, h));
-                    color += (mat.getSpecular () * light.getIntensity () * std::pow (nDotH, mat.getShininess ())) *
+                    color += (visibility * mat.getSpecular () * light.getIntensity () *
+                              std::pow (nDotH, mat.getShininess ())) *
                              light.getColor ();
                 }
             }
@@ -300,6 +356,11 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit) 
 }
 
 Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats) const {
+    Sampler sampler;
+    return trace (scene, ray, stats, sampler);
+}
+
+Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats, Sampler & sampler) const {
     stats.rays++;
     Hit hit;
     if (!closestHit (scene, ray, hit))
@@ -309,7 +370,7 @@ Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats) co
         stats.minHitDist = hit.distance;
     if (hit.distance > stats.maxHitDist)
         stats.maxHitDist = hit.distance;
-    return shade (scene, ray, hit);
+    return shade (scene, ray, hit, sampler);
 }
 
 void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
@@ -319,20 +380,22 @@ void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
     const unsigned int n = std::max (1u, aaSamplesPerAxis);
     for (unsigned int y = y0; y < y1; y++) {
         for (unsigned int x = x0; x < x1; x++) {
+            // Seeded by the pixel: the same picture whatever the tile order.
+            Sampler shadowSampler = Sampler::forPixel (x, y, Sampler::Stream::SHADOWS);
             Vec3Df color;
             if (n == 1) {
                 // One ray through the pixel centre.
-                color = trace (scene, camera.primaryRay (x, y, width, height), stats);
+                color = trace (scene, camera.primaryRay (x, y, width, height), stats, shadowSampler);
             } else {
                 // n x n sub-pixel grid, optionally jittered inside each cell.
-                std::minstd_rand rng (pixelSeed (x, y));
+                Sampler jitter = Sampler::forPixel (x, y, Sampler::Stream::PIXEL_JITTER);
                 for (unsigned int j = 0; j < n; j++) {
                     for (unsigned int i = 0; i < n; i++) {
-                        const float u = aaJitter ? uniform01 (rng) : 0.5f;
-                        const float v = aaJitter ? uniform01 (rng) : 0.5f;
+                        const float u = aaJitter ? jitter.next () : 0.5f;
+                        const float v = aaJitter ? jitter.next () : 0.5f;
                         const float sx = (static_cast<float> (i) + u) / static_cast<float> (n);
                         const float sy = (static_cast<float> (j) + v) / static_cast<float> (n);
-                        color += trace (scene, camera.primaryRay (x, y, width, height, sx, sy), stats);
+                        color += trace (scene, camera.primaryRay (x, y, width, height, sx, sy), stats, shadowSampler);
                     }
                 }
                 color /= static_cast<float> (n * n);

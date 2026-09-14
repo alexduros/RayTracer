@@ -168,9 +168,16 @@ void Scene::addDefaultLights () {
     // them (every light stays above y = centre, hence above the floor).
     const Vec3Df c = bbox.getCenter ();
     const float s = std::max (bbox.getSize (), 1e-3f) / 2.f;
-    lights.push_back (Light (c + s * Vec3Df (3.0f, 3.0f, 3.0f),  Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, 3.0f * s));  // key
-    lights.push_back (Light (c + s * Vec3Df (-3.0f, 1.0f, 2.0f), Vec3Df (1.0f, 1.0f, 0.0f), 0.5f, 3.0f * s));  // fill
-    lights.push_back (Light (c + s * Vec3Df (0.0f, 2.0f, -3.0f), Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, 3.0f * s));  // rim
+    const float r = kDefaultLightRadius * 2.f * s;
+    lights.push_back (Light (c + s * Vec3Df (3.0f, 3.0f, 3.0f),  Vec3Df (0.0f, 1.0f, 1.0f), 1.0f, r));  // key
+    lights.push_back (Light (c + s * Vec3Df (-3.0f, 1.0f, 2.0f), Vec3Df (1.0f, 1.0f, 0.0f), 0.5f, r));  // fill
+    lights.push_back (Light (c + s * Vec3Df (0.0f, 2.0f, -3.0f), Vec3Df (1.0f, 1.0f, 1.0f), 0.8f, r));  // rim
+}
+
+void Scene::setLightRadius (float fraction) {
+    const float radius = std::max (0.f, fraction) * std::max (bbox.getSize (), 1e-3f);
+    for (Light & light : lights)
+        light.setRadius (radius);
 }
 
 void Scene::clear () {

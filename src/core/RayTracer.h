@@ -15,6 +15,7 @@
 #include "Ray.h"
 #include "Scene.h"
 #include "Image.h"
+#include "Sampler.h"
 
 class RayTracer {
 public:
@@ -72,12 +73,14 @@ public:
     static const ModeInfo & info (DebugMode mode);
     /// Same account for anti-aliasing, which is a setting rather than a mode.
     static const ModeInfo & antiAliasingInfo ();
+    /// ... and for soft shadows.
+    static const ModeInfo & softShadowsInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 12;
+    static constexpr int kPlannedModeCount = 11;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -94,10 +97,18 @@ public:
     inline unsigned int getAntiAliasingSamplesPerAxis () const { return aaSamplesPerAxis; }
     inline bool getAntiAliasingJitter () const { return aaJitter; }
 
-    /// Hard shadows: a shadow ray toward each light drops that light when
-    /// something is in the way (Lit mode only).
+    /// Shadows: shadow rays toward each light scale it by the fraction that
+    /// gets through (Lit mode only). Hard unless setShadowSamples asks for more.
     inline void setShadows (bool on) { shadows = on; }
     inline bool getShadows () const { return shadows; }
+    /// Soft shadows: a light with a radius becomes a disk facing the shaded
+    /// point, sampled by samplesPerAxis x samplesPerAxis shadow rays, one
+    /// jittered ray per cell of a grid over the disk. 1 = a single ray toward
+    /// the light's centre, i.e. hard shadows (the default), which is also what
+    /// a light of radius 0 gets. Samples are seeded per pixel, so renders stay
+    /// reproducible and independent of tile order.
+    inline void setShadowSamples (unsigned int samplesPerAxis) { shadowSamplesPerAxis = std::max (1u, samplesPerAxis); }
+    inline unsigned int getShadowSamplesPerAxis () const { return shadowSamplesPerAxis; }
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
     inline void setSpecularEnabled (bool on) { specularEnabled = on; }
     inline bool isSpecularEnabled () const { return specularEnabled; }
@@ -131,11 +142,21 @@ public:
     bool occluded (const Scene & scene, const Ray & ray, float maxDistance) const;
 
     /// Color of one ray in linear [0,1] RGB (background if nothing is hit),
-    /// counting it in `stats`. Const and reentrant: safe from several threads.
+    /// counting it in `stats`; `sampler` feeds the soft shadows. Const and
+    /// reentrant: safe from several threads, each with its own sampler.
+    Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats, Sampler & sampler) const;
+    /// Same with a fixed-seed sampler: reproducible, for probing single rays.
     Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats) const;
 
     /// Color for a known hit, in linear [0,1] RGB, according to the mode.
-    Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit) const;
+    Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler) const;
+
+    /// Fraction of `light` seen from the surface point `p` with unit normal
+    /// `n`, in [0, 1]: one shadow ray toward its centre (0 or 1), or
+    /// getShadowSamplesPerAxis ()^2 rays over its disk. The part of the disk
+    /// below the surface's horizon counts as hidden.
+    float lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
+                           Sampler & sampler) const;
 
     /// Trace pixels [x0, x1) x [y0, y1) of a width x height frame into `image`
     /// (which must already have that size), accumulating `stats`. Pixels are
@@ -160,6 +181,7 @@ private:
     unsigned int aaSamplesPerAxis = 1;
     bool aaJitter = false;
     bool shadows = true;
+    unsigned int shadowSamplesPerAxis = 1;
     bool specularEnabled = true;
     bool bvhEnabled = true;
     Stats lastStats;

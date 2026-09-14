@@ -56,9 +56,9 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
 }
 
 // `model` is a bare name (".off" assumed) or a file name with its extension.
-// Settings are encoded in the golden's name: "_aa2" / "_aa2j", "_ground".
+// Settings are encoded in the golden's name: "_aa2" / "_aa2j", "_ground", "_soft4".
 void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int aaSamples = 1, bool jitter = false,
-                 bool ground = false) {
+                 bool ground = false, unsigned int shadowSamples = 1) {
     Scene scene;
     scene.addObjectsFromFile(test::modelPath(model));
     scene.setUpAxis(resolveUpAxis(test::modelPath(model), scene));  // as the CLI and the viewer do
@@ -72,10 +72,14 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int a
     RayTracer rt;
     rt.setDepthRange(distance - size / 2.f, distance + size / 2.f);
     rt.setAntiAliasing(aaSamples, jitter);
+    rt.setShadowSamples(shadowSamples);
     std::string stem = std::filesystem::path(model).stem().string();
     if (aaSamples > 1) stem += "_aa" + std::to_string(aaSamples) + (jitter ? "j" : "");
     if (ground) stem += "_ground";
+    if (shadowSamples > 1) stem += "_soft" + std::to_string(shadowSamples);
     for (const ModeSpec& m : kModes) {
+        // Only Lit casts shadow rays; other modes would repeat the hard-shadow goldens.
+        if (shadowSamples > 1 && m.mode != RayTracer::DebugMode::LIT) continue;
         rt.setDebugMode(m.mode);
         const Image img = rt.render(scene, camera, kSize, kSize);
         const std::string name = stem + "_" + m.slug + ".png";
@@ -102,3 +106,6 @@ TEST_CASE("golden: cube.obj (six materials) in every mode") { goldenModel("cube.
 TEST_CASE("golden: teapot with 2x2 supersampling") { goldenModel("teapot", 25.f, 20.f, 2, false); }
 TEST_CASE("golden: teapot with 2x2 jittered supersampling") { goldenModel("teapot", 25.f, 20.f, 2, true); }
 TEST_CASE("golden: teapot on its ground plane (shadows)") { goldenModel("teapot", 25.f, 20.f, 1, false, true); }
+TEST_CASE("golden: teapot on its ground plane with 4x4 soft shadows") {
+    goldenModel("teapot", 25.f, 20.f, 1, false, true, 4);
+}

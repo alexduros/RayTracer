@@ -32,9 +32,9 @@ Done: `Material::shininess` (MTL `Ns`), `RayTracer::setSpecularEnabled`, tests i
 **Principle:** A shadow ray from the hit point toward each light drops that light's contribution when any surface blocks it.
 Done: `RayTracer::setShadows`, shadow origin offset along the normal by 1e-4 of the model size, `Scene::addGroundPlane` (CLI `--ground`, GUI "Ground"). Tests: a point behind a cube gets the ambient term only, its neighbour ambient + diffuse, a lone plane never shadows itself, the ground catches the model's shadow; golden `teapot_ground_*`. Reference: Appel 1968; Whitted 1980. (Experiment 1)
 
-### Soft shadows (area lights)
+### Soft shadows (area lights) (done)
 **Principle:** Many shadow rays toward points spread over the light's disk estimate the fraction of it that is visible, giving penumbrae instead of hard edges.
-Needs: hard shadows, the per-pixel sampling from anti-aliasing, `Light::radius` (already stored). Test: radius 0 gives a binary shadow, the penumbra width grows with the radius and is monotonic across it. Reference: Cook, Porter & Carpenter, "Distributed Ray Tracing", SIGGRAPH 1984. (Experiment 6)
+Done as n x n jittered shadow rays over each light's disk (`--shadow-samples`, `--light-radius`): binary with one ray or radius 0, and across a test penumbra the visible share matches the uncovered area of the disk and never decreases. Reference: Cook, Porter & Carpenter, "Distributed Ray Tracing", SIGGRAPH 1984; Shirley & Chiu, "A Low Distortion Map Between Disk and Square", JGT 1997. (Experiment 6)
 
 ### Ambient occlusion
 **Principle:** Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases and contact points.
@@ -134,7 +134,7 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
 2. BVH, then tile threads: the cat and the minion become interactive. **BVH done** (the minion renders in milliseconds); threads next, for the sampled effects that multiply the rays.
-3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop.
+3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows done**, with a per-pixel `Sampler` the next two can draw from.
 4. Reflections and refraction, then textures from OBJ UVs.
 5. Tone mapping, then environment lighting and path tracing.
 6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.

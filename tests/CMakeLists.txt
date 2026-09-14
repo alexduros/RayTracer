@@ -27,5 +27,7 @@ add_test(NAME unit   COMMAND raymini_tests --exclude golden)
 add_test(NAME golden COMMAND raymini_tests --filter golden)
 add_test(NAME cli_smoke COMMAND raymini-cli teapot --size 32x32 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_smoke.png)
+add_test(NAME cli_soft_shadows COMMAND raymini-cli teapot --size 32x32 --ground --shadow-samples 2
+         --light-radius 0.2 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_soft_shadows.png)
 add_test(NAME cli_missing_model COMMAND raymini-cli does_not_exist.off --quiet)
 set_tests_properties(cli_missing_model PROPERTIES WILL_FAIL TRUE)

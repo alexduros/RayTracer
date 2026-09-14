@@ -9,7 +9,7 @@ tests that prove each one.
 
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
-  Bvh, Camera, Material, Light, Object, Scene, RayTracer, Image (stb). No GL, no
+  Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Image (stb). No GL, no
   GLFW: it links anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
@@ -65,8 +65,8 @@ build/raymini-cli --help
   `setBvhEnabled(false)` / `--no-bvh` (brute force) gives identical hits;
   `tests/TestBvh.cpp` holds both paths to that, bit for bit.
 - Modes: `lit` (ambient + per light: Lambert diffuse, Blinn-Phong highlight
-  from Material::shininess, dropped when a shadow ray toward the light is
-  blocked; `setShadows` / `setSpecularEnabled` switch the last two),
+  from Material::shininess, both scaled by the fraction of the light shadow
+  rays find unblocked; `setShadows` / `setSpecularEnabled` switch the last two),
   `ambient`, `hitmask`, `normals`, `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
   (golden-ratio hue palette by object index). `RayTracer::info(mode)` holds
@@ -78,6 +78,19 @@ build/raymini-cli --help
   distribution) so it is reproducible and identical across tile orders,
   threads and platforms. Default 1 in the core and CLI (`--aa n --jitter`),
   2x2 in the GUI. Stats count rays (sub-samples), not pixels.
+- Soft shadows: `RayTracer::setShadowSamples(n)` casts n x n shadow rays per
+  light over a disk of `Light::radius` facing the point (jittered grid,
+  concentric map); `lightVisibility` returns the unblocked fraction, the
+  disk below the surface's horizon counting as hidden. n = 1 or radius 0 is
+  the single hard-shadow ray, bit for bit. Default rig radius
+  `Scene::kDefaultLightRadius` (0.1) x model size, `Scene::setLightRadius`;
+  CLI `--shadow-samples n --light-radius f`, default 1 in the core and CLI,
+  4x4 in the GUI (Soft shadows / Light size). Shadow rays ask
+  `RayTracer::occluded` (stops at the first blocker).
+- Randomness comes from `Sampler` (`src/core/Sampler.h`): seeded per pixel
+  and per stream (AA jitter, shadows), so pictures do not depend on tile
+  order and one effect never reshuffles another's samples. Add a stream for
+  each new sampled effect.
 - `RenderJob` traces on one worker thread, tile by tile (32 px), publishing
   each finished tile under a mutex; the GUI shows the partial image with a
   progress bar and can cancel, the CLI prints a percentage on a terminal.
@@ -86,7 +99,9 @@ build/raymini-cli --help
   but with the BVH, on an M-series Mac, teapot at 256x256 renders in about
   5 ms (0.29 s brute force) and minion (84k triangles) on its ground with
   shadows in about 20 ms (60 s brute force); loading the OFF file (0.1 s)
-  now dominates. Experiment 4 adds workers.
+  now dominates. Soft shadows multiply the shadow work by n x n: ram on its
+  ground at 384x384 with 2x2 AA and 8x8 shadow rays takes about 5 s.
+  Experiment 4 adds workers.
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.
@@ -115,8 +130,7 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- No soft shadows, reflections, ambient occlusion, textures or threading
-  yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
+- No reflections, ambient occlusion, textures or threading yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
   OBJ texture coordinates are parsed but not stored.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it

@@ -114,7 +114,7 @@ Render section (2x2 by default).
 - Left for later: adaptive sampling (only refine pixels whose sub-samples
   disagree) and a proper reconstruction filter instead of the box average.
 
-## 6. Soft shadows from area lights
+## 6. Soft shadows from area lights (done)
 
 `Light::radius` already exists. Sample points on a disk facing the shaded
 point (same RNG as experiment 5), count the fraction of unoccluded shadow
@@ -124,6 +124,29 @@ rays, scale the light's contribution by it.
   shadow; with radius r the penumbra width grows with r and the shadow value
   is monotonic across the penumbra.
 - CLI: `--shadow-samples <n>`, `--light-radius <r>`.
+- Done: `RayTracer::setShadowSamples(n)`: n x n shadow rays per light, one
+  jittered ray per cell of a grid mapped onto the light's disk (concentric
+  map), the disk facing the point; diffuse and specular are scaled by the
+  unblocked fraction (`RayTracer::lightVisibility`), and the part of the
+  disk below the surface's horizon counts as hidden. n = 1 or a radius of 0
+  keeps the single hard-shadow ray, bit for bit. Random numbers moved into
+  `Sampler`, per pixel and per stream: the AA jitter draws the same numbers
+  as before and every existing golden regenerates byte-identical. The
+  default rig's radius went from an unused 1.5 x to 0.1 x model size;
+  `Scene::setLightRadius`. CLI `--light-radius <f>` takes a fraction of the
+  model size, like `--distance`. GUI: Soft shadows (4x4 by default) and
+  Light size. Shadow rays ask `RayTracer::occluded`, which stops at the
+  first blocker. Tests in `tests/TestShading.cpp` on a wall under a
+  half-plane: binary with one ray or radius 0; across the penumbra the
+  visible share matches the uncovered area of the disk within 0.05 and never
+  decreases; the penumbra is 2r wide here and doubles with r; a lit plane
+  stays fully lit. `tests/TestRenderJob.cpp`: tile-order independence.
+  Golden `teapot_ground_soft4_lit`.
+- Measured: minion on its ground at 256x256, hard 0.017 s, 4x4 0.16 s, 8x8
+  0.59 s; ram on its ground at 384x384 with 2x2 AA, hard 0.12 s, 8x8 4.8 s.
+  Stopping shadow rays at the first blocker saved only about 3 %: the BVH's
+  nearer-first order already ends blocked rays early. Sampled effects are
+  now what threads (experiment 4) are for.
 
 ## 7. Mirror reflections (and refraction as a stretch)
 

@@ -106,6 +106,28 @@ TEST_CASE("renderjob: jittered anti-aliasing does not depend on tile order") {
     CHECK_EQ(job.stats().rays, 64ul * 48ul * 4ul);
 }
 
+TEST_CASE("renderjob: soft shadows do not depend on tile order") {
+    // Shadow samples are seeded per pixel, like the jitter.
+    Scene scene = teapotScene();
+    scene.addGroundPlane();
+    const Camera camera = frameOf(scene);
+    RayTracer rt;
+    rt.setShadowSamples(3);
+    rt.setAntiAliasing(2, true);
+    const Image reference = rt.render(scene, camera, 64, 48);
+    RenderJob job(rt, scene, camera, 64, 48, 24);
+    job.start();
+    job.wait();
+    const Image img = job.snapshot();
+    REQUIRE(img.sizeInBytes() == reference.sizeInBytes());
+    CHECK(std::memcmp(img.data(), reference.data(), img.sizeInBytes()) == 0);
+
+    // The default lights have a radius, so the soft picture is not the hard one.
+    rt.setShadowSamples(1);
+    const Image hard = rt.render(scene, camera, 64, 48);
+    CHECK(std::memcmp(hard.data(), reference.data(), hard.sizeInBytes()) != 0);
+}
+
 TEST_CASE("renderjob: pending colour fills the image until tiles land") {
     const Scene scene = teapotScene();
     RayTracer rt;

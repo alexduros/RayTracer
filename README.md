@@ -21,8 +21,9 @@ with the raytracer split into a library that builds without any GL dependency.
   with the raytracer, save the result as PNG.
 - Raytracer: ray/triangle intersection through a bounding-volume hierarchy
   per object (back faces culled; `--no-bvh` gives the brute-force reference),
-  Lambert + Blinn-Phong shading with point lights and hard shadows, an
-  optional ground plane that catches them, n x n supersampling with
+  Lambert + Blinn-Phong shading with hard or soft shadows (each light a small
+  disk sampled by a grid of shadow rays), an optional ground plane that
+  catches them, n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id).
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
@@ -54,6 +55,7 @@ build/raymini [models/minion.off]                     # viewer (model optional)
 build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20
 build/raymini-cli cube --mode lit --yaw 25 --pitch 20  # OBJ + MTL sample
 build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15   # floor + shadows, the Rendu.png look
+build/raymini-cli ram --ground --aa 2 --shadow-samples 8 --yaw -35 --pitch 15   # the same, soft shadows
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -69,7 +71,8 @@ Viewer controls:
 - Controls panel, four sections: Model (picker over every `.off` and `.obj`
   in `models/`, mesh stats), Camera (FOV, position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
-  Hit mask, Normals, Depth, Object id; depth range in Depth mode).
+  Hit mask, Normals, Depth, Object id; anti-aliasing and jitter; shadows,
+  specular, soft shadows and light size; depth range in Depth mode).
 - Left-drag in the preview to orbit, scroll to zoom.
 - Raytracer panel: Render Scene traces on a worker thread, so the UI stays
   live while the image fills in tile by tile behind a progress bar; Cancel
@@ -83,7 +86,7 @@ The same text is shown under the render in the viewer and printed by
 
 | Mode | What it computes | How to read it | Study |
 |------|------------------|----------------|-------|
-| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), and a shadow ray toward the light that drops it when blocked; plus a constant ambient term. No bounces yet. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
+| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), both scaled by the fraction of the light that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid over the light's disk); plus a constant ambient term. No bounces yet. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term, and with soft shadows the edge fades across a penumbra. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
 | **Ambient (albedo)** | The material's base colour (Kd) at the hit, unlit. | Flat silhouettes per material; checks materials and outlines, shows no shape. | Ambient term of B. T. Phong, "Illumination for Computer Generated Pictures", CACM 18(6), 1975 |
 | **Hit mask (coverage)** | White where the primary ray hits geometry, black where it escapes. | A binary silhouette; with anti-aliasing, edge pixels turn grey in proportion to coverage. | T. Porter & T. Duff, "Compositing Digital Images", SIGGRAPH 1984 |
 | **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
@@ -97,6 +100,16 @@ independent of tile order. One ray per pixel gives staircase edges; 2x2 or
 3x3 smooths them at 4x or 9x the cost. Whitted, "An Improved Illumination
 Model for Shaded Display", CACM 23(6), 1980; Cook, "Stochastic Sampling in
 Computer Graphics", ACM TOG 5(1), 1986.
+
+**Soft shadows** (`--shadow-samples n`, `--light-radius f`; Soft shadows /
+Light size in the viewer): each light is a disk of f × the model's size (0.1
+by default), and n × n shadow rays over it, one jittered ray per cell of a
+grid mapped onto the disk, measure the fraction of the light a point sees.
+Shadows gain a penumbra, wider for bigger lights and for occluders far from
+the surface, while contact shadows stay sharp; each light costs n × n shadow
+rays per shaded point. Cook, Porter & Carpenter, "Distributed Ray Tracing",
+SIGGRAPH 1984; Shirley & Chiu, "A Low Distortion Map Between Disk and
+Square", Journal of Graphics Tools 2(3), 1997.
 
 ## Test
 

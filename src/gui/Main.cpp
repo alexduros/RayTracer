@@ -54,7 +54,7 @@ constexpr int kMinWindowHeight = 600;
 constexpr float kViewportAspect = 3.f / 2.f;
 // Layout: two panels on top (preview | render), the Controls strip below.
 constexpr float kMargin = 10.f;
-constexpr float kControlsHeight = 280.f;
+constexpr float kControlsHeight = 304.f;
 constexpr float kMinTopHeight = 200.f;
 constexpr float kPreviewShare = 0.46f;  // share of the top row's width given to the preview
 
@@ -497,6 +497,8 @@ int main(int argc, char** argv) {
     int rtAA = 2;            // rays per pixel axis: 2 -> 4 rays per pixel
     bool rtJitter = false;
     bool rtShadows = true;
+    int rtShadowSamples = 4;  // shadow rays per light axis: 1 = hard shadows
+    float rtLightRadius = Scene::kDefaultLightRadius;  // fraction of the model's size
     bool rtSpecular = true;
     bool showGround = true;  // ground plane under the model, in both views
     // Up axis of the model file: 0 = Auto (orientation.txt, else heuristic), else kUpChoices[choice - 1].
@@ -695,7 +697,9 @@ int main(int argc, char** argv) {
             rt.setDepthRange(rtDepthNear, rtDepthFar);
             rt.setAntiAliasing(static_cast<unsigned int>(rtAA), rtJitter);
             rt.setShadows(rtShadows);
+            rt.setShadowSamples(static_cast<unsigned int>(rtShadowSamples));
             rt.setSpecularEnabled(rtSpecular);
+            scene.setLightRadius(rtLightRadius);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
             renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f));
@@ -912,6 +916,24 @@ int main(int argc, char** argv) {
             ImGui::Checkbox("Shadows", &rtShadows);
             ImGui::SameLine();
             ImGui::Checkbox("Specular", &rtSpecular);
+            rowLabel("Soft shadows");
+            {
+                const char* softLabels[] = {"Off (hard)", "2x2 rays/light", "4x4 rays/light", "8x8 rays/light"};
+                const int softSamples[] = {1, 2, 4, 8};
+                int softIndex = 0;
+                for (int i = 0; i < IM_ARRAYSIZE(softSamples); ++i)
+                    if (softSamples[i] == rtShadowSamples) softIndex = i;
+                // Leave room for the (?) marker on the same row.
+                ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+                if (ImGui::Combo("##soft", &softIndex, softLabels, IM_ARRAYSIZE(softLabels)))
+                    rtShadowSamples = softSamples[softIndex];
+                ImGui::SameLine();
+                helpMarker(RayTracer::softShadowsInfo());
+            }
+            if (rtShadowSamples > 1) {
+                rowWidget("Light size");
+                ImGui::SliderFloat("##lightsize", &rtLightRadius, 0.f, 0.5f, "%.2f x model");
+            }
             if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
                 rowWidget("Near");
                 ImGui::SliderFloat("##near", &rtDepthNear, 0.f, 10.f * initialDistance, "%.2f");

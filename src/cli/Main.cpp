@@ -54,6 +54,10 @@ Options:
                          model, else the flattest side is the bottom), +y, +z, -z, +x, -x, -y
   --ground               add a ground plane under the model (receives its shadows)
   --no-shadows           lit mode without shadow rays
+  --shadow-samples <n>   soft shadows: n x n shadow rays per light over its disk, 1..16
+                         (default 1 = hard shadows)
+  --light-radius <f>     radius of every light as a fraction of the model size (default 0.1);
+                         0 makes point lights, whose shadows stay hard
   --no-specular          lit mode without the Blinn-Phong highlight
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
@@ -79,6 +83,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << aa.principle << "\n"
         << "      Read: " << aa.reading << "\n"
         << "      Ref:  " << aa.reference << "\n";
+    const RayTracer::ModeInfo& soft = RayTracer::softShadowsInfo();
+    out << "\n--shadow-samples / --light-radius  " << soft.name << "\n"
+        << "      " << soft.principle << "\n"
+        << "      Read: " << soft.reading << "\n"
+        << "      Ref:  " << soft.reference << "\n";
     out << "\nPlanned modes, not available yet (map: claudedocs/RENDERING_ROADMAP.md):\n";
     for (int i = 0; i < RayTracer::kPlannedModeCount; ++i) {
         const RayTracer::ModeInfo& p = RayTracer::plannedMode(i);
@@ -103,6 +112,8 @@ struct Options {
     bool jitter = false;
     bool ground = false;
     bool shadows = true;
+    unsigned int shadowSamples = 1;
+    float lightRadius = -1.f;  // < 0: the default rig's
     bool specular = true;
     bool bvh = true;
     std::optional<UpAxis> up;  // empty = auto
@@ -150,6 +161,21 @@ bool parseArgs(int argc, char** argv, Options& o) {
             o.ground = true;
         } else if (a == "--no-shadows") {
             o.shadows = false;
+        } else if (a == "--shadow-samples") {
+            if (!(v = value(i, "--shadow-samples"))) return false;
+            const int n = std::atoi(v);
+            if (n < 1 || n > 16) {
+                std::cerr << "--shadow-samples must be between 1 and 16\n";
+                return false;
+            }
+            o.shadowSamples = static_cast<unsigned int>(n);
+        } else if (a == "--light-radius") {
+            if (!(v = value(i, "--light-radius"))) return false;
+            o.lightRadius = static_cast<float>(std::atof(v));
+            if (o.lightRadius < 0.f) {
+                std::cerr << "--light-radius must be 0 or more\n";
+                return false;
+            }
         } else if (a == "--no-specular") {
             o.specular = false;
         } else if (a == "--no-bvh") {
@@ -257,6 +283,7 @@ int main(int argc, char** argv) {
     const UpAxis up = o.up ? *o.up : resolveUpAxis(path, scene, &upSource);
     scene.setUpAxis(up);
     scene.addDefaultLights();
+    if (o.lightRadius >= 0.f) scene.setLightRadius(o.lightRadius);
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
 
     const BoundingBox& bbox = scene.getBoundingBox();
@@ -270,6 +297,7 @@ int main(int argc, char** argv) {
     rt.setDebugMode(o.mode);
     rt.setAntiAliasing(o.aa, o.jitter);
     rt.setShadows(o.shadows);
+    rt.setShadowSamples(o.shadowSamples);
     rt.setSpecularEnabled(o.specular);
     rt.setBvhEnabled(o.bvh);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
@@ -311,9 +339,12 @@ int main(int argc, char** argv) {
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);
-        std::printf("render  %ux%u %s, %u ray%s/px%s, %s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
+        const std::string soft = o.shadowSamples > 1 ? ", " + std::to_string(o.shadowSamples * o.shadowSamples) +
+                                                           " shadow rays/light"
+                                                     : "";
+        std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
                     o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
-                    o.jitter ? " jittered" : "", o.bvh ? "bvh" : "brute force", st.seconds, st.hits, st.rays,
+                    o.jitter ? " jittered" : "", soft.c_str(), o.bvh ? "bvh" : "brute force", st.seconds, st.hits, st.rays,
                     st.rays ? 100.0 * st.hits / st.rays : 0.0, st.minHitDist, st.maxHitDist);
         std::printf("wrote   %s\n", o.out.c_str());
     }

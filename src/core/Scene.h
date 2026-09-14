@@ -58,8 +58,13 @@ public:
 
     /// The original project's three-light rig (cyan key, yellow fill, white
     /// rim), scaled and centred on the current bounding box so it works for
-    /// any model size. Call after the objects are added.
+    /// any model size, each light a disk of kDefaultLightRadius x the model's
+    /// size (seen only with soft shadows). Call after the objects are added.
     void addDefaultLights ();
+    static constexpr float kDefaultLightRadius = 0.1f;
+    /// Give every light a radius of `fraction` x the model's size; 0 makes
+    /// point lights, whose shadows stay hard.
+    void setLightRadius (float fraction);
 
     /// A large quad at the bottom of the model's bounding box that receives
     /// its shadows and gives every render a floor. It is a *backdrop*: it

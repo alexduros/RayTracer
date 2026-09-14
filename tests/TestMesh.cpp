@@ -111,5 +111,11 @@ TEST_CASE("mesh: default lights are placed relative to the model") {
     REQUIRE(s.getLights().size() == 3);
     // key light: centre + (size/2) * (3,3,3)
     CHECK(s.getLights()[0].getPos() == Vec3Df(16.f, 6.f, 6.f));
-    CHECK_CLOSE(s.getLights()[0].getRadius(), 6.f, 1e-6);
+    for (const Light& light : s.getLights())
+        CHECK_CLOSE(light.getRadius(), Scene::kDefaultLightRadius * 4.f, 1e-6);  // a small disk: 0.1 x size
+
+    s.setLightRadius(0.25f);
+    for (const Light& light : s.getLights()) CHECK_CLOSE(light.getRadius(), 1.f, 1e-6);
+    s.setLightRadius(-1.f);  // clamped: point lights
+    for (const Light& light : s.getLights()) CHECK_CLOSE(light.getRadius(), 0.f, 0.f);
 }
