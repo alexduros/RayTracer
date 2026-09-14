@@ -85,10 +85,14 @@ std::string describe(bool found, const RayTracer::Hit& h) {
     return "object " + std::to_string(h.objectIndex) + " at " + std::to_string(h.distance);
 }
 
-/// Every ray must hit exactly the same thing through the BVH as by brute force.
+/// Every ray must hit exactly the same thing through the BVH as by brute force,
+/// and the shadow-ray query (occluded) must agree with that closest hit on
+/// both paths: nothing strictly before it, something as soon as the limit
+/// passes it.
 void compareRays(const std::string& name, const Scene& scene, const std::vector<Ray>& rays) {
     RayTracer withBvh, bruteForce;
     bruteForce.setBvhEnabled(false);
+    const float kInfinity = std::numeric_limits<float>::infinity();
     size_t hits = 0, mismatches = 0;
     for (size_t k = 0; k < rays.size(); ++k) {
         RayTracer::Hit a, b;
@@ -101,6 +105,15 @@ void compareRays(const std::string& name, const Scene& scene, const std::vector<
                                        a.vertex.getNormal() == b.vertex.getNormal()));
         if (!same && ++mismatches <= 3)
             CHECK_MSG(false, name + " ray " + std::to_string(k) + ": bvh " + describe(foundA, a) + ", brute force " +
+                                 describe(foundB, b));
+
+        const float closest = foundB ? b.distance : std::numeric_limits<float>::max();
+        bool occlusionAgrees = true;
+        for (const RayTracer* rt : {&withBvh, &bruteForce})
+            occlusionAgrees = occlusionAgrees && !rt->occluded(scene, rays[k], closest) &&
+                              rt->occluded(scene, rays[k], std::nextafter(closest, kInfinity)) == foundB;
+        if (!occlusionAgrees && ++mismatches <= 3)
+            CHECK_MSG(false, name + " ray " + std::to_string(k) + ": occluded() disagrees with the closest hit, " +
                                  describe(foundB, b));
     }
     CHECK_MSG(mismatches == 0,
@@ -261,7 +274,7 @@ TEST_CASE("bvh: at equal distance the lowest triangle index wins, as in the brut
     }
 }
 
-TEST_CASE("bvh: only hits closer than the given distance are reported; an empty mesh hits nothing") {
+TEST_CASE("bvh: only hits closer than the given distance are reported (nearest and any); an empty mesh hits nothing") {
     const Mesh quad = fixtures::quad(0.f, 1.f);
     Bvh bvh;
     bvh.build(quad);
@@ -274,6 +287,8 @@ TEST_CASE("bvh: only hits closer than the given distance are reported; an empty 
     t = 6.f;
     CHECK(bvh.nearestHit(ray, quad, hit, t));
     CHECK_CLOSE(t, 5.f, 1e-5);
+    CHECK_MSG(!bvh.anyHit(ray, quad, t), "anyHit: nothing strictly before the hit");
+    CHECK_MSG(bvh.anyHit(ray, quad, std::nextafter(t, 6.f)), "anyHit: the hit counts once the limit passes it");
 
     const Mesh empty;
     Bvh none;
@@ -281,6 +296,7 @@ TEST_CASE("bvh: only hits closer than the given distance are reported; an empty 
     CHECK(none.getNodes().empty());
     t = std::numeric_limits<float>::max();
     CHECK(!none.nearestHit(ray, empty, hit, t));
+    CHECK(!none.anyHit(ray, empty, t));
 }
 
 TEST_CASE("bvh: 10 000 random rays hit exactly what brute force hits (teapot)") {

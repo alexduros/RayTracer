@@ -51,6 +51,11 @@ public:
     /// in Ray::nearestHit gives, so both return the same triangle.
     bool nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & t) const;
 
+    /// True when some front-facing triangle of `mesh` is hit strictly closer
+    /// than `tMax`. Stops at the first one found: the question a shadow ray
+    /// asks, cheaper than looking for the closest.
+    bool anyHit (const Ray & ray, const Mesh & mesh, float tMax) const;
+
     inline const std::vector<Node> & getNodes () const { return nodes; }
     inline const std::vector<unsigned int> & getTriangleOrder () const { return order; }
 

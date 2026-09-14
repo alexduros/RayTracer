@@ -165,3 +165,32 @@ bool Bvh::nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & 
         t = best;
     return found;
 }
+
+bool Bvh::anyHit (const Ray & ray, const Mesh & mesh, float tMax) const {
+    if (nodes.empty ())
+        return false;
+    const Vec3Df & d = ray.getDirection ();
+    const Vec3Df invDirection (1.f / d[0], 1.f / d[1], 1.f / d[2]);
+    const std::vector<Triangle> & triangles = mesh.getTriangles ();
+    Vertex candidate;
+    float tc = 0.f, tEntry = 0.f;
+
+    unsigned int stack[kStackSize];
+    unsigned int size = 0;
+    stack[size++] = 0;
+    while (size > 0) {
+        const unsigned int index = stack[--size];
+        const Node & node = nodes[index];
+        if (!ray.intersect (node.box, invDirection, tMax, tEntry))
+            continue;
+        if (node.isLeaf ()) {
+            for (unsigned int k = node.index; k < node.index + node.count; ++k)
+                if (ray.hit (triangles[order[k]], mesh, candidate, tc) && tc < tMax)
+                    return true;
+            continue;
+        }
+        stack[size++] = node.index;  // right child
+        stack[size++] = index + 1;   // left child
+    }
+    return false;
+}

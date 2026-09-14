@@ -124,6 +124,12 @@ public:
     /// so both paths return the same hit.
     bool closestHit (const Scene & scene, const Ray & ray, Hit & hit) const;
 
+    /// True when a front-facing triangle lies along `ray` strictly closer than
+    /// `maxDistance`: the question a shadow ray asks. Stops at the first one
+    /// found, and answers exactly as `closestHit (...) && hit.distance <
+    /// maxDistance` would, through the BVH or not.
+    bool occluded (const Scene & scene, const Ray & ray, float maxDistance) const;
+
     /// Color of one ray in linear [0,1] RGB (background if nothing is hit),
     /// counting it in `stats`. Const and reentrant: safe from several threads.
     Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats) const;

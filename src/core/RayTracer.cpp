@@ -220,6 +220,22 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
     return found;
 }
 
+bool RayTracer::occluded (const Scene & scene, const Ray & ray, float maxDistance) const {
+    Vertex v;
+    float t = 0.f;
+    for (const Object & object : scene.getObjects ()) {
+        if (bvhEnabled) {
+            if (object.getBvh ().anyHit (ray, object.getMesh (), maxDistance))
+                return true;
+            continue;
+        }
+        for (const Triangle & triangle : object.getMesh ().getTriangles ())
+            if (ray.hit (triangle, object.getMesh (), v, t) && t < maxDistance)
+                return true;
+    }
+    return false;
+}
+
 Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit) const {
     const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
     switch (debugMode) {
@@ -267,11 +283,8 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit) 
                 const float nDotL = Vec3Df::dotProduct (n, l);
                 if (nDotL <= 0.f)
                     continue;  // light behind the surface
-                if (shadows) {
-                    Hit blocker;
-                    if (closestHit (scene, Ray (shadowOrigin, l), blocker) && blocker.distance < distanceToLight)
-                        continue;  // something between the point and the light
-                }
+                if (shadows && occluded (scene, Ray (shadowOrigin, l), distanceToLight))
+                    continue;  // something between the point and the light
                 color += (mat.getDiffuse () * light.getIntensity () * nDotL) * (mat.getColor () * light.getColor ());
                 if (specularEnabled && mat.getSpecular () > 0.f) {
                     Vec3Df h = l + v;
