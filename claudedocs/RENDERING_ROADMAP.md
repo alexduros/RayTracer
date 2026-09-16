@@ -114,9 +114,9 @@ Needs: box and triangle test counters in `closestHit` and the BVH traversal; it 
 **Principle:** A tree of bounding boxes lets each ray skip almost every triangle, turning minutes into milliseconds on large models.
 Done as one tree per object (median split, leaves of 4): hits identical to brute force on random rays, edge-aimed rays and whole renders; the minion on its ground renders in 17 ms instead of 60 s. Reference: Kay & Kajiya, "Ray Tracing Complex Scenes", SIGGRAPH 1986; Wald, "On Fast Construction of SAH-based Bounding Volume Hierarchies", RT 2007. (Experiment 3)
 
-### Tile-parallel rendering
-**Principle:** Several workers pull tiles from a shared counter so every core traces at once; `RenderJob` already owns the tiles.
-Test: byte-identical to one worker. (Experiment 4)
+### Tile-parallel rendering (done)
+**Principle:** Several workers pull tiles from a shared counter so every core traces at once.
+Done: `RenderJob` runs one worker per core by default (CLI `--threads`, GUI Threads); pixels and statistics are byte-identical to the synchronous render for any tile size and thread count, and a cancel leaves each tile final or pending. Ram with 8x8 soft shadows at 384x384: 3.9 s -> 0.75 s on ten cores. (Experiment 4)
 
 ### Scene description file
 **Principle:** A text file places several models with transforms, materials, lights and the camera, so a complex scene is data rather than code.
@@ -133,7 +133,7 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 ## Suggested order
 
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
-2. BVH, then tile threads: the cat and the minion become interactive. **BVH done** (the minion renders in milliseconds); threads next, for the sampled effects that multiply the rays.
+2. BVH, then tile threads: the cat and the minion become interactive. **Done**: the minion renders in milliseconds, and threads keep the sampled effects fast.
 3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows done**, with a per-pixel `Sampler` the next two can draw from.
 4. Reflections and refraction, then textures from OBJ UVs.
 5. Tone mapping, then environment lighting and path tracing.

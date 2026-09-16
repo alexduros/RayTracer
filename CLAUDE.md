@@ -91,17 +91,22 @@ build/raymini-cli --help
   and per stream (AA jitter, shadows), so pictures do not depend on tile
   order and one effect never reshuffles another's samples. Add a stream for
   each new sampled effect.
-- `RenderJob` traces on one worker thread, tile by tile (32 px), publishing
-  each finished tile under a mutex; the GUI shows the partial image with a
-  progress bar and can cancel, the CLI prints a percentage on a terminal.
-  `RayTracer::render()` is the synchronous reference and a test asserts the
-  job's pixels and statistics are byte-identical. Still one tracing thread,
-  but with the BVH, on an M-series Mac, teapot at 256x256 renders in about
-  5 ms (0.29 s brute force) and minion (84k triangles) on its ground with
+- `RenderJob` traces tile by tile (32 px) on N worker threads (default one
+  per core, `RenderJob::defaultThreadCount`, never more than the tiles) that
+  pull tile indices from an atomic counter, top row first; each worker keeps
+  its tile's stats private and publishes the tile and its stats under a
+  mutex. The GUI shows the partial image with a progress bar and can cancel
+  (Threads slider in Render), the CLI prints a percentage on a terminal
+  (`--threads n`, 0 = auto). `RayTracer::render()` is the synchronous,
+  single-threaded reference and tests assert the job's pixels and statistics
+  are byte-identical for any tile size and thread count; `renderRegion` is
+  const and the scene read-only, so workers share them (TSan-clean). On an
+  M-series Mac (10 cores), teapot at 256x256 renders in about 5 ms on one
+  thread (0.29 s brute force) and minion (84k triangles) on its ground with
   shadows in about 20 ms (60 s brute force); loading the OFF file (0.1 s)
   now dominates. Soft shadows multiply the shadow work by n x n: ram on its
-  ground at 384x384 with 2x2 AA and 8x8 shadow rays takes about 5 s.
-  Experiment 4 adds workers.
+  ground at 384x384 with 2x2 AA and 8x8 shadow rays takes 3.9 s on one
+  thread, 0.75 s on ten.
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.
@@ -130,7 +135,7 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- No reflections, ambient occlusion, textures or threading yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
+- No reflections, ambient occlusion or textures yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
   OBJ texture coordinates are parsed but not stored.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it

@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -22,6 +24,23 @@ Scene teapotScene() {
 }
 
 Camera frameOf(const Scene& s) { return Camera::frame(s.getBoundingBox(), kPi / 4.f, 1.f, 2.f, 25.f, 20.f); }
+
+bool samePixels(const Image& a, const Image& b) {
+    return a.sizeInBytes() == b.sizeInBytes() && std::memcmp(a.data(), b.data(), a.sizeInBytes()) == 0;
+}
+
+// Pixels of tile (tx, ty) of a `tile`-sized grid are equal in a and b.
+bool sameTile(const Image& a, const Image& b, int tx, int ty, int tile) {
+    for (int y = ty * tile; y < std::min(a.height(), (ty + 1) * tile); ++y) {
+        for (int x = tx * tile; x < std::min(a.width(), (tx + 1) * tile); ++x) {
+            unsigned char r1, g1, b1, r2, g2, b2;
+            a.getPixel(x, y, r1, g1, b1);
+            b.getPixel(x, y, r2, g2, b2);
+            if (r1 != r2 || g1 != g2 || b1 != b2) return false;
+        }
+    }
+    return true;
+}
 
 }  // namespace
 
@@ -56,16 +75,19 @@ TEST_CASE("renderjob: stats accumulate across tiles") {
     CHECK_CLOSE(empty.maxHitDist, 0.5f, 0.f);
 }
 
-TEST_CASE("renderjob: same pixels and statistics as RayTracer::render for any tile size") {
+TEST_CASE("renderjob: same pixels and statistics as RayTracer::render for any tile size and thread count") {
     const Scene scene = teapotScene();
     const Camera camera = frameOf(scene);
     RayTracer rt;
     const Image reference = rt.render(scene, camera, 64, 48);
     const RayTracer::Stats ref = rt.getLastStats();
 
-    for (unsigned int tile : {1u, 16u, 24u, 128u}) {  // 24 leaves partial tiles; 128 exceeds the image
-        const std::string label = "tile size " + std::to_string(tile);
-        RenderJob job(rt, scene, camera, 64, 48, tile);
+    // 24 leaves partial tiles; 128 exceeds the image (one tile, so one worker).
+    for (unsigned int tile : {1u, 16u, 24u, 128u})
+    for (unsigned int threads : {1u, 2u, 3u, 8u}) {
+        const std::string label = "tile size " + std::to_string(tile) + ", " + std::to_string(threads) + " threads";
+        RenderJob job(rt, scene, camera, 64, 48, tile, Vec3Df(0.f, 0.f, 0.f), threads);
+        CHECK_EQ(job.threadCount(), std::min(threads, job.totalTiles()));
         CHECK_CLOSE(job.progress(), 0.f, 0.f);
         CHECK_MSG(!job.isDone(), label);
         job.start();
@@ -74,9 +96,7 @@ TEST_CASE("renderjob: same pixels and statistics as RayTracer::render for any ti
         CHECK_CLOSE(job.progress(), 1.f, 0.f);
         CHECK_EQ(job.completedTiles(), job.totalTiles());
 
-        const Image img = job.snapshot();
-        REQUIRE(img.sizeInBytes() == reference.sizeInBytes());
-        CHECK_MSG(std::memcmp(img.data(), reference.data(), img.sizeInBytes()) == 0, label);
+        CHECK_MSG(samePixels(job.snapshot(), reference), label);
 
         const RayTracer::Stats st = job.stats();
         CHECK_EQ(st.rays, ref.rays);
@@ -88,15 +108,15 @@ TEST_CASE("renderjob: same pixels and statistics as RayTracer::render for any ti
     }
 }
 
-TEST_CASE("renderjob: jittered anti-aliasing does not depend on tile order") {
-    // The jitter seed is per pixel, so tiles (and later threads) must give the
-    // same picture as the synchronous render.
+TEST_CASE("renderjob: jittered anti-aliasing does not depend on tile order or threads") {
+    // The jitter seed is per pixel, so tiles and threads must give the same
+    // picture as the synchronous render.
     const Scene scene = teapotScene();
     const Camera camera = frameOf(scene);
     RayTracer rt;
     rt.setAntiAliasing(2, true);
     const Image reference = rt.render(scene, camera, 64, 48);
-    RenderJob job(rt, scene, camera, 64, 48, 24);
+    RenderJob job(rt, scene, camera, 64, 48, 24, Vec3Df(0.f, 0.f, 0.f), 4);
     job.start();
     job.wait();
     const Image img = job.snapshot();
@@ -106,7 +126,7 @@ TEST_CASE("renderjob: jittered anti-aliasing does not depend on tile order") {
     CHECK_EQ(job.stats().rays, 64ul * 48ul * 4ul);
 }
 
-TEST_CASE("renderjob: soft shadows do not depend on tile order") {
+TEST_CASE("renderjob: soft shadows do not depend on tile order or threads") {
     // Shadow samples are seeded per pixel, like the jitter.
     Scene scene = teapotScene();
     scene.addGroundPlane();
@@ -115,7 +135,7 @@ TEST_CASE("renderjob: soft shadows do not depend on tile order") {
     rt.setShadowSamples(3);
     rt.setAntiAliasing(2, true);
     const Image reference = rt.render(scene, camera, 64, 48);
-    RenderJob job(rt, scene, camera, 64, 48, 24);
+    RenderJob job(rt, scene, camera, 64, 48, 24, Vec3Df(0.f, 0.f, 0.f), 4);
     job.start();
     job.wait();
     const Image img = job.snapshot();
@@ -142,42 +162,85 @@ TEST_CASE("renderjob: pending colour fills the image until tiles land") {
 }
 
 TEST_CASE("renderjob: cancel stops early and keeps the finished tiles") {
-    const Scene scene = teapotScene();
+    // Heavy enough (soft shadows over a ground) that cancelling after the
+    // first tile lands leaves most of the image untouched, even with threads.
+    Scene scene = teapotScene();
+    scene.addGroundPlane();
     const Camera camera = frameOf(scene);
     RayTracer rt;
-    RenderJob job(rt, scene, camera, 256, 256, 16, Vec3Df(0.5f, 0.5f, 0.5f));  // 256 tiles
-    job.start();
-    // Let at least one tile finish, then stop.
-    while (job.completedTiles() == 0 && !job.isDone()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    job.cancel();
-    job.wait();
-    CHECK(job.isDone());
-    CHECK(job.isCancelled());
-    CHECK(!job.isComplete());
-    CHECK(job.completedTiles() >= 1);
-    CHECK(job.completedTiles() < job.totalTiles());
+    rt.setShadowSamples(6);
+    rt.setAntiAliasing(2, true);
+    const int kTile = 16;
+    for (unsigned int threads : {1u, 4u}) {
+        const std::string label = std::to_string(threads) + " threads";
+        RenderJob job(rt, scene, camera, 256, 256, kTile, Vec3Df(0.5f, 0.5f, 0.5f), threads);  // 256 tiles
+        job.start();
+        // Let at least one tile finish, then stop.
+        while (job.completedTiles() == 0 && !job.isDone()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        job.cancel();
+        job.wait();
+        CHECK_MSG(job.isDone() && job.isCancelled() && !job.isComplete(), label);
+        CHECK_MSG(job.completedTiles() >= 1, label);
+        CHECK_MSG(job.completedTiles() < job.totalTiles(), label);
 
-    // The first tile (top-left 16x16) is final and equals the reference render.
-    const Image img = job.snapshot();
-    const Image reference = rt.render(scene, camera, 256, 256);
-    bool firstTileMatches = true;
-    for (int y = 0; y < 16; ++y) {
-        for (int x = 0; x < 16; ++x) {
-            unsigned char r1, g1, b1, r2, g2, b2;
-            img.getPixel(x, y, r1, g1, b1);
-            reference.getPixel(x, y, r2, g2, b2);
-            firstTileMatches = firstTileMatches && r1 == r2 && g1 == g2 && b1 == b2;
+        // Every tile is either final (equal to the reference render) or still
+        // entirely the pending colour, and the final ones are the published ones.
+        const Image img = job.snapshot();
+        const Image reference = rt.render(scene, camera, 256, 256);
+        Image pending(256, 256, Image::RGB888);
+        pending.fill(128, 128, 128);
+        unsigned int finalTiles = 0, pendingTiles = 0;
+        for (int ty = 0; ty < 16; ++ty) {
+            for (int tx = 0; tx < 16; ++tx) {
+                if (sameTile(img, reference, tx, ty, kTile))
+                    ++finalTiles;
+                else if (sameTile(img, pending, tx, ty, kTile))
+                    ++pendingTiles;
+            }
         }
+        CHECK_EQ(finalTiles + pendingTiles, 256u);
+        CHECK_EQ(finalTiles, job.completedTiles());
+        // Tiles are handed out top row first: the last one never started.
+        CHECK_MSG(sameTile(img, pending, 15, 15, kTile), label);
+        // Stats only cover published tiles.
+        CHECK_EQ(job.stats().rays, static_cast<unsigned long>(job.completedTiles()) * kTile * kTile * 4ul);
     }
-    CHECK(firstTileMatches);
-    // The last tile never started: still the pending colour.
-    unsigned char r, g, b;
-    img.getPixel(255, 255, r, g, b);
-    CHECK_EQ(int(r), 128);
-    CHECK_EQ(int(g), 128);
-    CHECK_EQ(int(b), 128);
-    // Stats only cover published tiles.
-    CHECK_EQ(job.stats().rays, static_cast<unsigned long>(job.completedTiles()) * 16ul * 16ul);
+}
+
+TEST_CASE("renderjob: thread count defaults to the cores and never exceeds the tiles") {
+    const Scene scene = teapotScene();
+    RayTracer rt;
+    CHECK(RenderJob::defaultThreadCount() >= 1u);
+    RenderJob automatic(rt, scene, frameOf(scene), 256, 256, 16);
+    CHECK_EQ(automatic.threadCount(), std::min(RenderJob::defaultThreadCount(), 256u));
+    RenderJob oneTile(rt, scene, frameOf(scene), 16, 16, 32, Vec3Df(0.f, 0.f, 0.f), 8);
+    CHECK_EQ(oneTile.threadCount(), 1u);
+    RenderJob four(rt, scene, frameOf(scene), 64, 64, 32, Vec3Df(0.f, 0.f, 0.f), 16);
+    CHECK_EQ(four.threadCount(), 4u);
+}
+
+TEST_CASE("renderjob: threads speed up a sampled render") {
+    // Reports the speedup; asserts only the pixels, since timing depends on
+    // the machine (and CI runners may have two cores).
+    Scene scene = teapotScene();
+    scene.addGroundPlane();
+    const Camera camera = frameOf(scene);
+    RayTracer rt;
+    rt.setShadowSamples(4);
+    rt.setAntiAliasing(2, true);
+    const unsigned int cores = RenderJob::defaultThreadCount();
+    RenderJob one(rt, scene, camera, 128, 128, 16, Vec3Df(0.f, 0.f, 0.f), 1);
+    one.start();
+    one.wait();
+    RenderJob all(rt, scene, camera, 128, 128, 16, Vec3Df(0.f, 0.f, 0.f), cores);
+    all.start();
+    all.wait();
+    CHECK(samePixels(one.snapshot(), all.snapshot()));
+    CHECK_EQ(one.stats().rays, all.stats().rays);
+    CHECK_EQ(one.stats().hits, all.stats().hits);
+    const double t1 = one.stats().seconds, tn = all.stats().seconds;
+    std::printf("  [renderjob] 128x128 soft shadows: 1 thread %.3f s, %u threads %.3f s, speedup x%.1f\n", t1,
+                all.threadCount(), tn, tn > 0.0 ? t1 / tn : 0.0);
 }
 
 TEST_CASE("renderjob: destroying a running job joins its worker") {

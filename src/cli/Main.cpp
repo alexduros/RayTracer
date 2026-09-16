@@ -61,6 +61,7 @@ Options:
   --no-specular          lit mode without the Blinn-Phong highlight
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
+  --threads <n>          worker threads, 0 = one per core (default 0); the picture is identical
   --fov <deg>            vertical field of view (default 45)
   --yaw <deg>            orbit around the model about +Y (default 0: camera on +Z)
   --pitch <deg>          orbit elevation, -89..89 (default 0)
@@ -116,6 +117,7 @@ struct Options {
     float lightRadius = -1.f;  // < 0: the default rig's
     bool specular = true;
     bool bvh = true;
+    unsigned int threads = 0;  // 0 = one per core
     std::optional<UpAxis> up;  // empty = auto
     bool quiet = false;
 };
@@ -180,6 +182,14 @@ bool parseArgs(int argc, char** argv, Options& o) {
             o.specular = false;
         } else if (a == "--no-bvh") {
             o.bvh = false;
+        } else if (a == "--threads") {
+            if (!(v = value(i, "--threads"))) return false;
+            const int n = std::atoi(v);
+            if (n < 0 || n > 256 || (n == 0 && std::string(v) != "0")) {
+                std::cerr << "--threads must be between 0 (one per core) and 256\n";
+                return false;
+            }
+            o.threads = static_cast<unsigned int>(n);
         } else if (a == "--jitter") {
             o.jitter = true;
         } else if (a == "--aa") {
@@ -306,8 +316,8 @@ int main(int argc, char** argv) {
         rt.setDepthRange(o.depthNear, o.depthFar);
     }
 
-    // Same tile-by-tile worker as the GUI; on a terminal, show a percentage.
-    RenderJob job(rt, scene, camera, o.width, o.height, 32);
+    // Same tile-by-tile workers as the GUI; on a terminal, show a percentage.
+    RenderJob job(rt, scene, camera, o.width, o.height, 32, Vec3Df(0.f, 0.f, 0.f), o.threads);
     const bool showProgress = !o.quiet && isatty(fileno(stderr));
     job.start();
     while (!job.isDone()) {
@@ -342,9 +352,10 @@ int main(int argc, char** argv) {
         const std::string soft = o.shadowSamples > 1 ? ", " + std::to_string(o.shadowSamples * o.shadowSamples) +
                                                            " shadow rays/light"
                                                      : "";
-        std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
+        std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, %u thread%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
                     o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
-                    o.jitter ? " jittered" : "", soft.c_str(), o.bvh ? "bvh" : "brute force", st.seconds, st.hits, st.rays,
+                    o.jitter ? " jittered" : "", soft.c_str(), o.bvh ? "bvh" : "brute force", job.threadCount(),
+                    job.threadCount() > 1 ? "s" : "", st.seconds, st.hits, st.rays,
                     st.rays ? 100.0 * st.hits / st.rays : 0.0, st.minHitDist, st.maxHitDist);
         std::printf("wrote   %s\n", o.out.c_str());
     }

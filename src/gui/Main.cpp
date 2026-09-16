@@ -500,6 +500,8 @@ int main(int argc, char** argv) {
     int rtShadowSamples = 4;  // shadow rays per light axis: 1 = hard shadows
     float rtLightRadius = Scene::kDefaultLightRadius;  // fraction of the model's size
     bool rtSpecular = true;
+    const int maxThreads = static_cast<int>(RenderJob::defaultThreadCount());
+    int rtThreads = maxThreads;  // worker threads for the next render
     bool showGround = true;  // ground plane under the model, in both views
     // Up axis of the model file: 0 = Auto (orientation.txt, else heuristic), else kUpChoices[choice - 1].
     static const char* kUpLabels[] = {"Auto", "+Y", "+Z", "-Z", "+X", "-X", "-Y"};
@@ -509,6 +511,7 @@ int main(int argc, char** argv) {
     UpAxis autoUp = UpAxis::PosY;  // what Auto resolved to for the current model
     std::string upSource;
     int lastRenderSamples = 1;  // rays per pixel of the render being shown
+    int lastRenderThreads = 1;  // worker threads of the render being shown
     const char* modeLabels[RayTracer::kModeCount];
     for (int i = 0; i < RayTracer::kModeCount; ++i) {
         modeLabels[i] = RayTracer::info(static_cast<RayTracer::DebugMode>(i)).name;
@@ -702,12 +705,14 @@ int main(int argc, char** argv) {
             scene.setLightRadius(rtLightRadius);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
             renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
-                                                    Vec3Df(0.12f, 0.12f, 0.12f));
+                                                    Vec3Df(0.12f, 0.12f, 0.12f),
+                                                    static_cast<unsigned int>(rtThreads));
             renderJob->start();
             lastUploadedTiles = 0;
             lastRender = Image();
             lastRenderMode = rtMode;
             lastRenderSamples = rtAA * rtAA;
+            lastRenderThreads = static_cast<int>(renderJob->threadCount());
             lastRenderCancelled = false;
             lastSavedPath.clear();
             uploadTexture(rtTexture, rtTexW, rtTexH, renderJob->snapshot());  // pending fill
@@ -752,8 +757,9 @@ int main(int argc, char** argv) {
                             100.0 * static_cast<double>(lastStats.rays) /
                                 (static_cast<double>(rtTexW) * rtTexH * lastRenderSamples));
             } else {
-                ImGui::Text("%dx%d, %d ray%s/px, %.2fs, %.0f%% hits", rtTexW, rtTexH, lastRenderSamples,
-                            lastRenderSamples == 1 ? "" : "s", lastStats.seconds,
+                ImGui::Text("%dx%d, %d ray%s/px, %d thread%s, %.2fs, %.0f%% hits", rtTexW, rtTexH,
+                            lastRenderSamples, lastRenderSamples == 1 ? "" : "s", lastRenderThreads,
+                            lastRenderThreads == 1 ? "" : "s", lastStats.seconds,
                             lastStats.rays ? 100.0 * lastStats.hits / lastStats.rays : 0.0);
             }
             if (!lastSavedPath.empty()) {
@@ -934,6 +940,9 @@ int main(int argc, char** argv) {
                 rowWidget("Light size");
                 ImGui::SliderFloat("##lightsize", &rtLightRadius, 0.f, 0.5f, "%.2f x model");
             }
+            rowWidget("Threads");
+            ImGui::SliderInt("##threads", &rtThreads, 1, maxThreads, "%d");
+            itemTooltip("Worker threads tracing tiles in parallel; the picture is identical for any count.");
             if (static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::DEPTH) {
                 rowWidget("Near");
                 ImGui::SliderFloat("##near", &rtDepthNear, 0.f, 10.f * initialDistance, "%.2f");

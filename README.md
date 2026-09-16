@@ -24,7 +24,8 @@ with the raytracer split into a library that builds without any GL dependency.
   Lambert + Blinn-Phong shading with hard or soft shadows (each light a small
   disk sampled by a grid of shadow rays), an optional ground plane that
   catches them, n x n supersampling with
-  optional jitter, and analysis modes (hit mask, normals, depth, object id).
+  optional jitter, and analysis modes (hit mask, normals, depth, object id),
+  traced tile by tile on every core (`--threads n`; same pixels for any count).
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
 - CLI: render any model to a PNG, no display needed.
@@ -72,11 +73,11 @@ Viewer controls:
   in `models/`, mesh stats), Camera (FOV, position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id; anti-aliasing and jitter; shadows,
-  specular, soft shadows and light size; depth range in Depth mode).
+  specular, soft shadows and light size; threads; depth range in Depth mode).
 - Left-drag in the preview to orbit, scroll to zoom.
-- Raytracer panel: Render Scene traces on a worker thread, so the UI stays
-  live while the image fills in tile by tile behind a progress bar; Cancel
-  stops it. Then Save PNG (into `renders/`), timing and hit ratio. Starts on
+- Raytracer panel: Render Scene traces on worker threads (one per core by
+  default, Threads in Render), so the UI stays live while the image fills in
+  tile by tile behind a progress bar; Cancel stops it. Then Save PNG (into `renders/`), timing and hit ratio. Starts on
   the teapot unless a path is given on the command line.
 
 ## Render modes

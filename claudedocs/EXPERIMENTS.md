@@ -81,7 +81,7 @@ the existing `Ray::intersect(BoundingBox)` slab test.
   0.009 s; teapot at 256x256 0.29 s -> 0.005 s; ram at 512x512, 2x2 AA,
   ground 0.18 s.
 
-## 4. Tile-parallel rendering
+## 4. Tile-parallel rendering (done)
 
 Split the image into 32x32 tiles, hand them out through an atomic counter to
 `std::thread::hardware_concurrency()` workers. Stats are accumulated per
@@ -97,6 +97,25 @@ private `Stats` merged at the end.
 - CLI: `--threads <n>` (0 = auto). GUI: the BVH already renders the minion
   in milliseconds; threads keep the sampled effects below (soft shadows, AO,
   depth of field, high AA) interactive as they multiply the rays.
+- Done: `RenderJob` takes a thread count (0 = `defaultThreadCount()`, one
+  per core; never more workers than tiles). The job's own thread starts the
+  others, works like them and joins them; each worker pulls the next tile
+  index from an atomic counter (top row first), traces it into the shared
+  working image (tiles never overlap) with private `Stats`, then publishes
+  pixels and stats under the mutex. Cancel still lands within one row per
+  worker; unfinished tiles stay pending. `RenderJob::threadCount()`, CLI
+  `--threads <n>`, GUI Threads slider (all cores by default); both print
+  the thread count with the timing. Tests in `tests/TestRenderJob.cpp`:
+  byte-identical pixels and identical stats for tile sizes 1/16/24/128 x
+  1/2/3/8 threads, jitter and soft shadows with 4 threads, a cancel with 1
+  and 4 threads leaves every tile either final or entirely pending (the
+  final ones are exactly the published ones), the thread-count clamp, and a
+  timing report. Clean under ThreadSanitizer; goldens untouched.
+- Measured on a 10-core M-series Mac (4 performance + 6 efficiency cores),
+  same PNG bytes: ram on its ground at 384x384, 2x2 AA, 8x8 shadow rays
+  3.93 s -> 0.75 s (x5.2); minion on its ground at 256x256 with 8x8 shadow
+  rays 0.57 s -> 0.12 s (x4.8). The efficiency cores cap the speedup below
+  10.
 
 ## 5. Supersampling anti-aliasing (done)
 
@@ -143,7 +162,8 @@ rays, scale the light's contribution by it.
   stays fully lit. `tests/TestRenderJob.cpp`: tile-order independence.
   Golden `teapot_ground_soft4_lit`.
 - Measured: minion on its ground at 256x256, hard 0.017 s, 4x4 0.16 s, 8x8
-  0.59 s; ram on its ground at 384x384 with 2x2 AA, hard 0.12 s, 8x8 4.8 s.
+  0.59 s; ram on its ground at 384x384 with 2x2 AA, hard 0.12 s, 8x8 4.8 s
+  (0.75 s on ten threads since experiment 4).
   Stopping shadow rays at the first blocker saved only about 3 %: the BVH's
   nearer-first order already ends blocked rays early. Sampled effects are
   now what threads (experiment 4) are for.
