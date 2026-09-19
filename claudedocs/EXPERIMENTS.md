@@ -335,6 +335,11 @@ point of the pinhole ray. Uses the sampling infrastructure from experiment 5.
 
 ## After these
 
+`RAY_TRACING_TIMELINE.md` continues from here: the research on ray tracing
+in chronological order, from 1971 to 2026, one step per landmark paper
+(effects, performance, hardware, modelling, sampling), each with the test
+that proves it. The notes below are folded into it.
+
 Textures: OBJ files carry UVs (parsed, not yet stored) and MTL `map_Kd`
 names, so image textures are within reach; procedural checker and noise
 come first for the OFF models, which have no UVs. Also an interactive

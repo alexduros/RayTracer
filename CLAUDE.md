@@ -26,6 +26,9 @@ tests that prove each one.
   `RayTracer::plannedMode()` (greyed out in the viewer's mode menu, printed
   by `--help`). Keep the three in sync. `claudedocs/EXPERIMENTS.md` — the
   implementation order, each step with the test that proves it.
+  `claudedocs/RAY_TRACING_TIMELINE.md` — the plan after experiment 10: one
+  step per landmark ray tracing paper, 1971 to 2026, in chronological order
+  (steps 11 to 94, the backbone marked ★).
   `claudedocs/MODERNIZATION_ROADMAP.md` — the longer view.
 - `scripts/render-evolution.sh` renders `docs/evolution/*.png`, the README's
   step-by-step gallery (the ram, one picture per experiment, same camera);
