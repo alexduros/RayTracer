@@ -29,6 +29,8 @@ render 02-specular       --ground
 render 05-antialiasing   --ground --aa 2
 render 06-soft-shadows   --ground --aa 2 --shadow-samples 8
 render 07-reflections    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4
+render 08-occlusion      --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
+render 08-occlusion-ao   --ground --aa 2 --mode ao --ao 8
 
 timed() {
     local label=$1 png=$2
