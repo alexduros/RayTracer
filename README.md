@@ -42,7 +42,9 @@ with the raytracer split into a library that builds without any GL dependency.
 
 The ram as each experiment of `claudedocs/EXPERIMENTS.md` lands, rendered
 by today's raytracer with the matching flags (same camera, 384x256), so each
-picture adds one effect to the previous one. `scripts/render-evolution.sh`
+picture adds one effect to the previous one. The steps before 9 are shown as
+the renderer then wrote them, linear radiance straight into bytes
+(`--display linear`); from 9 on, through the default display. `scripts/render-evolution.sh`
 regenerates them and the timings.
 
 | | |
@@ -52,6 +54,7 @@ regenerates them and the timings.
 | ![Soft shadows](docs/evolution/06-soft-shadows.png)<br>**6. Soft shadows** (`--shadow-samples 8`): each light a disk, 64 shadow rays; sharp at the feet, penumbra further out. | ![Mirror reflections](docs/evolution/07-reflections.png)<br>**7. Mirror reflections** (`--ground-reflectivity 0.4`): the ram shows upside down in the floor, which darkens where it mirrors the black sky. |
 | ![Ambient occlusion](docs/evolution/08-occlusion.png)<br>**8. Ambient occlusion** (`--ao 8`): 64 hemisphere rays per hit; the creases under the horn, the belly's reflection and the floor at the feet darken. | ![Ambient occlusion mode](docs/evolution/08-occlusion-ao.png)<br>**8, the occlusion itself** (`--mode ao`): the open share of each point's hemisphere, white = open. |
 | ![Refraction](docs/evolution/07b-refraction.png)<br>**7b. Refraction** (`--transparency 1`), the stretch of experiment 7, done after 8: the ram in clear glass bends the floor behind it, catches reflections at its rims and turns dark where light reflects entirely inside. | ![Glass teapot](docs/evolution/07b-teapot.png)<br>**7b, on the teapot**, whose smooth body reads better: the floor shows through, shifted and bent, the lid and the handle stay visible by their rims. |
+| ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
 
 Steps 3 and 4 change the time, not the picture (the script checks the
 pixels are identical). **3. BVH**: the picture of step 2 on one thread,

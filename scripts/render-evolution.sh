@@ -23,25 +23,39 @@ render() {
     "$cli" "${view[@]}" "$@" --out "$out/$name.png" | sed -n 's/^render  //p'
 }
 
-render 00-start          --no-shadows --no-specular
-render 01-ground-shadows --ground --no-specular
-render 02-specular       --ground
-render 05-antialiasing   --ground --aa 2
-render 06-soft-shadows   --ground --aa 2 --shadow-samples 8
-render 07-reflections    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4
-render 08-occlusion      --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
-render 08-occlusion-ao   --ground --aa 2 --mode ao --ao 8
+# Before experiment 9 the renderer wrote linear radiance straight into bytes:
+# those steps keep that look (--display linear). From 9 on, the default display.
+legacy() {
+    local name=$1
+    shift
+    render "$name" --display linear "$@"
+}
+
+legacy 00-start          --no-shadows --no-specular
+legacy 01-ground-shadows --ground --no-specular
+legacy 02-specular       --ground
+legacy 05-antialiasing   --ground --aa 2
+legacy 06-soft-shadows   --ground --aa 2 --shadow-samples 8
+legacy 07-reflections    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4
+legacy 08-occlusion      --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
+legacy 08-occlusion-ao   --ground --aa 2 --mode ao --ao 8
 # The stretch of experiment 7, done after 8: the model as clear glass.
-render 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1
+legacy 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1
 printf '%-18s ' 07b-teapot
-"$cli" teapot --yaw 25 --pitch 20 --size 384x256 --ground --aa 2 --shadow-samples 8 --transparency 1 \
+"$cli" teapot --yaw 25 --pitch 20 --size 384x256 --display linear --ground --aa 2 --shadow-samples 8 --transparency 1 \
     --out "$out/07b-teapot.png" | sed -n 's/^render  //p'
+
+# Experiment 9: the same picture as step 8, now through the display (auto
+# exposure, a tone curve, sRGB): ACES, and Reinhard et al.'s photographic
+# operator (the metered exposure and their curve).
+render 09-display        --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
+render 09-reinhard       --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --tonemap reinhard
 
 timed() {
     local label=$1 png=$2
     shift 2
     printf '%-18s ' "$label"
-    "$cli" "${view[@]}" "$@" --out "$tmp/$png" | sed -n 's/^render  .* in \([0-9.]*s\).*/\1/p'
+    "$cli" "${view[@]}" --display linear "$@" --out "$tmp/$png" | sed -n 's/^render  .* in \([0-9.]*s\).*/\1/p'
 }
 
 # The three files must hold the same bytes.
