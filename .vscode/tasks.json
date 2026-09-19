@@ -1,27 +1,138 @@
 {
+  // Two build trees:
+  //   build/        Release: tests, renders, clangd's compile_commands.json (CLAUDE.md)
+  //   build-debug/  Debug (-O0 -g): what launch.json debugs
+  // A build task configures its tree only when it has no cache yet, so it never
+  // flips the build type of an existing tree.
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Configure",
+      "label": "cmake: configure Release",
+      "detail": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release (re-run after changing options)",
       "type": "shell",
-      "command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build -DCMAKE_BUILD_TYPE=RelWithDebInfo",
+      "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release",
       "problemMatcher": []
     },
     {
-      "label": "Build",
+      "label": "cmake: build Release",
+      "detail": "build/ (configures it first if needed)",
       "type": "shell",
-      "command": "cmake --build ${workspaceFolder}/build -j",
-      "dependsOn": ["Configure"],
+      "command": "[ -f build/CMakeCache.txt ] || cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": ["$gcc"]
     },
     {
-      "label": "Test",
+      "label": "cmake: build Debug",
+      "detail": "build-debug/ for the debugger (configures it first if needed)",
       "type": "shell",
-      "command": "ctest --test-dir ${workspaceFolder}/build --output-on-failure",
-      "dependsOn": ["Build"],
+      "command": "[ -f build-debug/CMakeCache.txt ] || cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug && cmake --build build-debug -j",
+      "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "test: all (ctest)",
+      "detail": "ctest --test-dir build --output-on-failure",
+      "type": "shell",
+      "command": "ctest --test-dir build --output-on-failure",
+      "dependsOn": "cmake: build Release",
       "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": {
+        "owner": "raymini_tests",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "severity": "error",
+        "pattern": { "regexp": "^\\s+FAILED (.+?):(\\d+): (.*)$", "file": 1, "line": 2, "message": 3 }
+      }
+    },
+    {
+      "label": "test: unit",
+      "detail": "raymini_tests --exclude golden (ctest 'unit')",
+      "type": "shell",
+      "command": "build/raymini_tests --exclude golden",
+      "dependsOn": "cmake: build Release",
+      "group": "test",
+      "problemMatcher": {
+        "owner": "raymini_tests",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "severity": "error",
+        "pattern": { "regexp": "^\\s+FAILED (.+?):(\\d+): (.*)$", "file": 1, "line": 2, "message": 3 }
+      }
+    },
+    {
+      "label": "test: golden",
+      "detail": "raymini_tests --filter golden (ctest 'golden')",
+      "type": "shell",
+      "command": "build/raymini_tests --filter golden",
+      "dependsOn": "cmake: build Release",
+      "group": "test",
+      "problemMatcher": {
+        "owner": "raymini_tests",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "severity": "error",
+        "pattern": { "regexp": "^\\s+FAILED (.+?):(\\d+): (.*)$", "file": 1, "line": 2, "message": 3 }
+      }
+    },
+    {
+      "label": "test: filter...",
+      "detail": "raymini_tests --filter <substring of the case name>",
+      "type": "shell",
+      "command": "build/raymini_tests --filter \"${input:testFilter}\"",
+      "dependsOn": "cmake: build Release",
+      "group": "test",
+      "problemMatcher": {
+        "owner": "raymini_tests",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "severity": "error",
+        "pattern": { "regexp": "^\\s+FAILED (.+?):(\\d+): (.*)$", "file": 1, "line": 2, "message": 3 }
+      }
+    },
+    {
+      "label": "test: update goldens",
+      "detail": "raymini_tests --filter golden --update-golden, then lists the PNGs that changed: look at them before committing",
+      "type": "shell",
+      "command": "build/raymini_tests --filter golden --update-golden && git status --short tests/golden",
+      "dependsOn": "cmake: build Release",
       "problemMatcher": []
+    },
+    {
+      "label": "render: raymini-cli",
+      "detail": "Release CLI render to renders/<model>_<mode>.png",
+      "type": "shell",
+      "command": "build/raymini-cli ${input:model} --mode ${input:mode} ${input:renderArgs}",
+      "dependsOn": "cmake: build Release",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "testFilter",
+      "type": "promptString",
+      "description": "Substring of a test case name (bvh:, shading:, golden: teapot, ...); empty runs every case",
+      "default": ""
+    },
+    {
+      "id": "model",
+      "type": "pickString",
+      "description": "Bundled model",
+      "default": "teapot",
+      "options": [
+        "Apple", "asu", "b-wing-v2", "cube", "dragon", "goblet", "ground", "ground_HD",
+        "head", "heart", "helm", "house", "king", "klingon", "minion", "mushroom",
+        "pear", "r2", "ram", "ram_HD", "seashell", "space_shuttle", "space_station",
+        "Sword01", "teapot", "volks", "x29_plane"
+      ]
+    },
+    {
+      "id": "mode",
+      "type": "pickString",
+      "description": "Render mode",
+      "default": "lit",
+      "options": ["lit", "ambient", "hitmask", "normals", "depth", "objectid"]
+    },
+    {
+      "id": "renderArgs",
+      "type": "promptString",
+      "description": "Other raymini-cli options (build/raymini-cli --help)",
+      "default": "--ground --size 512x512 --aa 2 --jitter --shadow-samples 4"
     }
   ]
 }

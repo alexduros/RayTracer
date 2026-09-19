@@ -1,31 +1,53 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Debug raymini (GUI, minion)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/raymini",
-            "args": ["models/minion.off"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb",
-            "preLaunchTask": "Build"
-        },
-        {
-            "name": "Debug raymini-cli (teapot)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/raymini-cli",
-            "args": ["models/teapot.off", "--mode", "normals", "--out", "renders/teapot.png"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb",
-            "preLaunchTask": "Build"
-        }
-    ]
+  // Every configuration debugs the Debug tree (build-debug/, -O0 -g), built
+  // first by the "cmake: build Debug" task, from the repository root.
+  // Debugger: cppdbg from ms-vscode.cpptools, driving lldb.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "raymini-cli: teapot on its ground",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-debug/raymini-cli",
+      // One worker thread, so breakpoints in the shading code hit in order.
+      "args": ["teapot", "--ground", "--threads", "1", "--out", "renders/debug.png"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "lldb",
+      "externalConsole": false,
+      "stopAtEntry": false,
+      "preLaunchTask": "cmake: build Debug"
+    },
+    {
+      "name": "raymini_tests: --filter ...",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-debug/raymini_tests",
+      "args": ["--filter", "${input:testFilter}"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "lldb",
+      "externalConsole": false,
+      "stopAtEntry": false,
+      "preLaunchTask": "cmake: build Debug"
+    },
+    {
+      "name": "raymini: viewer (teapot)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-debug/raymini",
+      "args": ["models/teapot.off"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "lldb",
+      "externalConsole": false,
+      "stopAtEntry": false,
+      "preLaunchTask": "cmake: build Debug"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "testFilter",
+      "type": "promptString",
+      "description": "Substring of a test case name, no spaces (bvh:, shading:, reflection:, ...)",
+      "default": "shading:"
+    }
+  ]
 }

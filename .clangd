@@ -1,9 +1,45 @@
+# clangd configuration, read by any client (VS Code's clangd extension, Claude
+# Code, vim...). Flags come from the Release tree of CLAUDE.md:
+#   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 CompileFlags:
   CompilationDatabase: build
 
 Index:
-  Background: Build
+  Background: Build          # stored in build/.cache/clangd, gitignored with build/
 
 Diagnostics:
   UnusedIncludes: Strict
-  MissingIncludes: Strict
+  # The code relies on transitive includes (Vec3D through Mesh.h, ...): Strict
+  # raised 50-80 hints per file. Pairs with --header-insertion=never.
+  MissingIncludes: None
+  # clang-tidy runs inside clangd (Apple's clangd too), no clang-tidy binary
+  # needed. High-signal checks only: the removed ones fire on deliberate idioms
+  # here (float/int pixel maths, `if (!(v = value(...)))` in the CLI parser,
+  # Vec3D's member-wise operator=, std::endl, GL buffer offsets).
+  ClangTidy:
+    Add:
+      - bugprone-*
+      - performance-*
+      - modernize-use-nullptr
+      - modernize-use-override
+      - misc-redundant-expression
+      - misc-unused-using-decls
+    Remove:
+      - bugprone-easily-swappable-parameters
+      - bugprone-narrowing-conversions
+      - bugprone-assignment-in-if-condition
+      - bugprone-unhandled-self-assignment
+      - bugprone-incorrect-roundings
+      - performance-avoid-endl
+      - performance-no-int-to-ptr
+      - performance-inefficient-string-concatenation
+
+---
+# Vendored code (Dear ImGui, glad, stb): not ours to fix, keep it quiet.
+If:
+  PathMatch: third_party/.*
+Diagnostics:
+  Suppress: "*"
+  UnusedIncludes: None
+  ClangTidy:
+    Remove: "*"

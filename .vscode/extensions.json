@@ -1,0 +1,14 @@
+{
+  // clangd: the language server (see .clangd). cpptools: its cppdbg debugger,
+  // used by launch.json (IntelliSense disabled in settings.json). CMake Tools:
+  // the Debug tree, Test Explorer.
+  "recommendations": [
+    "llvm-vs-code-extensions.vscode-clangd",
+    "ms-vscode.cpptools",
+    "ms-vscode.cmake-tools"
+  ],
+  // A CMake project: Makefile Tools would only find the generated build/Makefile.
+  "unwantedRecommendations": [
+    "ms-vscode.makefile-tools"
+  ]
+}

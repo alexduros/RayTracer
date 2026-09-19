@@ -1,5 +1,7 @@
 # Build output (out-of-source: cmake -B build)
 build/
+# Debug tree used by .vscode/launch.json and CMake Tools
+build-debug/
 cmake-build-*/
 
 # Legacy in-source build artifacts (the old workflow ran cmake inside src/)

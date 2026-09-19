@@ -1,16 +1,53 @@
 {
-  "cmake.sourceDirectory": "${workspaceFolder}",
-  "cmake.buildDirectory": "${workspaceFolder}/build",
-  "cmake.configureOnOpen": true,
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-  "C_Cpp.default.cppStandard": "c++17",
-  "C_Cpp.default.cStandard": "c17",
-  "C_Cpp.errorSquiggles": "enabled",
+  // One C++ language server: clangd (llvm-vs-code-extensions.vscode-clangd),
+  // fed by build/compile_commands.json through .clangd, which also holds the
+  // diagnostics and clang-tidy checks. cpptools stays for its debugger only.
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.autoAddFileAssociations": false,
+  "clangd.arguments": [
+    "--background-index",
+    "--clang-tidy",
+    "--header-insertion=never",
+    "--completion-style=detailed",
+    "--pch-storage=memory"
+  ],
+  "clangd.onConfigChanged": "restart",
+
+  // No automatic formatting and no .clang-format, on purpose: src/core keeps
+  // the 2010 `func (args)` style, tests/cli/gui use `func(args)`.
+  "[cpp]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false
+  },
+  "[c]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false
+  },
+
+  // CMake Tools drives the Debug tree only (build-debug/, its default Debug
+  // variant, Test Explorer, status-bar debug). build/ stays the Release tree of
+  // CLAUDE.md (tests, renders, clangd), driven by tasks.json; letting CMake
+  // Tools configure it would flip it to Debug.
+  "cmake.buildDirectory": "${workspaceFolder}/build-debug",
+  "cmake.configureOnOpen": false,
+  "cmake.debugConfig": { "cwd": "${workspaceFolder}" },
+
+  // Makefile Tools would pick up build/Makefile; this is a CMake project.
+  "makefile.configureOnOpen": false,
+
+  "files.associations": {
+    "*.h": "cpp"
+  },
   "files.exclude": {
     "**/.DS_Store": true,
     "**/imgui.ini": true
   },
-  "files.associations": {
-    "*.h": "cpp"
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/build-debug/**": true
   }
 }
