@@ -22,7 +22,7 @@ public:
     // LIT is the shading path; the others colorize the hit information
     // directly so rays, intersections and normals can be checked one at a time.
     enum class DebugMode {
-        LIT,          // Lambert: ambient + sum over lights of diffuse * max(0, n.l)
+        LIT,          // ambient + per light Lambert + Blinn-Phong (shadowed), mirror rays on reflective materials
         AMBIENT,      // flat material color
         HIT_MASK,     // white = hit, black = miss
         NORMALS,      // (n + 1) / 2 as RGB
@@ -75,12 +75,14 @@ public:
     static const ModeInfo & antiAliasingInfo ();
     /// ... and for soft shadows.
     static const ModeInfo & softShadowsInfo ();
+    /// ... and for mirror reflections.
+    static const ModeInfo & reflectionsInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 11;
+    static constexpr int kPlannedModeCount = 10;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -109,6 +111,13 @@ public:
     /// reproducible and independent of tile order.
     inline void setShadowSamples (unsigned int samplesPerAxis) { shadowSamplesPerAxis = std::max (1u, samplesPerAxis); }
     inline unsigned int getShadowSamplesPerAxis () const { return shadowSamplesPerAxis; }
+    /// Mirror reflections (Lit mode only): on a material with a reflectivity
+    /// k > 0 the colour becomes (1 - k) x its own shading + k x what the
+    /// mirrored ray sees, followed through at most maxDepth reflections. At
+    /// the limit a reflective surface shows its own shading, so 0 turns
+    /// reflections off, bit for bit. Default 4.
+    inline void setMaxDepth (unsigned int depth) { maxDepth = depth; }
+    inline unsigned int getMaxDepth () const { return maxDepth; }
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
     inline void setSpecularEnabled (bool on) { specularEnabled = on; }
     inline bool isSpecularEnabled () const { return specularEnabled; }
@@ -149,7 +158,10 @@ public:
     Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats) const;
 
     /// Color for a known hit, in linear [0,1] RGB, according to the mode.
-    Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler) const;
+    /// `depth` counts the reflections that led to this hit (0 for a primary
+    /// ray); a reflective surface follows its mirror ray while depth < maxDepth.
+    Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler,
+                  unsigned int depth = 0) const;
 
     /// Fraction of `light` seen from the surface point `p` with unit normal
     /// `n`, in [0, 1]: one shadow ray toward its centre (0 or 1), or
@@ -182,6 +194,7 @@ private:
     bool aaJitter = false;
     bool shadows = true;
     unsigned int shadowSamplesPerAxis = 1;
+    unsigned int maxDepth = 4;
     bool specularEnabled = true;
     bool bvhEnabled = true;
     Stats lastStats;

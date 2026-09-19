@@ -56,14 +56,15 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
 }
 
 // `model` is a bare name (".off" assumed) or a file name with its extension.
-// Settings are encoded in the golden's name: "_aa2" / "_aa2j", "_ground", "_soft4".
+// Settings are encoded in the golden's name: "_aa2" / "_aa2j", "_ground", "_soft4", "_mirror".
 void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int aaSamples = 1, bool jitter = false,
-                 bool ground = false, unsigned int shadowSamples = 1) {
+                 bool ground = false, unsigned int shadowSamples = 1, float groundReflectivity = 0.f) {
     Scene scene;
     scene.addObjectsFromFile(test::modelPath(model));
     scene.setUpAxis(resolveUpAxis(test::modelPath(model), scene));  // as the CLI and the viewer do
     scene.addDefaultLights();
     if (ground) scene.addGroundPlane();
+    scene.setGroundReflectivity(groundReflectivity);
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
     const float distance = 2.f * size;
@@ -77,9 +78,11 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int a
     if (aaSamples > 1) stem += "_aa" + std::to_string(aaSamples) + (jitter ? "j" : "");
     if (ground) stem += "_ground";
     if (shadowSamples > 1) stem += "_soft" + std::to_string(shadowSamples);
+    const bool litOnly = shadowSamples > 1 || groundReflectivity > 0.f;
+    if (groundReflectivity > 0.f) stem += "_mirror";
     for (const ModeSpec& m : kModes) {
-        // Only Lit casts shadow rays; other modes would repeat the hard-shadow goldens.
-        if (shadowSamples > 1 && m.mode != RayTracer::DebugMode::LIT) continue;
+        // Only Lit casts shadow and reflected rays; other modes would repeat the goldens above.
+        if (litOnly && m.mode != RayTracer::DebugMode::LIT) continue;
         rt.setDebugMode(m.mode);
         const Image img = rt.render(scene, camera, kSize, kSize);
         const std::string name = stem + "_" + m.slug + ".png";
@@ -109,3 +112,4 @@ TEST_CASE("golden: teapot on its ground plane (shadows)") { goldenModel("teapot"
 TEST_CASE("golden: teapot on its ground plane with 4x4 soft shadows") {
     goldenModel("teapot", 25.f, 20.f, 1, false, true, 4);
 }
+TEST_CASE("golden: teapot on a mirror ground plane") { goldenModel("teapot", 25.f, 20.f, 1, false, true, 1, 0.5f); }

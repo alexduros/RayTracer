@@ -75,6 +75,11 @@ public:
     /// Remove backdrop objects (the ground plane).
     void removeBackdrops ();
 
+    /// Material::reflectivity of every model object, or of every backdrop
+    /// (the ground plane): per-object overrides for the CLI and the viewer.
+    void setModelReflectivity (float reflectivity);
+    void setGroundReflectivity (float reflectivity);
+
     void clear ();
 
     static Material defaultMaterial () { return Material (1.f, 1.f, Vec3Df (1.f, .6f, .2f)); }

@@ -500,6 +500,9 @@ int main(int argc, char** argv) {
     int rtShadowSamples = 4;  // shadow rays per light axis: 1 = hard shadows
     float rtLightRadius = Scene::kDefaultLightRadius;  // fraction of the model's size
     bool rtSpecular = true;
+    float rtModelReflectivity = 0.f;   // Material::reflectivity of the model, 0 = matte
+    float rtGroundReflectivity = 0.f;  // ... and of the ground plane
+    int rtMaxDepth = 4;                // reflections followed per ray
     const int maxThreads = static_cast<int>(RenderJob::defaultThreadCount());
     int rtThreads = maxThreads;  // worker threads for the next render
     bool showGround = true;  // ground plane under the model, in both views
@@ -702,7 +705,10 @@ int main(int argc, char** argv) {
             rt.setShadows(rtShadows);
             rt.setShadowSamples(static_cast<unsigned int>(rtShadowSamples));
             rt.setSpecularEnabled(rtSpecular);
+            rt.setMaxDepth(static_cast<unsigned int>(rtMaxDepth));
             scene.setLightRadius(rtLightRadius);
+            scene.setModelReflectivity(rtModelReflectivity);
+            scene.setGroundReflectivity(rtGroundReflectivity);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
             renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f),
@@ -849,8 +855,23 @@ int main(int argc, char** argv) {
                 if (showGround) scene.addGroundPlane();
                 rebuildAfterSceneChange(false);
             }
+            itemTooltip("A plane under the model that catches its shadows.");
             ImGui::SameLine();
-            ImGui::TextDisabled("plane under the model, catches its shadows");
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            ImGui::BeginDisabled(!showGround);
+            ImGui::SliderFloat("##groundmirror", &rtGroundReflectivity, 0.f, 1.f, "mirror %.2f");
+            ImGui::EndDisabled();
+            itemTooltip("Reflectivity of the ground: 0 = matte, 1 = perfect mirror (raytraced panel only).");
+            rowLabel("Mirror");
+            ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+            ImGui::SliderFloat("##modelmirror", &rtModelReflectivity, 0.f, 1.f, "%.2f");
+            ImGui::SameLine();
+            helpMarker(RayTracer::reflectionsInfo());
+            if (rtModelReflectivity > 0.f || (showGround && rtGroundReflectivity > 0.f)) {
+                rowWidget("Bounces");
+                ImGui::SliderInt("##bounces", &rtMaxDepth, 0, 8, "%d");
+                itemTooltip("Reflections followed per ray; 0 turns them off.");
+            }
             {
                 size_t nv = 0, nt = 0;
                 for (const Object& o : scene.getObjects()) {

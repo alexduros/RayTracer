@@ -168,7 +168,7 @@ rays, scale the light's contribution by it.
   nearer-first order already ends blocked rays early. Sampled effects are
   now what threads (experiment 4) are for.
 
-## 7. Mirror reflections (and refraction as a stretch)
+## 7. Mirror reflections (done; refraction as a stretch, still open)
 
 Add `Material::reflectivity`; in `shade`, if it is positive, trace a
 reflected ray recursively up to `maxDepth` and blend. Refraction follows the
@@ -178,6 +178,39 @@ same recursion with Snell's law and an index of refraction.
   lands is red; with `maxDepth = 0` it is the plane's own colour; total
   contribution never exceeds 1 (energy conservation).
 - CLI: `--max-depth <n>`, per-object material overrides.
+- Done: `Material::reflectivity` (clamped to [0, 1], default 0) and
+  `RayTracer::setMaxDepth` (default 4). In Lit mode a reflective hit mirrors
+  the view ray about its normal (turned toward the ray, so a smooth normal
+  facing away at a silhouette cannot send it inside), starts it 1e-4 x the
+  scene size off the surface like a shadow ray, and returns (1 - k) x its
+  own shading + k x the colour of what that ray meets (the background if
+  nothing), shaded the same way while depth < maxDepth; at the limit a
+  surface keeps its own shading, so depth 0 is the old picture bit for bit.
+  The blend is a weighted average, so no pixel gets brighter than the
+  brightest surface it averages. Reflected rays draw the pixel's shadow
+  samples (tile-order independence holds) and are not counted in the
+  statistics, which stay per primary ray. Per-object overrides:
+  `Scene::setModelReflectivity` / `setGroundReflectivity`, CLI
+  `--reflectivity`, `--ground-reflectivity` (implies `--ground`),
+  `--max-depth`; GUI "mirror" slider next to Ground, Mirror, Bounces.
+  Tests in `tests/TestReflection.cpp`: a perfect mirror shows the red panel
+  its ray meets (within the 1e-4 origin offset) and the background where the
+  ray escapes, a 0.25 mirror blends exactly, depth 0 gives the plane's own
+  colour exactly; two facing mirrors of k = 0.8 stay between their two
+  colours at every depth up to 40, each extra bounce moves the colour by
+  exactly k^depth x |L_A - L_B|, converging to (L_A + k L_B) / (1 + k); a
+  mirror floor shows the red cube standing on it and leaves the model's own
+  material alone; a render with depth 0 equals the matte one byte for byte.
+  `tests/TestRenderJob.cpp`: reflections with soft shadows and jitter are
+  tile- and thread-independent. Golden `teapot_ground_mirror_lit`; every
+  existing golden unchanged.
+- Measured, one thread: ram on its ground at 384x256 0.019 s, with a 0.4
+  mirror floor 0.021 s, plus a 0.3 mirror on the ram 0.032 s; with 2x2 AA
+  and 8x8 soft shadows 2.76 s -> 2.91 s. Most mirrored rays escape to the
+  sky, so reflections cost little next to soft shadows.
+- Left: refraction (Snell, Fresnel by Schlick, MTL `Ni` / `d`), glossy
+  reflections (a jittered cone of mirror rays, a new `Sampler` stream),
+  coloured metal mirrors, and MTL `illum 3` mapping `Ks` to reflectivity.
 
 ## 8. Ambient occlusion
 

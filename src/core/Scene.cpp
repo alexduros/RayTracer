@@ -54,6 +54,18 @@ void Scene::removeBackdrops () {
     updateBoundingBox ();
 }
 
+void Scene::setModelReflectivity (float reflectivity) {
+    for (Object & o : objects)
+        if (!o.isBackdrop ())
+            o.getMaterial ().setReflectivity (reflectivity);
+}
+
+void Scene::setGroundReflectivity (float reflectivity) {
+    for (Object & o : objects)
+        if (o.isBackdrop ())
+            o.getMaterial ().setReflectivity (reflectivity);
+}
+
 namespace {
 
 /// Integer rotation matrices (rows = scene axes) taking file coordinates to

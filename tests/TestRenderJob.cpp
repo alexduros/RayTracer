@@ -148,6 +148,25 @@ TEST_CASE("renderjob: soft shadows do not depend on tile order or threads") {
     CHECK(std::memcmp(hard.data(), reference.data(), hard.sizeInBytes()) != 0);
 }
 
+TEST_CASE("renderjob: reflections do not depend on tile order or threads") {
+    // Reflected rays shade their hits with the pixel's own shadow sampler.
+    Scene scene = teapotScene();
+    scene.addGroundPlane();
+    scene.setGroundReflectivity(0.5f);
+    scene.setModelReflectivity(0.3f);
+    const Camera camera = frameOf(scene);
+    RayTracer rt;
+    rt.setShadowSamples(2);
+    rt.setAntiAliasing(2, true);
+    const Image reference = rt.render(scene, camera, 64, 48);
+    RenderJob job(rt, scene, camera, 64, 48, 24, Vec3Df(0.f, 0.f, 0.f), 4);
+    job.start();
+    job.wait();
+    CHECK(samePixels(job.snapshot(), reference));
+    CHECK_EQ(job.stats().rays, rt.getLastStats().rays);
+    CHECK_EQ(job.stats().hits, rt.getLastStats().hits);
+}
+
 TEST_CASE("renderjob: pending colour fills the image until tiles land") {
     const Scene scene = teapotScene();
     RayTracer rt;

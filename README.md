@@ -23,7 +23,8 @@ with the raytracer split into a library that builds without any GL dependency.
   per object (back faces culled; `--no-bvh` gives the brute-force reference),
   Lambert + Blinn-Phong shading with hard or soft shadows (each light a small
   disk sampled by a grid of shadow rays), an optional ground plane that
-  catches them, n x n supersampling with
+  catches them, mirror reflections (a reflectivity per material, followed
+  recursively up to a depth), n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id),
   traced tile by tile on every core (`--threads n`; same pixels for any count).
   Every mode explains itself in the UI and in `--help`, with the study it
@@ -57,6 +58,7 @@ build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20
 build/raymini-cli cube --mode lit --yaw 25 --pitch 20  # OBJ + MTL sample
 build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15   # floor + shadows, the Rendu.png look
 build/raymini-cli ram --ground --aa 2 --shadow-samples 8 --yaw -35 --pitch 15   # the same, soft shadows
+build/raymini-cli ram --ground-reflectivity 0.4 --aa 2 --yaw -35 --pitch 15     # on a mirror floor
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -70,7 +72,8 @@ Viewer controls:
   and the preview scale with it (the preview is re-rendered at the displayed
   size, so it stays sharp).
 - Controls panel, four sections: Model (picker over every `.off` and `.obj`
-  in `models/`, mesh stats), Camera (FOV, position, target, Reset), Preview
+  in `models/`, up axis, ground plane and how much it mirrors, the model's
+  own mirror share and the number of bounces, mesh stats), Camera (FOV, position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id; anti-aliasing and jitter; shadows,
   specular, soft shadows and light size; threads; depth range in Depth mode).
@@ -87,7 +90,7 @@ The same text is shown under the render in the viewer and printed by
 
 | Mode | What it computes | How to read it | Study |
 |------|------------------|----------------|-------|
-| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), both scaled by the fraction of the light that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid over the light's disk); plus a constant ambient term. No bounces yet. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term, and with soft shadows the edge fades across a penumbra. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
+| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), both scaled by the fraction of the light that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid over the light's disk); plus a constant ambient term. On a reflective material, blended with what the mirrored ray sees. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term, and with soft shadows the edge fades across a penumbra. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall, and give it some reflectivity to see the model mirrored in it. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
 | **Ambient (albedo)** | The material's base colour (Kd) at the hit, unlit. | Flat silhouettes per material; checks materials and outlines, shows no shape. | Ambient term of B. T. Phong, "Illumination for Computer Generated Pictures", CACM 18(6), 1975 |
 | **Hit mask (coverage)** | White where the primary ray hits geometry, black where it escapes. | A binary silhouette; with anti-aliasing, edge pixels turn grey in proportion to coverage. | T. Porter & T. Duff, "Compositing Digital Images", SIGGRAPH 1984 |
 | **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
@@ -111,6 +114,19 @@ the surface, while contact shadows stay sharp; each light costs n × n shadow
 rays per shaded point. Cook, Porter & Carpenter, "Distributed Ray Tracing",
 SIGGRAPH 1984; Shirley & Chiu, "A Low Distortion Map Between Disk and
 Square", Journal of Graphics Tools 2(3), 1997.
+
+**Mirror reflections** (`--reflectivity k` for the model,
+`--ground-reflectivity k` for the ground, `--max-depth n`; Ground mirror,
+Mirror and Bounces in the viewer): on a material of reflectivity k a second
+ray leaves the hit point mirrored about the normal, and the colour becomes
+(1 - k) × the surface's own shading + k × what that ray sees, shaded the
+same way up to n reflections (4 by default; at the limit a surface keeps its
+own shading, so 0 turns reflections off). A mirror floor shows the model
+upside down; facing mirrors repeat each other, each copy fainter by k; where
+the ray escapes, the surface darkens toward the background. Mirrors are
+perfect (sharp, uncoloured), so a point light's highlight fades with k.
+Whitted, "An Improved Illumination Model for Shaded Display", CACM 23(6),
+1980.
 
 ## Test
 

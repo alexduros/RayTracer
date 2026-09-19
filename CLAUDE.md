@@ -66,7 +66,10 @@ build/raymini-cli --help
   `tests/TestBvh.cpp` holds both paths to that, bit for bit.
 - Modes: `lit` (ambient + per light: Lambert diffuse, Blinn-Phong highlight
   from Material::shininess, both scaled by the fraction of the light shadow
-  rays find unblocked; `setShadows` / `setSpecularEnabled` switch the last two),
+  rays find unblocked; `setShadows` / `setSpecularEnabled` switch the last two;
+  then on a material of reflectivity k, (1 - k) x that + k x what the ray
+  mirrored about the normal sees, recursively while depth < `setMaxDepth`
+  (default 4, 0 = off bit for bit)),
   `ambient`, `hitmask`, `normals`, `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
   (golden-ratio hue palette by object index). `RayTracer::info(mode)` holds
@@ -110,6 +113,11 @@ build/raymini-cli --help
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.
+- Mirror reflections: `Material::reflectivity` (0 by default, so nothing
+  changes unless asked), per-object overrides `Scene::setModelReflectivity` /
+  `setGroundReflectivity`; CLI `--reflectivity k --ground-reflectivity k
+  --max-depth n`, GUI mirror slider next to Ground, Mirror, Bounces. Reflected
+  rays reuse the pixel's shadow sampler and are not counted in `Stats`.
 - Colors stay linear [0,1] until the final 8-bit conversion in `render()`.
 
 ## Conventions for adding an effect
@@ -135,7 +143,7 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- No reflections, ambient occlusion or textures yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
+- No refraction, ambient occlusion or textures yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
   OBJ texture coordinates are parsed but not stored.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it

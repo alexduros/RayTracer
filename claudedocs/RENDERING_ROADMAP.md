@@ -21,6 +21,8 @@ the implementation order with tests; this page is the map.
 | Depth | The eye-to-hit distance mapped linearly between near and far, white to dark grey. |
 | Object id | One palette colour per object, so a pixel tells which surface it belongs to. |
 | Anti-aliasing | Several rays per pixel on a sub-pixel grid, optionally jittered, averaged in linear colour. |
+| Soft shadows | Many shadow rays over each light's disk measure the fraction of it that is visible. |
+| Mirror reflections | A reflective surface blends in what a ray mirrored about its normal sees, recursively up to a depth. |
 
 ## 1. Local shading
 
@@ -46,13 +48,13 @@ Needs: roughness and metalness on `Material`; supersedes Blinn-Phong. Test: ener
 
 ## 2. Light transport
 
-### Mirror reflections
+### Mirror reflections (done)
 **Principle:** Rays bounce off reflective surfaces recursively and add what they see, scaled by the material's reflectivity, up to a depth limit.
-Needs: reflectivity on `Material`, recursion in `shade()` with a depth counter. Test: a mirror plane facing a red quad shows red where the reflection lands, depth 0 shows the plane's own colour. Reference: Whitted 1980. (Experiment 7)
+Done: `Material::reflectivity`, `RayTracer::setMaxDepth` (CLI `--reflectivity`, `--ground-reflectivity`, `--max-depth`; GUI Ground mirror, Mirror, Bounces); colour = (1 - k) x own shading + k x the mirrored ray's colour. Tests: a perfect mirror shows the red panel its reflected ray meets, a quarter mirror blends exactly, depth 0 gives the plane's own colour bit for bit, two facing mirrors stay between their colours and converge by k^depth to the closed form, a mirror floor shows the red cube standing on it; golden `teapot_ground_mirror_lit`. Reference: Whitted 1980. (Experiment 7)
 
 ### Refraction (glass)
 **Principle:** Rays bend through transparent surfaces following Snell's law and split between reflection and transmission by the Fresnel term.
-Needs: reflections, index of refraction (MTL `Ni`), transparency (MTL `d`). Test: a slab of index 1 is invisible, a slab of index 1.5 shifts a background edge by the predicted offset. Reference: Whitted 1980; Schlick, CGF 13(3), 1994. (Experiment 7)
+Needs: the mirror reflections (done), index of refraction (MTL `Ni`), transparency (MTL `d`). Test: a slab of index 1 is invisible, a slab of index 1.5 shifts a background edge by the predicted offset. Reference: Whitted 1980; Schlick, CGF 13(3), 1994. (Experiment 7)
 
 ### Emissive materials and mesh lights
 **Principle:** Surfaces emit light themselves, so any mesh can be a lamp, and sampling them directly keeps soft lighting quiet.
@@ -135,6 +137,6 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
 2. BVH, then tile threads: the cat and the minion become interactive. **Done**: the minion renders in milliseconds, and threads keep the sampled effects fast.
 3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows done**, with a per-pixel `Sampler` the next two can draw from.
-4. Reflections and refraction, then textures from OBJ UVs.
+4. Reflections and refraction, then textures from OBJ UVs. **Reflections done.**
 5. Tone mapping, then environment lighting and path tracing.
 6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.

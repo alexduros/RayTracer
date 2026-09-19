@@ -59,6 +59,10 @@ Options:
   --light-radius <f>     radius of every light as a fraction of the model size (default 0.1);
                          0 makes point lights, whose shadows stay hard
   --no-specular          lit mode without the Blinn-Phong highlight
+  --reflectivity <k>     mirror share of the model's materials, 0..1 (default 0 = matte)
+  --ground-reflectivity <k>
+                         mirror share of the ground plane, 0..1 (implies --ground)
+  --max-depth <n>        reflections followed per ray, 0..16 (default 4; 0 = none)
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
   --threads <n>          worker threads, 0 = one per core (default 0); the picture is identical
@@ -89,6 +93,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << soft.principle << "\n"
         << "      Read: " << soft.reading << "\n"
         << "      Ref:  " << soft.reference << "\n";
+    const RayTracer::ModeInfo& mirror = RayTracer::reflectionsInfo();
+    out << "\n--reflectivity / --ground-reflectivity / --max-depth  " << mirror.name << "\n"
+        << "      " << mirror.principle << "\n"
+        << "      Read: " << mirror.reading << "\n"
+        << "      Ref:  " << mirror.reference << "\n";
     out << "\nPlanned modes, not available yet (map: claudedocs/RENDERING_ROADMAP.md):\n";
     for (int i = 0; i < RayTracer::kPlannedModeCount; ++i) {
         const RayTracer::ModeInfo& p = RayTracer::plannedMode(i);
@@ -116,6 +125,9 @@ struct Options {
     unsigned int shadowSamples = 1;
     float lightRadius = -1.f;  // < 0: the default rig's
     bool specular = true;
+    float reflectivity = 0.f;        // model objects
+    float groundReflectivity = 0.f;  // the ground plane
+    unsigned int maxDepth = 4;
     bool bvh = true;
     unsigned int threads = 0;  // 0 = one per core
     std::optional<UpAxis> up;  // empty = auto
@@ -180,6 +192,27 @@ bool parseArgs(int argc, char** argv, Options& o) {
             }
         } else if (a == "--no-specular") {
             o.specular = false;
+        } else if (a == "--reflectivity" || a == "--ground-reflectivity") {
+            if (!(v = value(i, a.c_str()))) return false;
+            const float k = static_cast<float>(std::atof(v));
+            if (k < 0.f || k > 1.f) {
+                std::cerr << a << " must be between 0 and 1\n";
+                return false;
+            }
+            if (a == "--reflectivity") {
+                o.reflectivity = k;
+            } else {
+                o.groundReflectivity = k;
+                o.ground = true;
+            }
+        } else if (a == "--max-depth") {
+            if (!(v = value(i, "--max-depth"))) return false;
+            const int n = std::atoi(v);
+            if (n < 0 || n > 16 || (n == 0 && std::string(v) != "0")) {
+                std::cerr << "--max-depth must be between 0 and 16\n";
+                return false;
+            }
+            o.maxDepth = static_cast<unsigned int>(n);
         } else if (a == "--no-bvh") {
             o.bvh = false;
         } else if (a == "--threads") {
@@ -295,6 +328,8 @@ int main(int argc, char** argv) {
     scene.addDefaultLights();
     if (o.lightRadius >= 0.f) scene.setLightRadius(o.lightRadius);
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
+    scene.setModelReflectivity(o.reflectivity);
+    scene.setGroundReflectivity(o.groundReflectivity);
 
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
@@ -309,6 +344,7 @@ int main(int argc, char** argv) {
     rt.setShadows(o.shadows);
     rt.setShadowSamples(o.shadowSamples);
     rt.setSpecularEnabled(o.specular);
+    rt.setMaxDepth(o.maxDepth);
     rt.setBvhEnabled(o.bvh);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
         rt.setDepthRange(std::max(0.f, camDistance - 0.5f * size), camDistance + 0.5f * size);
@@ -349,12 +385,14 @@ int main(int argc, char** argv) {
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);
-        const std::string soft = o.shadowSamples > 1 ? ", " + std::to_string(o.shadowSamples * o.shadowSamples) +
-                                                           " shadow rays/light"
-                                                     : "";
+        std::string effects = o.shadowSamples > 1 ? ", " + std::to_string(o.shadowSamples * o.shadowSamples) +
+                                                     " shadow rays/light"
+                                               : "";
+        if ((o.reflectivity > 0.f || o.groundReflectivity > 0.f) && o.maxDepth > 0)
+            effects += ", reflections up to depth " + std::to_string(o.maxDepth);
         std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, %u thread%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
                     o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
-                    o.jitter ? " jittered" : "", soft.c_str(), o.bvh ? "bvh" : "brute force", job.threadCount(),
+                    o.jitter ? " jittered" : "", effects.c_str(), o.bvh ? "bvh" : "brute force", job.threadCount(),
                     job.threadCount() > 1 ? "s" : "", st.seconds, st.hits, st.rays,
                     st.rays ? 100.0 * st.hits / st.rays : 0.0, st.minHitDist, st.maxHitDist);
         std::printf("wrote   %s\n", o.out.c_str());

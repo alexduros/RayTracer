@@ -14,6 +14,7 @@ add_executable(raymini_tests
   TestRenderJob.cpp
   TestAntiAliasing.cpp
   TestShading.cpp
+  TestReflection.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -29,6 +30,8 @@ add_test(NAME cli_smoke COMMAND raymini-cli teapot --size 32x32 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_smoke.png)
 add_test(NAME cli_soft_shadows COMMAND raymini-cli teapot --size 32x32 --ground --shadow-samples 2
          --light-radius 0.2 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_soft_shadows.png)
+add_test(NAME cli_reflections COMMAND raymini-cli teapot --size 32x32 --ground-reflectivity 0.5
+         --reflectivity 0.2 --max-depth 2 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_reflections.png)
 add_test(NAME cli_threads COMMAND raymini-cli teapot --size 32x32 --threads 3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_threads.png)
 add_test(NAME cli_bad_threads COMMAND raymini-cli teapot --threads many --quiet)

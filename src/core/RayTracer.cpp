@@ -19,6 +19,12 @@ inline unsigned char toByte (float c) {
     return static_cast<unsigned char> (std::max (0, std::min (255, v)));
 }
 
+/// How far secondary rays (shadows, reflections) start off the surface along
+/// the normal, so the surface cannot hit itself ("acne"); scaled to the model.
+inline float surfaceBias (const Scene & scene) {
+    return 1e-4f * std::max (scene.getBoundingBox ().getSize (), 1e-3f);
+}
+
 /// HSV (all in [0,1]) to linear RGB.
 Vec3Df hsvToRgb (float h, float s, float v) {
     const float hh = (h - std::floor (h)) * 6.f;
@@ -63,11 +69,11 @@ const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
      "direction (Lambert); plus a white highlight where the half-vector between the light and view directions "
      "lines up with the normal, raised to the shininess (Blinn-Phong); both scaled by the fraction of the light "
      "that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid of rays over the light's "
-     "disk); plus a constant ambient term. No bounces yet.",
+     "disk); plus a constant ambient term. On a reflective material, blended with what the mirrored ray sees.",
      "Brighter where a surface faces a light; tight bright spots are highlights; where a light is blocked only "
      "the ambient term and the other lights remain, and with soft shadows the edge fades across a penumbra. "
      "Colour is material x light, so the cyan key light tints the orange default material green. Turn on the "
-     "ground plane to see the shadows fall.",
+     "ground plane to see the shadows fall, and give it some reflectivity to see the model mirrored in it.",
      "J. H. Lambert, Photometria (1760); J. Blinn, \"Models of Light Reflection for Computer Synthesized "
      "Pictures\", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968 and T. Whitted, CACM 23(6), 1980."},
     {"ambient", "Ambient (albedo)",
@@ -127,6 +133,19 @@ const RayTracer::ModeInfo kSoftShadowsInfo = {
     "R. L. Cook, T. Porter & L. Carpenter, \"Distributed Ray Tracing\", SIGGRAPH 1984; P. Shirley & K. Chiu, \"A Low "
     "Distortion Map Between Disk and Square\", Journal of Graphics Tools 2(3), 1997 (concentric map)."};
 
+const RayTracer::ModeInfo kReflectionsInfo = {
+    "reflections", "Mirror reflections",
+    "On a reflective material a second ray leaves the hit point, mirrored about the normal (angle out = angle in), "
+    "and what it sees is blended in: colour = (1 - k) x the surface's own shading + k x the reflected colour, k "
+    "being the material's reflectivity. The reflected ray is shaded the same way, recursively, up to the maximum "
+    "depth; at the limit a surface keeps its own shading.",
+    "A mirror floor shows the model upside down under it; reflections of reflections appear between facing "
+    "mirrors, each one fainter by k. Where the mirrored ray escapes, the surface darkens toward the background. "
+    "Mirrors are perfect: sharp and uncoloured, so the highlight of a point light fades with k (the light itself "
+    "is not an object a ray can meet). Depth 0 turns reflections off.",
+    "T. Whitted, \"An Improved Illumination Model for Shaded Display\", Communications of the ACM 23(6), 1980 "
+    "(recursive ray tracing)."};
+
 } // namespace
 
 const RayTracer::ModeInfo & RayTracer::info (DebugMode mode) {
@@ -142,6 +161,10 @@ const RayTracer::ModeInfo & RayTracer::softShadowsInfo () {
     return kSoftShadowsInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::reflectionsInfo () {
+    return kReflectionsInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
@@ -153,15 +176,10 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
      "Needs hemisphere sampling; the BVH keeps the extra rays affordable. Experiment 8.",
      "S. Zhukov, A. Iones & G. Kronin, \"An Ambient Light Illumination Model\", Eurographics Rendering Workshop "
      "1998."},
-    {"reflection", "Mirror reflections",
-     "Rays bounce off reflective surfaces recursively and add what they see, scaled by the material's "
-     "reflectivity, up to a depth limit.",
-     "Needs a reflectivity value on Material and recursion in shade(). Experiment 7.",
-     "T. Whitted, \"An Improved Illumination Model for Shaded Display\", CACM 23(6), 1980."},
     {"refraction", "Refraction (glass)",
      "Rays bend through transparent surfaces following Snell's law and split between reflection and "
      "transmission by the Fresnel term.",
-     "Needs reflections, an index of refraction (MTL Ni) and transparency (MTL d). Experiment 7.",
+     "Builds on the mirror reflections; needs an index of refraction (MTL Ni) and transparency (MTL d).",
      "T. Whitted, CACM 23(6), 1980; C. Schlick, \"An Inexpensive BRDF Model for Physically-based Rendering\", "
      "Computer Graphics Forum 13(3), 1994."},
     {"pathtracing", "Path tracing (global illumination)",
@@ -257,10 +275,7 @@ bool RayTracer::occluded (const Scene & scene, const Ray & ray, float maxDistanc
 
 float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
                                   Sampler & sampler) const {
-    // Shadow rays start a little off the surface along the normal so the
-    // surface cannot shadow itself ("acne"); scaled to the model.
-    const float bias = 1e-4f * std::max (scene.getBoundingBox ().getSize (), 1e-3f);
-    const Vec3Df origin = p + n * bias;
+    const Vec3Df origin = p + n * surfaceBias (scene);
     Vec3Df l = light.getPos () - p;
     const float distanceToLight = l.normalize ();
 
@@ -292,7 +307,8 @@ float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const V
     return static_cast<float> (unblocked) / static_cast<float> (count * count);
 }
 
-Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler) const {
+Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler,
+                         unsigned int depth) const {
     const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
     switch (debugMode) {
         case DebugMode::HIT_MASK:
@@ -321,8 +337,8 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
         case DebugMode::LIT:
         default: {
             // Lambert diffuse + Blinn-Phong highlight, each light scaled by
-            // how much of it the point sees (hard or soft shadows). No
-            // attenuation, no bounces.
+            // how much of it the point sees (hard or soft shadows), then the
+            // mirror reflection on reflective materials. No attenuation.
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
             const Vec3Df & p = hit.vertex.getPos ();
@@ -350,7 +366,25 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
                              light.getColor ();
                 }
             }
-            return color;
+
+            const float k = mat.getReflectivity ();
+            if (k <= 0.f || depth >= maxDepth)
+                return color;
+            // Mirror the view ray about the normal turned toward it (a smooth
+            // normal can face away at a silhouette), start it off the surface
+            // like a shadow ray, and blend in what it sees.
+            Vec3Df d = ray.getDirection ();
+            d.normalize ();
+            if (Vec3Df::dotProduct (d, n) > 0.f)
+                n = -n;
+            Vec3Df r = d - (2.f * Vec3Df::dotProduct (d, n)) * n;
+            r.normalize ();
+            const Ray reflected (p + n * surfaceBias (scene), r);
+            Hit next;
+            const Vec3Df seen = closestHit (scene, reflected, next)
+                                    ? shade (scene, reflected, next, sampler, depth + 1)
+                                    : backgroundColor;
+            return (1.f - k) * color + k * seen;
         }
     }
 }
