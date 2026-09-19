@@ -7,6 +7,8 @@
 
 #include "RayTracer.h"
 
+#include "Optics.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -71,7 +73,7 @@ const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
      "that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid of rays over the light's "
      "disk); plus a constant ambient term. With ambient occlusion the ambient and diffuse terms are scaled by how "
      "open the surroundings are (see the AO mode). On a reflective material, blended with what the mirrored ray "
-     "sees.",
+     "sees; on a transparent one, with what the glass reflects and lets through.",
      "Brighter where a surface faces a light; tight bright spots are highlights; where a light is blocked only "
      "the ambient term and the other lights remain, and with soft shadows the edge fades across a penumbra. "
      "Colour is material x light, so the cyan key light tints the orange default material green. Turn on the "
@@ -161,6 +163,22 @@ const RayTracer::ModeInfo kReflectionsInfo = {
     "T. Whitted, \"An Improved Illumination Model for Shaded Display\", Communications of the ACM 23(6), 1980 "
     "(recursive ray tracing)."};
 
+const RayTracer::ModeInfo kRefractionInfo = {
+    "refraction", "Refraction (glass)",
+    "On a material of transparency g the surface is clear glass: the Fresnel equations split the light between "
+    "the mirrored ray (share F: about 4 % head-on for glass, all of it at grazing angles) and a ray bent through "
+    "the surface by Snell's law, n1 sin(i) = n2 sin(t), with the material's index of refraction. Inside the "
+    "object the bent ray meets the back of the surface and leaves the same way, or reflects entirely past the "
+    "critical angle. Colour = (1 - g) x own shading + g x (F x reflected + (1 - F) x refracted), followed up to "
+    "the maximum depth.",
+    "What lies behind shows through, shifted and distorted by curved surfaces, upside down through a thick round "
+    "body; rims catch reflections, and total internal reflection turns some regions into mirrors. The glass is "
+    "clear and uncoloured, and its shadow is opaque: light focused through it (caustics) is not traced. Too few "
+    "bounces cut paths short, and a surface at the depth limit shows its own shading.",
+    "T. Whitted, \"An Improved Illumination Model for Shaded Display\", Communications of the ACM 23(6), 1980 "
+    "(refraction in recursive ray tracing); the Fresnel equations, M. Born & E. Wolf, \"Principles of Optics\", "
+    "section 1.5."};
+
 } // namespace
 
 const RayTracer::ModeInfo & RayTracer::info (DebugMode mode) {
@@ -180,17 +198,15 @@ const RayTracer::ModeInfo & RayTracer::reflectionsInfo () {
     return kReflectionsInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::refractionInfo () {
+    return kRefractionInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
 // implementation within each family; the document groups them.
 const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
-    {"refraction", "Refraction (glass)",
-     "Rays bend through transparent surfaces following Snell's law and split between reflection and "
-     "transmission by the Fresnel term.",
-     "Builds on the mirror reflections; needs an index of refraction (MTL Ni) and transparency (MTL d).",
-     "T. Whitted, CACM 23(6), 1980; C. Schlick, \"An Inexpensive BRDF Model for Physically-based Rendering\", "
-     "Computer Graphics Forum 13(3), 1994."},
     {"pathtracing", "Path tracing (global illumination)",
      "Each pixel averages many random light paths bouncing through the scene, converging on the rendering "
      "equation with indirect light and colour bleeding.",
@@ -394,60 +410,92 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
         }
         case DebugMode::LIT:
         default: {
-            // Lambert diffuse + Blinn-Phong highlight, each light scaled by
-            // how much of it the point sees (hard or soft shadows), ambient
-            // and diffuse by how open its surroundings are (occlusion), then
-            // the mirror reflection on reflective materials. No attenuation.
+            // The surface's own (direct) light, then what mirror and glass
+            // pass on from elsewhere. No attenuation.
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
             const Vec3Df & p = hit.vertex.getPos ();
-            Vec3Df v = -ray.getDirection ();
-            v.normalize ();
+            const float k = mat.getReflectivity (), glass = mat.getTransparency ();
+            const bool bounces = (k > 0.f || glass > 0.f) && depth < maxDepth;
+            // A perfect mirror or clear glass shows nothing of its own: skip
+            // its shadow and occlusion rays.
+            const Vec3Df own = !bounces || (1.f - k) * (1.f - glass) > 0.f
+                                   ? directLight (scene, mat, p, n, ray, samplers)
+                                   : Vec3Df (0.f, 0.f, 0.f);
+            if (!bounces)
+                return own;
 
-            // 1 when occlusion is off: every product below is then unchanged.
-            const float open = ambientOcclusion (scene, p, n, samplers.occlusion);
-            Vec3Df color = (open * ambientIntensity) * mat.getColor ();
-            for (const Light & light : scene.getLights ()) {
-                Vec3Df l = light.getPos () - p;
-                l.normalize ();
-                const float nDotL = Vec3Df::dotProduct (n, l);
-                if (nDotL <= 0.f)
-                    continue;  // light behind the surface
-                const float visibility = shadows ? lightVisibility (scene, p, n, light, samplers.shadows) : 1.f;
-                if (visibility <= 0.f)
-                    continue;  // the whole light is blocked
-                color += (open * visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
-                         (mat.getColor () * light.getColor ());
-                if (specularEnabled && mat.getSpecular () > 0.f) {
-                    Vec3Df h = l + v;
-                    h.normalize ();
-                    const float nDotH = std::max (0.f, Vec3Df::dotProduct (n, h));
-                    color += (visibility * mat.getSpecular () * light.getIntensity () *
-                              std::pow (nDotH, mat.getShininess ())) *
-                             light.getColor ();
-                }
-            }
-
-            const float k = mat.getReflectivity ();
-            if (k <= 0.f || depth >= maxDepth)
-                return color;
-            // Mirror the view ray about the normal turned toward it (a smooth
-            // normal can face away at a silhouette), start it off the surface
-            // like a shadow ray, and blend in what it sees.
+            // Secondary rays use the normal turned toward the incoming ray
+            // (a smooth normal can face away at a silhouette) and start a
+            // hair off the surface, like shadow rays. The mirror ray stays on
+            // the incoming side: inside the object after a back face, where
+            // it must be two-sided to find its way out.
             Vec3Df d = ray.getDirection ();
             d.normalize ();
             if (Vec3Df::dotProduct (d, n) > 0.f)
                 n = -n;
-            Vec3Df r = d - (2.f * Vec3Df::dotProduct (d, n)) * n;
+            const float bias = surfaceBias (scene);
+            Vec3Df r = optics::reflect (d, n);
             r.normalize ();
-            const Ray reflected (p + n * surfaceBias (scene), r);
-            Hit next;
-            const Vec3Df seen = closestHit (scene, reflected, next)
-                                    ? shade (scene, reflected, next, samplers, depth + 1)
-                                    : backgroundColor;
-            return (1.f - k) * color + k * seen;
+            const Vec3Df mirrored = bounce (scene, Ray (p + n * bias, r, hit.backFace), samplers, depth);
+
+            Vec3Df color = own;
+            if (glass > 0.f) {
+                // Clear glass: the Fresnel share reflects, the rest refracts,
+                // from air into the object at a front face, out at a back one.
+                const float n1 = hit.backFace ? mat.getIor () : 1.f;
+                const float n2 = hit.backFace ? 1.f : mat.getIor ();
+                const float f = optics::fresnel (-Vec3Df::dotProduct (d, n), n1, n2);
+                Vec3Df through (0.f, 0.f, 0.f), t;
+                if (f < 1.f && optics::refract (d, n, n1 / n2, t)) {
+                    t.normalize ();
+                    through = bounce (scene, Ray (p - n * bias, t, !hit.backFace), samplers, depth);
+                }
+                color = (1.f - glass) * own + glass * (f * mirrored + (1.f - f) * through);
+            }
+            if (k > 0.f)
+                color = (1.f - k) * color + k * mirrored;
+            return color;
         }
     }
+}
+
+Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
+                               const Ray & ray, PixelSamplers & samplers) const {
+    // Lambert diffuse + Blinn-Phong highlight, each light scaled by how much
+    // of it the point sees (hard or soft shadows), ambient and diffuse by how
+    // open its surroundings are (occlusion).
+    Vec3Df v = -ray.getDirection ();
+    v.normalize ();
+    // 1 when occlusion is off: every product below is then unchanged.
+    const float open = ambientOcclusion (scene, p, n, samplers.occlusion);
+    Vec3Df color = (open * ambientIntensity) * mat.getColor ();
+    for (const Light & light : scene.getLights ()) {
+        Vec3Df l = light.getPos () - p;
+        l.normalize ();
+        const float nDotL = Vec3Df::dotProduct (n, l);
+        if (nDotL <= 0.f)
+            continue;  // light behind the surface
+        const float visibility = shadows ? lightVisibility (scene, p, n, light, samplers.shadows) : 1.f;
+        if (visibility <= 0.f)
+            continue;  // the whole light is blocked
+        color += (open * visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
+                 (mat.getColor () * light.getColor ());
+        if (specularEnabled && mat.getSpecular () > 0.f) {
+            Vec3Df h = l + v;
+            h.normalize ();
+            const float nDotH = std::max (0.f, Vec3Df::dotProduct (n, h));
+            color += (visibility * mat.getSpecular () * light.getIntensity () *
+                      std::pow (nDotH, mat.getShininess ())) *
+                     light.getColor ();
+        }
+    }
+    return color;
+}
+
+Vec3Df RayTracer::bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const {
+    Hit next;
+    return closestHit (scene, ray, next) ? shade (scene, ray, next, samplers, depth + 1) : backgroundColor;
 }
 
 Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats) const {

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <fstream>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,35 @@ inline Mesh cube(const Vec3Df& c, float side) {
     Mesh m(v, t);
     m.recomputeSmoothVertexNormals(0);
     return m;
+}
+
+/// Axis-aligned box from `lo` to `hi` with flat faces: four vertices per face
+/// carrying its outward normal, wound CCW seen from outside. A closed surface
+/// with hard edges, what a glass slab needs.
+inline Mesh box(const Vec3Df& lo, const Vec3Df& hi) {
+    std::vector<Vertex> v;
+    std::vector<Triangle> t;
+    for (int a = 0; a < 3; ++a) {
+        for (int s : {-1, 1}) {
+            // e_b x e_c = e_a, so (b, c) corners in this order are CCW around +e_a.
+            const int b = (a + 1) % 3, c = (a + 2) % 3;
+            Vec3Df n(0.f, 0.f, 0.f);
+            n[a] = static_cast<float>(s);
+            int corners[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+            if (s < 0) std::swap(corners[1], corners[3]);  // reversed winding for the -e_a face
+            const unsigned int base = static_cast<unsigned int>(v.size());
+            for (const auto& k : corners) {
+                Vec3Df p;
+                p[a] = s > 0 ? hi[a] : lo[a];
+                p[b] = k[0] ? hi[b] : lo[b];
+                p[c] = k[1] ? hi[c] : lo[c];
+                v.push_back(Vertex(p, n));
+            }
+            t.push_back(Triangle(base, base + 1, base + 2));
+            t.push_back(Triangle(base, base + 2, base + 3));
+        }
+    }
+    return Mesh(v, t);
 }
 
 /// Write a text file into the test output directory and return its path.

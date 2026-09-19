@@ -22,7 +22,7 @@ public:
     // LIT is the shading path; the others colorize the hit information
     // directly so rays, intersections and normals can be checked one at a time.
     enum class DebugMode {
-        LIT,          // ambient + per light Lambert + Blinn-Phong (shadowed, occluded), mirror rays on reflective materials
+        LIT,          // ambient + per light Lambert + Blinn-Phong (shadowed, occluded), then mirror and glass rays
         AMBIENT,      // flat material color
         HIT_MASK,     // white = hit, black = miss
         NORMALS,      // (n + 1) / 2 as RGB
@@ -80,12 +80,14 @@ public:
     static const ModeInfo & softShadowsInfo ();
     /// ... and for mirror reflections.
     static const ModeInfo & reflectionsInfo ();
+    /// ... and for refraction (glass).
+    static const ModeInfo & refractionInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 9;
+    static constexpr int kPlannedModeCount = 8;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -127,11 +129,15 @@ public:
     }
     inline unsigned int getAmbientOcclusionSamplesPerAxis () const { return aoSamplesPerAxis; }
     inline float getAmbientOcclusionRadius () const { return aoRadius; }
-    /// Mirror reflections (Lit mode only): on a material with a reflectivity
-    /// k > 0 the colour becomes (1 - k) x its own shading + k x what the
-    /// mirrored ray sees, followed through at most maxDepth reflections. At
-    /// the limit a reflective surface shows its own shading, so 0 turns
-    /// reflections off, bit for bit. Default 4.
+    /// Mirror reflections and glass (Lit mode only). On a material with a
+    /// reflectivity k > 0 the colour becomes (1 - k) x its own shading + k x
+    /// what the mirrored ray sees. On a transparency g > 0, (1 - g) x its own
+    /// shading + g x clear glass: the Fresnel share F of the mirrored ray +
+    /// (1 - F) x the refracted one (Snell's law, Material::getIor; two-sided
+    /// inside the object, so it can leave). Rays are followed through at most
+    /// maxDepth bounces; at the limit a surface shows its own shading, so 0
+    /// turns both off, bit for bit. Default 8: glass takes several bounces
+    /// to get through a model and out.
     inline void setMaxDepth (unsigned int depth) { maxDepth = depth; }
     inline unsigned int getMaxDepth () const { return maxDepth; }
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
@@ -209,6 +215,14 @@ public:
                   unsigned int width, unsigned int height);
 
 private:
+    /// Lit mode's own shading of a surface point: ambient, and per light
+    /// Lambert and Blinn-Phong, scaled by shadows and occlusion.
+    Vec3Df directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
+                        const Ray & ray, PixelSamplers & samplers) const;
+    /// Colour a secondary ray brings back from a hit at `depth`: what it
+    /// meets, shaded one bounce deeper, or the background.
+    Vec3Df bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const;
+
     DebugMode debugMode = DebugMode::LIT;
     float depthNear = 0.f;
     float depthFar = 10.f;
@@ -218,7 +232,7 @@ private:
     bool aaJitter = false;
     bool shadows = true;
     unsigned int shadowSamplesPerAxis = 1;
-    unsigned int maxDepth = 4;
+    unsigned int maxDepth = 8;
     unsigned int aoSamplesPerAxis = 0;
     float aoRadius = 1.f;
     bool specularEnabled = true;

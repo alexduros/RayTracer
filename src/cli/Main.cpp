@@ -65,7 +65,9 @@ Options:
   --reflectivity <k>     mirror share of the model's materials, 0..1 (default 0 = matte)
   --ground-reflectivity <k>
                          mirror share of the ground plane, 0..1 (implies --ground)
-  --max-depth <n>        reflections followed per ray, 0..16 (default 4; 0 = none)
+  --transparency <g>     glass share of the model's materials, 0..1 (default: the file's, MTL d)
+  --ior <n>              index of refraction of that glass, 1..4 (default: the file's Ni, else 1.5)
+  --max-depth <n>        mirror and glass bounces followed per ray, 0..16 (default 8; 0 = none)
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
   --threads <n>          worker threads, 0 = one per core (default 0); the picture is identical
@@ -101,6 +103,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << mirror.principle << "\n"
         << "      Read: " << mirror.reading << "\n"
         << "      Ref:  " << mirror.reference << "\n";
+    const RayTracer::ModeInfo& glass = RayTracer::refractionInfo();
+    out << "\n--transparency / --ior / --max-depth  " << glass.name << "\n"
+        << "      " << glass.principle << "\n"
+        << "      Read: " << glass.reading << "\n"
+        << "      Ref:  " << glass.reference << "\n";
     out << "\nPlanned modes, not available yet (map: claudedocs/RENDERING_ROADMAP.md):\n";
     for (int i = 0; i < RayTracer::kPlannedModeCount; ++i) {
         const RayTracer::ModeInfo& p = RayTracer::plannedMode(i);
@@ -132,7 +139,9 @@ struct Options {
     float aoRadius = 0.2f;       // fraction of the model size
     float reflectivity = 0.f;        // model objects
     float groundReflectivity = 0.f;  // the ground plane
-    unsigned int maxDepth = 4;
+    std::optional<float> transparency;  // model objects; empty: as the file says
+    std::optional<float> ior;
+    unsigned int maxDepth = 8;
     bool bvh = true;
     unsigned int threads = 0;  // 0 = one per core
     std::optional<UpAxis> up;  // empty = auto
@@ -224,6 +233,20 @@ bool parseArgs(int argc, char** argv, Options& o) {
             } else {
                 o.groundReflectivity = k;
                 o.ground = true;
+            }
+        } else if (a == "--transparency") {
+            if (!(v = value(i, "--transparency"))) return false;
+            o.transparency = static_cast<float>(std::atof(v));
+            if (*o.transparency < 0.f || *o.transparency > 1.f) {
+                std::cerr << "--transparency must be between 0 and 1\n";
+                return false;
+            }
+        } else if (a == "--ior") {
+            if (!(v = value(i, "--ior"))) return false;
+            o.ior = static_cast<float>(std::atof(v));
+            if (*o.ior < 1.f || *o.ior > 4.f) {
+                std::cerr << "--ior must be between 1 and 4\n";
+                return false;
             }
         } else if (a == "--max-depth") {
             if (!(v = value(i, "--max-depth"))) return false;
@@ -350,6 +373,12 @@ int main(int argc, char** argv) {
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
     scene.setModelReflectivity(o.reflectivity);
     scene.setGroundReflectivity(o.groundReflectivity);
+    // Glass only when asked: an OBJ's MTL may already make some of it glass.
+    for (Object& object : scene.getObjects()) {
+        if (object.isBackdrop()) continue;
+        if (o.transparency) object.getMaterial().setTransparency(*o.transparency);
+        if (o.ior) object.getMaterial().setIor(*o.ior);
+    }
 
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
@@ -413,8 +442,11 @@ int main(int argc, char** argv) {
                                                : "";
         if (o.aoSamples > 0)
             effects += ", " + std::to_string(o.aoSamples * o.aoSamples) + " occlusion rays/hit";
-        if ((o.reflectivity > 0.f || o.groundReflectivity > 0.f) && o.maxDepth > 0)
-            effects += ", reflections up to depth " + std::to_string(o.maxDepth);
+        bool glassy = false;
+        for (const Object& object : scene.getObjects()) glassy = glassy || object.getMaterial().getTransparency() > 0.f;
+        if ((o.reflectivity > 0.f || o.groundReflectivity > 0.f || glassy) && o.maxDepth > 0)
+            effects += std::string(", ") + (glassy ? "glass and reflections" : "reflections") + " up to depth " +
+                       std::to_string(o.maxDepth);
         std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, %u thread%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
                     o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
                     o.jitter ? " jittered" : "", effects.c_str(), o.bvh ? "bvh" : "brute force", job.threadCount(),

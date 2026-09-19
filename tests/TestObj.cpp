@@ -67,6 +67,27 @@ TEST_CASE("obj: MTL parsing maps Kd to colour and mean Ks to specular") {
     CHECK(throwsRuntimeError([] { loadMTL(test::outputDir() + "/missing.mtl"); }));
 }
 
+TEST_CASE("obj: MTL d, Tr and Ni make glass") {
+    const std::string path = fixtures::writeFile("glass.mtl",
+        "newmtl window\n"
+        "Kd 0.9 0.9 1\n"
+        "d 0.2\n"      // dissolve: 20 % opaque
+        "Ni 1.52\n"
+        "\n"
+        "newmtl tinted\n"
+        "Tr 0.6\n"     // transparency directly
+        "\n"
+        "newmtl solid\n"
+        "d 1\n");
+    const std::map<std::string, Material> materials = loadMTL(path);
+    REQUIRE(materials.size() == 3);
+    CHECK_CLOSE(materials.at("window").getTransparency(), 0.8f, 1e-6);
+    CHECK_CLOSE(materials.at("window").getIor(), 1.52f, 1e-6);
+    CHECK_CLOSE(materials.at("tinted").getTransparency(), 0.6f, 1e-6);
+    CHECK_CLOSE(materials.at("tinted").getIor(), 1.5f, 1e-6);  // default when Ni is absent
+    CHECK_CLOSE(materials.at("solid").getTransparency(), 0.f, 0.f);
+}
+
 TEST_CASE("obj: bundled cube gives one object per material with the file's normals") {
     Scene scene;
     CHECK_EQ(scene.addObjectsFromFile(test::modelPath("cube.obj")), 6u);

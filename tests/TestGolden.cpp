@@ -57,7 +57,7 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
 }
 
 // What a golden turns on besides the defaults, encoded in its name: "_aa2" /
-// "_aa2j", "_ground", "_soft4", "_mirror", "_ao4".
+// "_aa2j", "_ground", "_soft4", "_mirror", "_ao4", "_glass".
 struct Settings {
     unsigned int aaSamples = 1;
     bool jitter = false;
@@ -65,6 +65,7 @@ struct Settings {
     unsigned int shadowSamples = 1;
     float groundReflectivity = 0.f;
     unsigned int aoSamples = 0;  // radius 0.2 x the model size
+    float transparency = 0.f;    // the model as glass of index 1.5
 };
 
 Settings withGround() {
@@ -78,13 +79,14 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, const Settings
     const unsigned int aaSamples = settings.aaSamples, shadowSamples = settings.shadowSamples;
     const unsigned int aoSamples = settings.aoSamples;
     const bool jitter = settings.jitter, ground = settings.ground;
-    const float groundReflectivity = settings.groundReflectivity;
+    const float groundReflectivity = settings.groundReflectivity, transparency = settings.transparency;
     Scene scene;
     scene.addObjectsFromFile(test::modelPath(model));
     scene.setUpAxis(resolveUpAxis(test::modelPath(model), scene));  // as the CLI and the viewer do
     scene.addDefaultLights();
     if (ground) scene.addGroundPlane();
     scene.setGroundReflectivity(groundReflectivity);
+    if (transparency > 0.f) scene.setModelGlass(transparency, 1.5f);
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
     const float distance = 2.f * size;
@@ -99,9 +101,10 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, const Settings
     if (aaSamples > 1) stem += "_aa" + std::to_string(aaSamples) + (jitter ? "j" : "");
     if (ground) stem += "_ground";
     if (shadowSamples > 1) stem += "_soft" + std::to_string(shadowSamples);
-    const bool litOnly = shadowSamples > 1 || groundReflectivity > 0.f || aoSamples > 0;
+    const bool litOnly = shadowSamples > 1 || groundReflectivity > 0.f || aoSamples > 0 || transparency > 0.f;
     if (groundReflectivity > 0.f) stem += "_mirror";
     if (aoSamples > 0) stem += "_ao" + std::to_string(aoSamples);
+    if (transparency > 0.f) stem += "_glass";
     for (const ModeSpec& m : kModes) {
         // The AO mode only when occlusion is on (it is all white otherwise).
         // With sampled or bouncing effects on, only the modes they change:
@@ -160,5 +163,10 @@ TEST_CASE("golden: teapot on a mirror ground plane") {
 TEST_CASE("golden: teapot on its ground plane with 4x4 ambient occlusion") {
     Settings s = withGround();
     s.aoSamples = 4;
+    goldenModel("teapot", 25.f, 20.f, s);
+}
+TEST_CASE("golden: a glass teapot on its ground plane") {
+    Settings s = withGround();
+    s.transparency = 1.f;
     goldenModel("teapot", 25.f, 20.f, s);
 }

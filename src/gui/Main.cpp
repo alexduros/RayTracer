@@ -504,7 +504,9 @@ int main(int argc, char** argv) {
     bool rtSpecular = true;
     float rtModelReflectivity = 0.f;   // Material::reflectivity of the model, 0 = matte
     float rtGroundReflectivity = 0.f;  // ... and of the ground plane
-    int rtMaxDepth = 4;                // reflections followed per ray
+    float rtGlass = 0.f;               // transparency of the model, 0 = the file's own materials
+    float rtIor = 1.5f;                // index of refraction of that glass
+    int rtMaxDepth = 8;                // mirror and glass bounces followed per ray
     const int maxThreads = static_cast<int>(RenderJob::defaultThreadCount());
     int rtThreads = maxThreads;  // worker threads for the next render
     bool showGround = true;  // ground plane under the model, in both views
@@ -717,7 +719,11 @@ int main(int argc, char** argv) {
             scene.setModelReflectivity(rtModelReflectivity);
             scene.setGroundReflectivity(rtGroundReflectivity);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
-            renderJob = std::make_unique<RenderJob>(rt, scene, camera, renderW, renderH, kRenderTileSize,
+            // Glass goes on a copy, so setting it back to 0 restores what the
+            // file says (an MTL can make some materials glass already).
+            Scene toRender = scene;
+            if (rtGlass > 0.f) toRender.setModelGlass(rtGlass, rtIor);
+            renderJob = std::make_unique<RenderJob>(rt, toRender, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f),
                                                     static_cast<unsigned int>(rtThreads));
             renderJob->start();
@@ -874,10 +880,22 @@ int main(int argc, char** argv) {
             ImGui::SliderFloat("##modelmirror", &rtModelReflectivity, 0.f, 1.f, "%.2f");
             ImGui::SameLine();
             helpMarker(RayTracer::reflectionsInfo());
-            if (rtModelReflectivity > 0.f || (showGround && rtGroundReflectivity > 0.f)) {
+            rowLabel("Glass");
+            ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+            ImGui::SliderFloat("##glass", &rtGlass, 0.f, 1.f, rtGlass > 0.f ? "%.2f" : "as in the file");
+            ImGui::SameLine();
+            helpMarker(RayTracer::refractionInfo());
+            if (rtGlass > 0.f) {
+                rowWidget("Index");
+                ImGui::SliderFloat("##ior", &rtIor, 1.f, 2.5f, "%.2f");
+                itemTooltip("Index of refraction: 1 bends nothing, 1.33 water, 1.5 glass, 2.4 diamond.");
+            }
+            bool fileGlass = false;
+            for (const Object& o : scene.getObjects()) fileGlass = fileGlass || o.getMaterial().getTransparency() > 0.f;
+            if (rtModelReflectivity > 0.f || (showGround && rtGroundReflectivity > 0.f) || rtGlass > 0.f || fileGlass) {
                 rowWidget("Bounces");
-                ImGui::SliderInt("##bounces", &rtMaxDepth, 0, 8, "%d");
-                itemTooltip("Reflections followed per ray; 0 turns them off.");
+                ImGui::SliderInt("##bounces", &rtMaxDepth, 0, 16, "%d");
+                itemTooltip("Mirror and glass bounces followed per ray; 0 turns them off.");
             }
             {
                 size_t nv = 0, nt = 0;

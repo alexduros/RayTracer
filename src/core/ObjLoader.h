@@ -19,8 +19,9 @@
 #include "Object.h"
 
 /// Materials of an MTL file by name. Kd -> colour, mean(Ks) -> specular,
-/// Ns -> shininess; everything else (Ka, d, illum, map_*) is ignored for
-/// now. A material without Kd is light grey. Throws std::runtime_error if
+/// Ns -> shininess, d (dissolve) -> transparency 1 - d, Tr -> transparency,
+/// Ni -> index of refraction; everything else (Ka, illum, map_*) is ignored
+/// for now. A material without Kd is light grey. Throws std::runtime_error if
 /// the file cannot be opened.
 std::map<std::string, Material> loadMTL (const std::string & filename);
 

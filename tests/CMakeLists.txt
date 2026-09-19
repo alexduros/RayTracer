@@ -16,6 +16,7 @@ add_executable(raymini_tests
   TestShading.cpp
   TestReflection.cpp
   TestOcclusion.cpp
+  TestRefraction.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -37,6 +38,10 @@ add_test(NAME cli_ao COMMAND raymini-cli teapot --size 32x32 --ground --ao 2 --a
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_ao.png)
 add_test(NAME cli_ao_mode COMMAND raymini-cli teapot --size 32x32 --mode ao --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_ao_mode.png)
+add_test(NAME cli_glass COMMAND raymini-cli ram --size 32x32 --ground --transparency 1 --ior 1.33
+         --max-depth 6 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_glass.png)
+add_test(NAME cli_bad_ior COMMAND raymini-cli ram --ior 0.5 --quiet)
+set_tests_properties(cli_bad_ior PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_threads COMMAND raymini-cli teapot --size 32x32 --threads 3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_threads.png)
 add_test(NAME cli_bad_threads COMMAND raymini-cli teapot --threads many --quiet)

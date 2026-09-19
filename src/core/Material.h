@@ -21,6 +21,9 @@ public:
     /// `shininess` is the Blinn-Phong exponent (MTL Ns): higher = tighter highlight.
     /// `reflectivity` in [0, 1] is the share of the colour that comes from a
     /// mirror ray (RayTracer::setMaxDepth): 0 = matte, 1 = perfect mirror.
+    /// `transparency` in [0, 1] is the share that behaves as clear glass of
+    /// index `ior` (MTL d and Ni): reflected and refracted by the Fresnel
+    /// equations. 0 = opaque (the default).
     inline Material (float diffuse, float specular, const Vec3Df & color, float shininess = 32.f,
                      float reflectivity = 0.f)
             : diffuse (diffuse), specular (specular), color (color), shininess (shininess) {
@@ -33,12 +36,18 @@ public:
     inline Vec3Df getColor () const { return color; }
     inline float getShininess () const { return shininess; }
     inline float getReflectivity () const { return reflectivity; }
+    inline float getTransparency () const { return transparency; }
+    inline float getIor () const { return ior; }
 
     inline void setDiffuse (float d) { diffuse = d; }
     inline void setSpecular (float s) { specular = s; }
     inline void setColor (const Vec3Df & c) { color = c; }
     inline void setShininess (float s) { shininess = s; }
     inline void setReflectivity (float r) { reflectivity = r < 0.f ? 0.f : (r > 1.f ? 1.f : r); }
+    inline void setTransparency (float t) { transparency = t < 0.f ? 0.f : (t > 1.f ? 1.f : t); }
+    /// Index of refraction relative to the air around: 1 = no bending
+    /// (clamped there), 1.33 water, 1.5 glass, 2.4 diamond.
+    inline void setIor (float n) { ior = n < 1.f ? 1.f : n; }
 
 private:
     float diffuse;
@@ -46,6 +55,8 @@ private:
     Vec3Df color;
     float shininess;
     float reflectivity = 0.f;
+    float transparency = 0.f;
+    float ior = 1.5f;
 };
 
 

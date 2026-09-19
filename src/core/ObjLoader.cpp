@@ -120,8 +120,20 @@ std::map<std::string, Material> loadMTL (const std::string & filename) {
             float ns = 0.f;
             if (ss >> ns)
                 materials[current].setShininess (std::max (1.f, ns));  // 0 would flatten the highlight to white
+        } else if (key == "d") {
+            float d = 1.f;
+            if (ss >> d)
+                materials[current].setTransparency (1.f - d);  // d = dissolve: 1 opaque, 0 clear
+        } else if (key == "Tr") {
+            float tr = 0.f;
+            if (ss >> tr)
+                materials[current].setTransparency (tr);  // Tr = 1 - d
+        } else if (key == "Ni") {
+            float ni = 1.f;
+            if (ss >> ni)
+                materials[current].setIor (ni);
         }
-        // Ka, d, Tr, illum, map_*: not represented by Material yet.
+        // Ka, illum, map_*: not represented by Material yet.
     }
     return materials;
 }

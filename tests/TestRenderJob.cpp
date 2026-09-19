@@ -193,6 +193,23 @@ TEST_CASE("renderjob: ambient occlusion does not depend on tile order or threads
     CHECK(samePixels(tiny, rt.render(scene, camera, 64, 48)));
 }
 
+TEST_CASE("renderjob: glass does not depend on tile order or threads") {
+    Scene scene = teapotScene();
+    scene.addGroundPlane();
+    scene.setModelGlass(0.8f, 1.5f);
+    const Camera camera = frameOf(scene);
+    RayTracer rt;
+    rt.setShadowSamples(2);
+    rt.setAmbientOcclusion(2, 0.2f * scene.getBoundingBox().getSize());
+    rt.setAntiAliasing(2, true);
+    const Image reference = rt.render(scene, camera, 64, 48);
+    RenderJob job(rt, scene, camera, 64, 48, 24, Vec3Df(0.f, 0.f, 0.f), 4);
+    job.start();
+    job.wait();
+    CHECK(samePixels(job.snapshot(), reference));
+    CHECK_EQ(job.stats().rays, rt.getLastStats().rays);
+}
+
 TEST_CASE("renderjob: pending colour fills the image until tiles land") {
     const Scene scene = teapotScene();
     RayTracer rt;

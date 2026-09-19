@@ -60,6 +60,14 @@ void Scene::setModelReflectivity (float reflectivity) {
             o.getMaterial ().setReflectivity (reflectivity);
 }
 
+void Scene::setModelGlass (float transparency, float ior) {
+    for (Object & o : objects)
+        if (!o.isBackdrop ()) {
+            o.getMaterial ().setTransparency (transparency);
+            o.getMaterial ().setIor (ior);
+        }
+}
+
 void Scene::setGroundReflectivity (float reflectivity) {
     for (Object & o : objects)
         if (o.isBackdrop ())

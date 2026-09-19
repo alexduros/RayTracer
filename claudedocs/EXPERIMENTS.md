@@ -168,7 +168,7 @@ rays, scale the light's contribution by it.
   nearer-first order already ends blocked rays early. Sampled effects are
   now what threads (experiment 4) are for.
 
-## 7. Mirror reflections (done; refraction as a stretch, still open)
+## 7. Mirror reflections and refraction (done)
 
 Add `Material::reflectivity`; in `shade`, if it is positive, trace a
 reflected ray recursively up to `maxDepth` and blend. Refraction follows the
@@ -208,9 +208,56 @@ same recursion with Snell's law and an index of refraction.
   mirror floor 0.021 s, plus a 0.3 mirror on the ram 0.032 s; with 2x2 AA
   and 8x8 soft shadows 2.76 s -> 2.91 s. Most mirrored rays escape to the
   sky, so reflections cost little next to soft shadows.
-- Left: refraction (Snell, Fresnel by Schlick, MTL `Ni` / `d`), glossy
-  reflections (a jittered cone of mirror rays, a new `Sampler` stream),
-  coloured metal mirrors, and MTL `illum 3` mapping `Ks` to reflectivity.
+- Left: glossy reflections (a jittered cone of mirror rays, a new `Sampler`
+  stream), coloured metal mirrors, and MTL `illum 3` mapping `Ks` to
+  reflectivity.
+- Refraction, done after experiment 8: `Material::transparency` (0..1,
+  default 0) and `Material::ior` (1 or more, default 1.5), read from MTL `d`
+  (as 1 - d), `Tr` and `Ni`. A transparent hit splits the light by the
+  Fresnel equations for unpolarised light (`src/core/Optics.h`, the exact
+  ones: Schlick's approximation is not 0 between equal indices, so a slab of
+  index 1 would not vanish) between the mirror ray and a ray bent by Snell's
+  law; colour = (1 - g) x own shading + g x (F x reflected + (1 - F) x
+  refracted), then the mirror blend if the material also reflects. Rays
+  travelling inside an object must meet the back of its surface to leave, so
+  `Ray` got a two-sided flag (`Ray::hit` skips culling for it; the BVH and
+  the scan go through `Ray::hit`, so they still agree), and `Hit` records the
+  triangle index (`nearestHit` returns it, as the wireframe and triangle-id
+  modes will need) and whether it was met from behind, from the triangle's
+  geometric normal; entering or leaving picks the order of the indices. A
+  perfect mirror or clear glass skips its own lighting, whose shadow and
+  occlusion rays would be weighted 0. `RayTracer::directLight` and
+  `RayTracer::bounce` now hold the direct light and the secondary rays. The
+  default depth went from 4 to 8: at 4 a glass ram shows many paths cut
+  short (a surface at the limit shows its own orange shading); mirror scenes
+  never went that deep, so nothing else changes. CLI `--transparency`,
+  `--ior` (applied only when given, so an MTL's glass stays), GUI Glass and
+  Index (on a copy of the scene, so 0 gives back the file's materials) and
+  Bounces up to 16. Tests in `tests/TestRefraction.cpp`: Snell's law in the
+  plane of incidence, straight on at index 1, the critical angle within
+  0.01 rad; Fresnel 4 % at normal incidence from either side, 1 at grazing
+  and past the critical angle, 0 between equal indices, rising toward
+  grazing, s-only at Brewster's angle, the same going in at i as coming out
+  at t; a slab of index 1 changes no colour by 1e-3; the red/green edge seen
+  through a unit slab moves by tan i - tan t within 0.003 for indices 1.33,
+  1.5 and 2.4; the light through both faces is (1 - F_in)(1 - F_out) of the
+  floor within 0.01 at 0, 30 and 60 degrees; transparency 0 or depth 0 is
+  the opaque picture byte for byte. `tests/TestBvh.cpp`: two-sided random
+  rays hit the same triangle, on the same side, through the BVH and by brute
+  force (teapot, ram, cube.obj on their grounds), and a quad met from behind
+  says so. `tests/TestObj.cpp`: `d`, `Tr`, `Ni`. `tests/TestRenderJob.cpp`:
+  glass with soft shadows, occlusion and jitter is tile- and
+  thread-independent. Golden `teapot_ground_glass_lit`; every existing golden
+  and gallery picture unchanged. Breaking it on purpose: inverting Snell's
+  ratio, always treating the hit as an entry, keeping the refracted ray
+  one-sided, or dropping the Fresnel reflection each fails a test.
+- Measured, one thread, ram on its ground at 384x256: 0.020 s opaque; in
+  glass 0.074 s at depth 4, 0.199 s at 8, 0.986 s at 16 (each glass hit
+  splits a ray in two); teapot 0.016 s -> 0.049 s. The gallery's glass ram
+  with 8x8 soft shadows and occlusion takes 2.35 s on ten threads.
+- Left: glass is clear (no absorption along the path, Beer-Lambert) and its
+  shadow opaque (no light through it, no caustics); pruning branches whose
+  weight falls below one 8-bit step would cut the cost of deep glass.
 
 ## 8. Ambient occlusion
 

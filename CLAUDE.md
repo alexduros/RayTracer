@@ -9,7 +9,8 @@ tests that prove each one.
 
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
-  Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Image (stb). No GL, no
+  Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Optics (reflect,
+  Snell, Fresnel), Image (stb). No GL, no
   GLFW: it links anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
@@ -71,9 +72,11 @@ build/raymini-cli --help
   from Material::shininess, both scaled by the fraction of the light shadow
   rays find unblocked; `setShadows` / `setSpecularEnabled` switch the last two;
   ambient and diffuse scaled by the ambient occlusion when it is on;
-  then on a material of reflectivity k, (1 - k) x that + k x what the ray
-  mirrored about the normal sees, recursively while depth < `setMaxDepth`
-  (default 4, 0 = off bit for bit)),
+  then on a material of transparency g, (1 - g) x that + g x clear glass
+  (Fresnel share F of the mirror ray + 1 - F of the ray bent by Snell's
+  law, `src/core/Optics.h`), and on a material of reflectivity k, (1 - k) x
+  that + k x what the ray mirrored about the normal sees, recursively while
+  depth < `setMaxDepth` (default 8, 0 = off bit for bit)),
   `ambient`, `hitmask`, `normals`, `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
   (golden-ratio hue palette by object index), `ao` (the open share of the
@@ -130,6 +133,13 @@ build/raymini-cli --help
   `setGroundReflectivity`; CLI `--reflectivity k --ground-reflectivity k
   --max-depth n`, GUI mirror slider next to Ground, Mirror, Bounces. Reflected
   rays reuse the pixel's shadow sampler and are not counted in `Stats`.
+- Glass: `Material::transparency` / `ior` (MTL `d`, `Tr`, `Ni`), CLI
+  `--transparency g --ior n` (only when given), GUI Glass / Index. Rays
+  inside an object are two-sided (`Ray(o, d, true)`: `Ray::hit` skips back-face
+  culling), and `Hit::backFace` (from the geometric normal) says whether a
+  hit leaves the object, which orders the indices. `Hit::triangleIndex` comes
+  from `nearestHit`. Every other ray still culls back faces. Glass shadows
+  are opaque; a glass hit splits a ray in two, so depth costs.
 - Colors stay linear [0,1] until the final 8-bit conversion in `render()`.
 
 ## Conventions for adding an effect
@@ -155,7 +165,7 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- No refraction or textures yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
+- No textures yet; glass is clear and casts opaque shadows (no caustics). See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
   OBJ texture coordinates are parsed but not stored.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it

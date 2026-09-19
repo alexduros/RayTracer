@@ -24,7 +24,8 @@ with the raytracer split into a library that builds without any GL dependency.
   Lambert + Blinn-Phong shading with hard or soft shadows (each light a small
   disk sampled by a grid of shadow rays), an optional ground plane that
   catches them, mirror reflections (a reflectivity per material, followed
-  recursively up to a depth), ambient occlusion (hemisphere rays that darken
+  recursively up to a depth), glass (refraction by Snell's law, split with
+  reflection by the Fresnel equations), ambient occlusion (hemisphere rays that darken
   creases and contact points), n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id,
   ambient occlusion),
@@ -84,6 +85,7 @@ build/raymini-cli ram --ground --aa 2 --shadow-samples 8 --yaw -35 --pitch 15   
 build/raymini-cli ram --ground-reflectivity 0.4 --aa 2 --yaw -35 --pitch 15     # on a mirror floor
 build/raymini-cli ram --ground --ao 8 --aa 2 --yaw -35 --pitch 15               # ambient occlusion
 build/raymini-cli ram --ground --mode ao --yaw -35 --pitch 15                   # the occlusion alone
+build/raymini-cli teapot --ground --transparency 1 --aa 2 --yaw 25 --pitch 20   # a glass teapot
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -98,7 +100,8 @@ Viewer controls:
   size, so it stays sharp).
 - Controls panel, four sections: Model (picker over every `.off` and `.obj`
   in `models/`, up axis, ground plane and how much it mirrors, the model's
-  own mirror share and the number of bounces, mesh stats), Camera (FOV, position, target, Reset), Preview
+  own mirror share, glass share and index, the number of bounces, mesh
+  stats), Camera (FOV, position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
   jitter; shadows, specular, soft shadows and light size; occlusion and its
@@ -116,7 +119,7 @@ The same text is shown under the render in the viewer and printed by
 
 | Mode | What it computes | How to read it | Study |
 |------|------------------|----------------|-------|
-| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), both scaled by the fraction of the light that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid over the light's disk); plus a constant ambient term. With ambient occlusion on, the ambient and diffuse terms are scaled by how open the surroundings are. On a reflective material, blended with what the mirrored ray sees. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term, and with soft shadows the edge fades across a penumbra. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall, and give it some reflectivity to see the model mirrored in it. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
+| **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), both scaled by the fraction of the light that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid over the light's disk); plus a constant ambient term. With ambient occlusion on, the ambient and diffuse terms are scaled by how open the surroundings are. On a reflective material, blended with what the mirrored ray sees; on a transparent one, with what the glass reflects and lets through. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term, and with soft shadows the edge fades across a penumbra. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall, and give it some reflectivity to see the model mirrored in it. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
 | **Ambient (albedo)** | The material's base colour (Kd) at the hit, unlit. | Flat silhouettes per material; checks materials and outlines, shows no shape. | Ambient term of B. T. Phong, "Illumination for Computer Generated Pictures", CACM 18(6), 1975 |
 | **Hit mask (coverage)** | White where the primary ray hits geometry, black where it escapes. | A binary silhouette; with anti-aliasing, edge pixels turn grey in proportion to coverage. | T. Porter & T. Duff, "Compositing Digital Images", SIGGRAPH 1984 |
 | **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
@@ -154,12 +157,28 @@ the ram on its ground at 384x256 takes 0.02 s without, 0.24 s with 8 × 8 on
 one thread. Coarse meshes with smooth normals show a few grey specks, where
 rays leave below the true face.
 
+**Refraction (glass)** (`--transparency g`, `--ior n`, `--max-depth n`;
+Glass and Index in the viewer; MTL `d`, `Tr` and `Ni`): on a material of
+transparency g the surface is clear glass. The Fresnel equations split the
+light between the mirrored ray (about 4 % head-on for glass, all of it at
+grazing angles) and a ray bent by Snell's law, n1 sin i = n2 sin t; inside
+the object that ray also meets the back of the surface, and leaves the same
+way or reflects entirely past the critical angle. The colour is (1 - g) ×
+the surface's own shading + g × (F × reflected + (1 - F) × refracted). What
+lies behind shows through, shifted and bent; rims catch reflections. The
+glass is uncoloured and its shadow opaque (light focused through it is not
+traced). Each glass hit splits a ray in two, so bounces cost: the ram in
+glass at 384x256 takes 0.07 s at depth 4, 0.2 s at 8 (the default, which
+leaves few paths cut short) and 1 s at 16 on one thread. Whitted, CACM
+23(6), 1980; the Fresnel equations, Born & Wolf, *Principles of Optics*,
+section 1.5.
+
 **Mirror reflections** (`--reflectivity k` for the model,
 `--ground-reflectivity k` for the ground, `--max-depth n`; Ground mirror,
 Mirror and Bounces in the viewer): on a material of reflectivity k a second
 ray leaves the hit point mirrored about the normal, and the colour becomes
 (1 - k) × the surface's own shading + k × what that ray sees, shaded the
-same way up to n reflections (4 by default; at the limit a surface keeps its
+same way up to n reflections (8 by default; at the limit a surface keeps its
 own shading, so 0 turns reflections off). A mirror floor shows the model
 upside down; facing mirrors repeat each other, each copy fainter by k; where
 the ray escapes, the surface darkens toward the background. Mirrors are

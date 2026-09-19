@@ -79,6 +79,9 @@ public:
     /// (the ground plane): per-object overrides for the CLI and the viewer.
     void setModelReflectivity (float reflectivity);
     void setGroundReflectivity (float reflectivity);
+    /// Material::transparency and index of refraction of every model object:
+    /// turns the model into glass.
+    void setModelGlass (float transparency, float ior);
 
     void clear ();
 

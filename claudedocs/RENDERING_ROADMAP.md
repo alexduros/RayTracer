@@ -24,6 +24,7 @@ the implementation order with tests; this page is the map.
 | Soft shadows | Many shadow rays over each light's disk measure the fraction of it that is visible. |
 | Mirror reflections | A reflective surface blends in what a ray mirrored about its normal sees, recursively up to a depth. |
 | Ambient occlusion | Hemisphere rays measure how open each point's surroundings are; a mode of its own and a factor on the ambient and diffuse light. |
+| Refraction (glass) | A transparent surface splits the light between reflection and a ray bent by Snell's law, in the Fresnel proportions. |
 
 ## 1. Local shading
 
@@ -53,9 +54,9 @@ Needs: roughness and metalness on `Material`; supersedes Blinn-Phong. Test: ener
 **Principle:** Rays bounce off reflective surfaces recursively and add what they see, scaled by the material's reflectivity, up to a depth limit.
 Done: `Material::reflectivity`, `RayTracer::setMaxDepth` (CLI `--reflectivity`, `--ground-reflectivity`, `--max-depth`; GUI Ground mirror, Mirror, Bounces); colour = (1 - k) x own shading + k x the mirrored ray's colour. Tests: a perfect mirror shows the red panel its reflected ray meets, a quarter mirror blends exactly, depth 0 gives the plane's own colour bit for bit, two facing mirrors stay between their colours and converge by k^depth to the closed form, a mirror floor shows the red cube standing on it; golden `teapot_ground_mirror_lit`. Reference: Whitted 1980. (Experiment 7)
 
-### Refraction (glass)
+### Refraction (glass) (done)
 **Principle:** Rays bend through transparent surfaces following Snell's law and split between reflection and transmission by the Fresnel term.
-Needs: the mirror reflections (done), index of refraction (MTL `Ni`), transparency (MTL `d`). Test: a slab of index 1 is invisible, a slab of index 1.5 shifts a background edge by the predicted offset. Reference: Whitted 1980; Schlick, CGF 13(3), 1994. (Experiment 7)
+Done: `Material::transparency` and `ior` (MTL `d`, `Tr`, `Ni`), two-sided rays inside the object so they can leave it, the exact Fresnel equations (`src/core/Optics.h`) rather than Schlick's approximation, which is not 0 between equal indices. CLI `--transparency`, `--ior`; GUI Glass, Index. Tests: Snell and the critical angle, Fresnel at normal incidence, grazing, Brewster's angle and reciprocity; a slab of index 1 is invisible; a slab shifts the edge under it by thickness x (tan i - tan t) for water, glass and diamond; what comes through is (1 - F_in)(1 - F_out) of the floor; golden `teapot_ground_glass_lit`. Reference: Whitted 1980; Born & Wolf, *Principles of Optics*. (Experiment 7)
 
 ### Emissive materials and mesh lights
 **Principle:** Surfaces emit light themselves, so any mesh can be a lamp, and sampling them directly keeps soft lighting quiet.
@@ -138,6 +139,6 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
 2. BVH, then tile threads: the cat and the minion become interactive. **Done**: the minion renders in milliseconds, and threads keep the sampled effects fast.
 3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows and ambient occlusion done**, each with its own per-pixel `Sampler` stream; depth of field will add a third.
-4. Reflections and refraction, then textures from OBJ UVs. **Reflections done.**
+4. Reflections and refraction, then textures from OBJ UVs. **Reflections and refraction done.**
 5. Tone mapping, then environment lighting and path tracing.
 6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.
