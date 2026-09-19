@@ -33,6 +33,26 @@ with the raytracer split into a library that builds without any GL dependency.
 - Tests: unit tests on synthetic geometry and golden-image regression on the
   teapot and ram models. CI runs them on Ubuntu and macOS.
 
+## Step by step
+
+The ram as each experiment of `claudedocs/EXPERIMENTS.md` lands, rendered
+by today's raytracer with the matching flags (same camera, 384x256), so each
+picture adds one effect to the previous one. `scripts/render-evolution.sh`
+regenerates them and the timings.
+
+| | |
+|---|---|
+| ![Start](docs/evolution/00-start.png)<br>**Start**: Lambert + ambient, the modernized core (`--no-shadows --no-specular`). The cyan key light on the orange material gives the green tint. | ![Ground and hard shadows](docs/evolution/01-ground-shadows.png)<br>**1. Ground plane and hard shadows** (`--ground`): one shadow ray per light; the ram stands on a floor and casts its shadow. |
+| ![Blinn-Phong](docs/evolution/02-specular.png)<br>**2. Blinn-Phong specular**: the ram turns glossy, with highlights on the head, the horn and the back in the colour of the light that makes them. | ![Anti-aliasing](docs/evolution/05-antialiasing.png)<br>**5. Anti-aliasing** (`--aa 2`): 4 rays per pixel, the staircase edges smooth out. |
+| ![Soft shadows](docs/evolution/06-soft-shadows.png)<br>**6. Soft shadows** (`--shadow-samples 8`): each light a disk, 64 shadow rays; sharp at the feet, penumbra further out. | ![Mirror reflections](docs/evolution/07-reflections.png)<br>**7. Mirror reflections** (`--ground-reflectivity 0.4`): the ram shows upside down in the floor, which darkens where it mirrors the black sky. |
+
+Steps 3 and 4 change the time, not the picture (the script checks the
+pixels are identical). **3. BVH**: the picture of step 2 on one thread,
+2.9 s brute force -> 0.018 s. **4. Tile-parallel rendering**: the picture
+of step 6, 2.8 s on one thread -> 0.49 s on ten cores (4 performance + 6
+efficiency). Steps 1 and 2 shipped together, and anti-aliasing (5) came
+first; the gallery follows the experiment numbers.
+
 ## Build
 
 Requirements: CMake 3.16+, a C++17 compiler; for the viewer, GLFW 3 and GLM.
@@ -148,6 +168,8 @@ src/gui/Main.cpp        raymini (GLFW + Dear ImGui viewer)
 src/cli/Main.cpp        raymini-cli (headless renderer)
 tests/                  raymini_tests + tests/golden/*.png
 third_party/            imgui, glad, stb
+scripts/                render-evolution.sh, which renders docs/evolution/
+docs/evolution/         the README's pictures, one per experiment
 models/                 OFF models (teapot, ram, minion, dragon, ...), cube.obj/.mtl, orientation.txt
 claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
 .github/workflows/      CI: build + tests + sample renders on Ubuntu and macOS

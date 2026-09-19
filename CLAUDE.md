@@ -26,6 +26,9 @@ tests that prove each one.
   by `--help`). Keep the three in sync. `claudedocs/EXPERIMENTS.md` — the
   implementation order, each step with the test that proves it.
   `claudedocs/MODERNIZATION_ROADMAP.md` — the longer view.
+- `scripts/render-evolution.sh` renders `docs/evolution/*.png`, the README's
+  step-by-step gallery (the ram, one picture per experiment, same camera);
+  add a line per new visible effect and rerun it.
 - `Rendu.png` — reference render from the original project (ram on a ground
   plane with shadows). That look is the first target.
 
