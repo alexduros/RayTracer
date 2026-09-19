@@ -59,6 +59,9 @@ Options:
   --light-radius <f>     radius of every light as a fraction of the model size (default 0.1);
                          0 makes point lights, whose shadows stay hard
   --no-specular          lit mode without the Blinn-Phong highlight
+  --ao <n>               ambient occlusion: n x n rays per hit over the hemisphere, 0..16,
+                         in lit and ao modes (default 0 = off; 8 with --mode ao)
+  --ao-radius <f>        how far occlusion looks, as a fraction of the model size (default 0.2)
   --reflectivity <k>     mirror share of the model's materials, 0..1 (default 0 = matte)
   --ground-reflectivity <k>
                          mirror share of the ground plane, 0..1 (implies --ground)
@@ -125,6 +128,8 @@ struct Options {
     unsigned int shadowSamples = 1;
     float lightRadius = -1.f;  // < 0: the default rig's
     bool specular = true;
+    int aoSamples = -1;          // per axis, 0 = off; < 0: 8 in ao mode, else off
+    float aoRadius = 0.2f;       // fraction of the model size
     float reflectivity = 0.f;        // model objects
     float groundReflectivity = 0.f;  // the ground plane
     unsigned int maxDepth = 4;
@@ -192,6 +197,21 @@ bool parseArgs(int argc, char** argv, Options& o) {
             }
         } else if (a == "--no-specular") {
             o.specular = false;
+        } else if (a == "--ao") {
+            if (!(v = value(i, "--ao"))) return false;
+            const int n = std::atoi(v);
+            if (n < 0 || n > 16 || (n == 0 && std::string(v) != "0")) {
+                std::cerr << "--ao must be between 0 (off) and 16\n";
+                return false;
+            }
+            o.aoSamples = n;
+        } else if (a == "--ao-radius") {
+            if (!(v = value(i, "--ao-radius"))) return false;
+            o.aoRadius = static_cast<float>(std::atof(v));
+            if (o.aoRadius <= 0.f) {
+                std::cerr << "--ao-radius must be more than 0\n";
+                return false;
+            }
         } else if (a == "--reflectivity" || a == "--ground-reflectivity") {
             if (!(v = value(i, a.c_str()))) return false;
             const float k = static_cast<float>(std::atof(v));
@@ -345,6 +365,9 @@ int main(int argc, char** argv) {
     rt.setShadowSamples(o.shadowSamples);
     rt.setSpecularEnabled(o.specular);
     rt.setMaxDepth(o.maxDepth);
+    // The ao mode with no --ao would be all white: give it the occlusion it shows.
+    if (o.aoSamples < 0) o.aoSamples = o.mode == RayTracer::DebugMode::AMBIENT_OCCLUSION ? 8 : 0;
+    rt.setAmbientOcclusion(static_cast<unsigned int>(o.aoSamples), o.aoRadius * size);
     rt.setBvhEnabled(o.bvh);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
         rt.setDepthRange(std::max(0.f, camDistance - 0.5f * size), camDistance + 0.5f * size);
@@ -388,6 +411,8 @@ int main(int argc, char** argv) {
         std::string effects = o.shadowSamples > 1 ? ", " + std::to_string(o.shadowSamples * o.shadowSamples) +
                                                      " shadow rays/light"
                                                : "";
+        if (o.aoSamples > 0)
+            effects += ", " + std::to_string(o.aoSamples * o.aoSamples) + " occlusion rays/hit";
         if ((o.reflectivity > 0.f || o.groundReflectivity > 0.f) && o.maxDepth > 0)
             effects += ", reflections up to depth " + std::to_string(o.maxDepth);
         std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, %u thread%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",

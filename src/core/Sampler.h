@@ -1,5 +1,5 @@
 // Reproducible random numbers for the sampled effects: anti-aliasing jitter,
-// soft shadows, and later ambient occlusion and depth of field.
+// soft shadows, ambient occlusion, and later depth of field.
 //
 // A sampler is seeded from the pixel it serves, so a picture does not depend
 // on tile order or thread count, and each effect draws from its own stream,
@@ -11,7 +11,7 @@
 
 class Sampler {
 public:
-    enum class Stream : unsigned int { PIXEL_JITTER = 0, SHADOWS = 1 };
+    enum class Stream : unsigned int { PIXEL_JITTER = 0, SHADOWS = 1, AMBIENT_OCCLUSION = 2 };
 
     explicit Sampler (unsigned int seed = 1u) : rng (seed) {}
 
@@ -31,6 +31,24 @@ public:
 
 private:
     std::minstd_rand rng;
+};
+
+/// The samplers a ray's shading draws from, one per sampled effect, so that
+/// turning one effect on never shifts another's numbers. Reflected rays share
+/// their pixel's.
+struct PixelSamplers {
+    Sampler shadows;
+    Sampler occlusion;
+
+    /// Fixed seeds: what RayTracer::trace uses to probe a single ray.
+    PixelSamplers () : shadows (1u), occlusion (2u) {}
+    PixelSamplers (const Sampler & shadows, const Sampler & occlusion) : shadows (shadows), occlusion (occlusion) {}
+
+    /// Seeded from the pixel, each effect from its own stream.
+    static inline PixelSamplers forPixel (unsigned int x, unsigned int y) {
+        return PixelSamplers (Sampler::forPixel (x, y, Sampler::Stream::SHADOWS),
+                              Sampler::forPixel (x, y, Sampler::Stream::AMBIENT_OCCLUSION));
+    }
 };
 
 #endif // SAMPLER_H

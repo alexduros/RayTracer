@@ -69,7 +69,9 @@ const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
      "direction (Lambert); plus a white highlight where the half-vector between the light and view directions "
      "lines up with the normal, raised to the shininess (Blinn-Phong); both scaled by the fraction of the light "
      "that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid of rays over the light's "
-     "disk); plus a constant ambient term. On a reflective material, blended with what the mirrored ray sees.",
+     "disk); plus a constant ambient term. With ambient occlusion the ambient and diffuse terms are scaled by how "
+     "open the surroundings are (see the AO mode). On a reflective material, blended with what the mirrored ray "
+     "sees.",
      "Brighter where a surface faces a light; tight bright spots are highlights; where a light is blocked only "
      "the ambient term and the other lights remain, and with soft shadows the edge fades across a penumbra. "
      "Colour is material x light, so the cyan key light tints the orange default material green. Turn on the "
@@ -110,6 +112,19 @@ const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
      "Same colour = same object. A one-colour picture on an OFF model is expected, not a bug.",
      "The item buffer: H. Weghorst, G. Hooper & D. P. Greenberg, \"Improved Computational Methods for Ray "
      "Tracing\", ACM Transactions on Graphics 3(1), 1984."},
+    {"ao", "Ambient occlusion",
+     "n x n rays leave the hit point over the hemisphere around the normal, cosine-weighted (one jittered ray per "
+     "cell of a grid on the unit disk, lifted onto the hemisphere); the share that meets nothing within the radius "
+     "measures how open the surroundings are. This mode shows that share as grey; in Lit mode it scales the "
+     "ambient and diffuse terms (not the highlight).",
+     "White is open, darker is enclosed: creases, the inside of the horns, the floor around the feet and under "
+     "the belly. The radius sets the reach: small, only contact points darken; large, whole cavities. Few samples "
+     "leave grain. Needs occlusion on (--ao n; the CLI takes 8x8 when --mode ao comes alone), otherwise every hit "
+     "is white. Darkening the direct light too is an approximation that helps shapes read, as in the 2013 "
+     "version, which darkened the whole colour.",
+     "S. Zhukov, A. Iones & G. Kronin, \"An Ambient Light Illumination Model\", Eurographics Rendering Workshop "
+     "1998; cosine-weighted directions by Malley's method, on P. Shirley & K. Chiu's concentric map (JGT 2(3), "
+     "1997)."},
 };
 
 const RayTracer::ModeInfo kAntiAliasingInfo = {
@@ -170,12 +185,6 @@ namespace {
 // The roadmap, one sentence of principle each. Order = suggested order of
 // implementation within each family; the document groups them.
 const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
-    {"ao", "Ambient occlusion",
-     "Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases "
-     "and contact points.",
-     "Needs hemisphere sampling; the BVH keeps the extra rays affordable. Experiment 8.",
-     "S. Zhukov, A. Iones & G. Kronin, \"An Ambient Light Illumination Model\", Eurographics Rendering Workshop "
-     "1998."},
     {"refraction", "Refraction (glass)",
      "Rays bend through transparent surfaces following Snell's law and split between reflection and "
      "transmission by the Fresnel term.",
@@ -307,7 +316,37 @@ float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const V
     return static_cast<float> (unblocked) / static_cast<float> (count * count);
 }
 
-Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler,
+float RayTracer::ambientOcclusion (const Scene & scene, const Vec3Df & p, const Vec3Df & n, Sampler & sampler) const {
+    const unsigned int count = aoSamplesPerAxis;
+    if (count == 0 || aoRadius <= 0.f)
+        return 1.f;
+    // Cosine-weighted hemisphere (Malley): a jittered point per cell of a
+    // count x count grid mapped onto the unit disk, lifted straight up onto
+    // the hemisphere. Each ray then counts equally. Both numbers of a cell
+    // are drawn whatever happens to its ray.
+    Vec3Df u, w;
+    n.getTwoOrthogonals (u, w);
+    u.normalize ();
+    w.normalize ();
+    const Vec3Df origin = p + n * surfaceBias (scene);
+    unsigned int open = 0;
+    for (unsigned int j = 0; j < count; ++j) {
+        for (unsigned int i = 0; i < count; ++i) {
+            const float a = (static_cast<float> (i) + sampler.next ()) / static_cast<float> (count);
+            const float b = (static_cast<float> (j) + sampler.next ()) / static_cast<float> (count);
+            float dx = 0.f, dy = 0.f;
+            concentricDisk (a, b, dx, dy);
+            const float dz = std::sqrt (std::max (0.f, 1.f - dx * dx - dy * dy));
+            Vec3Df d = dx * u + dy * w + dz * n;
+            d.normalize ();
+            if (!occluded (scene, Ray (origin, d), aoRadius))
+                ++open;
+        }
+    }
+    return static_cast<float> (open) / static_cast<float> (count * count);
+}
+
+Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, PixelSamplers & samplers,
                          unsigned int depth) const {
     const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
     switch (debugMode) {
@@ -334,28 +373,37 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
         }
         case DebugMode::AMBIENT:
             return mat.getColor ();
+        case DebugMode::AMBIENT_OCCLUSION: {
+            Vec3Df n = hit.vertex.getNormal ();
+            n.normalize ();
+            const float open = ambientOcclusion (scene, hit.vertex.getPos (), n, samplers.occlusion);
+            return Vec3Df (open, open, open);
+        }
         case DebugMode::LIT:
         default: {
             // Lambert diffuse + Blinn-Phong highlight, each light scaled by
-            // how much of it the point sees (hard or soft shadows), then the
-            // mirror reflection on reflective materials. No attenuation.
+            // how much of it the point sees (hard or soft shadows), ambient
+            // and diffuse by how open its surroundings are (occlusion), then
+            // the mirror reflection on reflective materials. No attenuation.
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
             const Vec3Df & p = hit.vertex.getPos ();
             Vec3Df v = -ray.getDirection ();
             v.normalize ();
 
-            Vec3Df color = ambientIntensity * mat.getColor ();
+            // 1 when occlusion is off: every product below is then unchanged.
+            const float open = ambientOcclusion (scene, p, n, samplers.occlusion);
+            Vec3Df color = (open * ambientIntensity) * mat.getColor ();
             for (const Light & light : scene.getLights ()) {
                 Vec3Df l = light.getPos () - p;
                 l.normalize ();
                 const float nDotL = Vec3Df::dotProduct (n, l);
                 if (nDotL <= 0.f)
                     continue;  // light behind the surface
-                const float visibility = shadows ? lightVisibility (scene, p, n, light, sampler) : 1.f;
+                const float visibility = shadows ? lightVisibility (scene, p, n, light, samplers.shadows) : 1.f;
                 if (visibility <= 0.f)
                     continue;  // the whole light is blocked
-                color += (visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
+                color += (open * visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
                          (mat.getColor () * light.getColor ());
                 if (specularEnabled && mat.getSpecular () > 0.f) {
                     Vec3Df h = l + v;
@@ -382,7 +430,7 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
             const Ray reflected (p + n * surfaceBias (scene), r);
             Hit next;
             const Vec3Df seen = closestHit (scene, reflected, next)
-                                    ? shade (scene, reflected, next, sampler, depth + 1)
+                                    ? shade (scene, reflected, next, samplers, depth + 1)
                                     : backgroundColor;
             return (1.f - k) * color + k * seen;
         }
@@ -390,11 +438,11 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
 }
 
 Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats) const {
-    Sampler sampler;
-    return trace (scene, ray, stats, sampler);
+    PixelSamplers samplers;
+    return trace (scene, ray, stats, samplers);
 }
 
-Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats, Sampler & sampler) const {
+Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats, PixelSamplers & samplers) const {
     stats.rays++;
     Hit hit;
     if (!closestHit (scene, ray, hit))
@@ -404,7 +452,7 @@ Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats, Sa
         stats.minHitDist = hit.distance;
     if (hit.distance > stats.maxHitDist)
         stats.maxHitDist = hit.distance;
-    return shade (scene, ray, hit, sampler);
+    return shade (scene, ray, hit, samplers);
 }
 
 void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
@@ -415,11 +463,11 @@ void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
     for (unsigned int y = y0; y < y1; y++) {
         for (unsigned int x = x0; x < x1; x++) {
             // Seeded by the pixel: the same picture whatever the tile order.
-            Sampler shadowSampler = Sampler::forPixel (x, y, Sampler::Stream::SHADOWS);
+            PixelSamplers samplers = PixelSamplers::forPixel (x, y);
             Vec3Df color;
             if (n == 1) {
                 // One ray through the pixel centre.
-                color = trace (scene, camera.primaryRay (x, y, width, height), stats, shadowSampler);
+                color = trace (scene, camera.primaryRay (x, y, width, height), stats, samplers);
             } else {
                 // n x n sub-pixel grid, optionally jittered inside each cell.
                 Sampler jitter = Sampler::forPixel (x, y, Sampler::Stream::PIXEL_JITTER);
@@ -429,7 +477,7 @@ void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
                         const float v = aaJitter ? jitter.next () : 0.5f;
                         const float sx = (static_cast<float> (i) + u) / static_cast<float> (n);
                         const float sy = (static_cast<float> (j) + v) / static_cast<float> (n);
-                        color += trace (scene, camera.primaryRay (x, y, width, height, sx, sy), stats, shadowSampler);
+                        color += trace (scene, camera.primaryRay (x, y, width, height, sx, sy), stats, samplers);
                     }
                 }
                 color /= static_cast<float> (n * n);

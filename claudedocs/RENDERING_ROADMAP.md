@@ -23,6 +23,7 @@ the implementation order with tests; this page is the map.
 | Anti-aliasing | Several rays per pixel on a sub-pixel grid, optionally jittered, averaged in linear colour. |
 | Soft shadows | Many shadow rays over each light's disk measure the fraction of it that is visible. |
 | Mirror reflections | A reflective surface blends in what a ray mirrored about its normal sees, recursively up to a depth. |
+| Ambient occlusion | Hemisphere rays measure how open each point's surroundings are; a mode of its own and a factor on the ambient and diffuse light. |
 
 ## 1. Local shading
 
@@ -38,9 +39,9 @@ Done: `RayTracer::setShadows`, shadow origin offset along the normal by 1e-4 of 
 **Principle:** Many shadow rays toward points spread over the light's disk estimate the fraction of it that is visible, giving penumbrae instead of hard edges.
 Done as n x n jittered shadow rays over each light's disk (`--shadow-samples`, `--light-radius`): binary with one ray or radius 0, and across a test penumbra the visible share matches the uncovered area of the disk and never decreases. Reference: Cook, Porter & Carpenter, "Distributed Ray Tracing", SIGGRAPH 1984; Shirley & Chiu, "A Low Distortion Map Between Disk and Square", JGT 1997. (Experiment 6)
 
-### Ambient occlusion
+### Ambient occlusion (done)
 **Principle:** Rays cast over the hemisphere around the normal measure how open the surroundings are, darkening creases and contact points.
-Needs: cosine-weighted hemisphere sampling, a maximum ray length; the BVH (done) keeps the extra rays affordable. Test: the inner corner of two quads is darker than open plane, a lone plane is 1 everywhere, variance drops with samples. Reference: Zhukov, Iones & Kronin, "An Ambient Light Illumination Model", EGWR 1998. (Experiment 8)
+Done: `RayTracer::setAmbientOcclusion(n, radius)`, n x n cosine-weighted rays (a jittered grid on the unit disk lifted onto the hemisphere) with a maximum length; the open share scales the ambient and diffuse terms in Lit and is shown as grey by the new `ao` mode (CLI `--ao`, `--ao-radius`, `--mode ao`; GUI Occlusion, AO radius). Tests: a lone plane is open everywhere, next to a wall the open share is the uncovered part of the unit disk (1/2 in the corner, 1 from one radius away), the spread over seeds shrinks with the samples, the highlight is untouched; goldens `teapot_ground_ao4_lit` and `_ao`. Reference: Zhukov, Iones & Kronin, "An Ambient Light Illumination Model", EGWR 1998. (Experiment 8)
 
 ### Physically based materials (GGX)
 **Principle:** A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and masking terms, driven by roughness and metalness.
@@ -136,7 +137,7 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
 2. BVH, then tile threads: the cat and the minion become interactive. **Done**: the minion renders in milliseconds, and threads keep the sampled effects fast.
-3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows done**, with a per-pixel `Sampler` the next two can draw from.
+3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows and ambient occlusion done**, each with its own per-pixel `Sampler` stream; depth of field will add a third.
 4. Reflections and refraction, then textures from OBJ UVs. **Reflections done.**
 5. Tone mapping, then environment lighting and path tracing.
 6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.

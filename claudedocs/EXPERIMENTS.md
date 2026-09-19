@@ -223,6 +223,46 @@ sampled one octant only.
   than a point in the open; a flat plane alone has an occlusion factor of 1
   everywhere; the result converges as samples increase (variance drops).
 - CLI: `--ao <samples> --ao-radius <r>`.
+- Done: `RayTracer::setAmbientOcclusion(n, radius)` (0 = off, the default)
+  and `RayTracer::ambientOcclusion(scene, p, n, sampler)`: n x n rays, one
+  jittered point per cell of a grid mapped onto the unit disk (concentric
+  map) and lifted onto the hemisphere (Malley's method, so directions follow
+  the cosine and every ray counts the same), from 1e-4 x the scene size off
+  the surface; the open share is the fraction that meets nothing within the
+  radius (`occluded`, which stops at the first blocker). It scales the
+  ambient and each light's diffuse term, not the highlight, as planned (the
+  2013 version darkened the whole colour). A new mode, `ao`, shows the share
+  as grey: the effect reads far better there than in Lit, where the direct
+  light dominates. Occlusion draws from its own per-pixel stream: the
+  samplers of a pixel travel together as `PixelSamplers` (shadows,
+  occlusion) through `trace` and `shade`, so turning occlusion on leaves the
+  soft-shadow samples untouched and every existing golden and gallery
+  picture regenerates byte-identical. CLI `--ao <n>` (0..16; `--mode ao`
+  alone takes 8) and `--ao-radius <f>` (a fraction of the model size, 0.2 by
+  default); GUI Occlusion (Off, 2x2, 4x4, 8x8; off by default, 4x4 when the
+  AO mode is chosen with it off) and AO radius, the Controls strip two rows
+  taller. Tests in `tests/TestOcclusion.cpp`: a lone plane is open at every
+  point and renders byte-identical with occlusion on; next to a wall the open
+  share matches 1 - segment(d / R) of the unit disk within 0.03 for two radii
+  (1/2 in the corner, exactly 1 from d = R on) and never decreases away from
+  it, and a wider radius darkens the same point; over 64 seeds the spread at
+  8x8 is under a quarter of the spread at 2x2; with occlusion the colour is
+  exactly the open share times the colour without it, and a purely specular
+  floor keeps its highlight. `tests/TestRenderJob.cpp`: Lit and AO renders
+  are tile- and thread-independent, and occlusion that meets nothing leaves
+  the soft-shadow picture byte-identical. Goldens `teapot_ground_ao4_lit`,
+  `teapot_ground_ao4_ao`; ctest `cli_ao`, `cli_ao_mode`. Breaking it on
+  purpose: lifting the disk without the square root (not cosine-weighted),
+  ignoring the radius, or scaling the highlight too each fails a test;
+  dropping the jitter on one axis passes, the estimate staying stratified.
+- Measured, one thread: ram on its ground at 384x256, 0.020 s without, 4x4
+  0.081 s, 8x8 0.243 s (radius 0.4: 0.267 s); with 2x2 AA and 8x8 soft
+  shadows 2.76 s -> 3.72 s; minion on its ground at 256x256 0.016 s ->
+  0.177 s with 8x8.
+- Left: coarse meshes with smooth normals show a few grey specks where
+  hemisphere rays leave below the true face (an offset along the geometric
+  normal would need the triangle's normal in `Hit`); a distance falloff
+  (obscurance, as in Zhukov et al.) instead of the binary hit.
 
 ## 9. Linear pipeline, exposure and tone mapping
 

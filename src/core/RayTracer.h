@@ -22,12 +22,13 @@ public:
     // LIT is the shading path; the others colorize the hit information
     // directly so rays, intersections and normals can be checked one at a time.
     enum class DebugMode {
-        LIT,          // ambient + per light Lambert + Blinn-Phong (shadowed), mirror rays on reflective materials
+        LIT,          // ambient + per light Lambert + Blinn-Phong (shadowed, occluded), mirror rays on reflective materials
         AMBIENT,      // flat material color
         HIT_MASK,     // white = hit, black = miss
         NORMALS,      // (n + 1) / 2 as RGB
         DEPTH,        // (distance - depthNear) / (depthFar - depthNear): blue (near) -> red (far)
-        OBJECT_ID     // distinct color per object index
+        OBJECT_ID,    // distinct color per object index
+        AMBIENT_OCCLUSION  // open share of the hemisphere as grey (white = open)
     };
 
     /// Per-render counters, refreshed by every render() call.
@@ -69,7 +70,7 @@ public:
         const char * reading;    // how to interpret the colours
         const char * reference;  // the paper, thesis or book chapter
     };
-    static constexpr int kModeCount = 6;
+    static constexpr int kModeCount = 7;
     static const ModeInfo & info (DebugMode mode);
     /// Same account for anti-aliasing, which is a setting rather than a mode.
     static const ModeInfo & antiAliasingInfo ();
@@ -82,7 +83,7 @@ public:
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 10;
+    static constexpr int kPlannedModeCount = 9;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -111,6 +112,19 @@ public:
     /// reproducible and independent of tile order.
     inline void setShadowSamples (unsigned int samplesPerAxis) { shadowSamplesPerAxis = std::max (1u, samplesPerAxis); }
     inline unsigned int getShadowSamplesPerAxis () const { return shadowSamplesPerAxis; }
+    /// Ambient occlusion (Lit and AO modes): samplesPerAxis x samplesPerAxis
+    /// rays over the hemisphere around the normal, cosine-weighted (one
+    /// jittered ray per cell of a grid on the disk, lifted onto the
+    /// hemisphere), each blocked if it meets a surface within `radius` (world
+    /// units). The open share scales the ambient and diffuse terms, not the
+    /// highlight; the AO mode shows it as grey. 0 samples = off (the default),
+    /// bit for bit the picture without it (and a white AO mode).
+    inline void setAmbientOcclusion (unsigned int samplesPerAxis, float radius) {
+        aoSamplesPerAxis = samplesPerAxis;
+        aoRadius = std::max (0.f, radius);
+    }
+    inline unsigned int getAmbientOcclusionSamplesPerAxis () const { return aoSamplesPerAxis; }
+    inline float getAmbientOcclusionRadius () const { return aoRadius; }
     /// Mirror reflections (Lit mode only): on a material with a reflectivity
     /// k > 0 the colour becomes (1 - k) x its own shading + k x what the
     /// mirrored ray sees, followed through at most maxDepth reflections. At
@@ -151,16 +165,17 @@ public:
     bool occluded (const Scene & scene, const Ray & ray, float maxDistance) const;
 
     /// Color of one ray in linear [0,1] RGB (background if nothing is hit),
-    /// counting it in `stats`; `sampler` feeds the soft shadows. Const and
-    /// reentrant: safe from several threads, each with its own sampler.
-    Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats, Sampler & sampler) const;
-    /// Same with a fixed-seed sampler: reproducible, for probing single rays.
+    /// counting it in `stats`; `samplers` feed the soft shadows and the
+    /// occlusion. Const and reentrant: safe from several threads, each with
+    /// its own samplers.
+    Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats, PixelSamplers & samplers) const;
+    /// Same with fixed-seed samplers: reproducible, for probing single rays.
     Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats) const;
 
     /// Color for a known hit, in linear [0,1] RGB, according to the mode.
     /// `depth` counts the reflections that led to this hit (0 for a primary
     /// ray); a reflective surface follows its mirror ray while depth < maxDepth.
-    Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit, Sampler & sampler,
+    Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit, PixelSamplers & samplers,
                   unsigned int depth = 0) const;
 
     /// Fraction of `light` seen from the surface point `p` with unit normal
@@ -169,6 +184,12 @@ public:
     /// below the surface's horizon counts as hidden.
     float lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
                            Sampler & sampler) const;
+
+    /// Open share of the hemisphere above the surface point `p` with unit
+    /// normal `n`, in [0, 1], cosine-weighted: the fraction of
+    /// getAmbientOcclusionSamplesPerAxis ()^2 rays that meet nothing within
+    /// the radius. 1 when occlusion is off.
+    float ambientOcclusion (const Scene & scene, const Vec3Df & p, const Vec3Df & n, Sampler & sampler) const;
 
     /// Trace pixels [x0, x1) x [y0, y1) of a width x height frame into `image`
     /// (which must already have that size), accumulating `stats`. Pixels are
@@ -195,6 +216,8 @@ private:
     bool shadows = true;
     unsigned int shadowSamplesPerAxis = 1;
     unsigned int maxDepth = 4;
+    unsigned int aoSamplesPerAxis = 0;
+    float aoRadius = 1.f;
     bool specularEnabled = true;
     bool bvhEnabled = true;
     Stats lastStats;

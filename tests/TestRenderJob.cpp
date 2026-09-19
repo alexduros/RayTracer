@@ -167,6 +167,32 @@ TEST_CASE("renderjob: reflections do not depend on tile order or threads") {
     CHECK_EQ(job.stats().hits, rt.getLastStats().hits);
 }
 
+TEST_CASE("renderjob: ambient occlusion does not depend on tile order or threads") {
+    // Occlusion rays draw from their own per-pixel stream.
+    Scene scene = teapotScene();
+    scene.addGroundPlane();
+    const Camera camera = frameOf(scene);
+    RayTracer rt;
+    rt.setAmbientOcclusion(3, 0.2f * scene.getBoundingBox().getSize());
+    rt.setShadowSamples(2);
+    rt.setAntiAliasing(2, true);
+    for (RayTracer::DebugMode mode : {RayTracer::DebugMode::LIT, RayTracer::DebugMode::AMBIENT_OCCLUSION}) {
+        rt.setDebugMode(mode);
+        const Image reference = rt.render(scene, camera, 64, 48);
+        RenderJob job(rt, scene, camera, 64, 48, 24, Vec3Df(0.f, 0.f, 0.f), 4);
+        job.start();
+        job.wait();
+        CHECK(samePixels(job.snapshot(), reference));
+    }
+    // Soft shadows keep their samples whether occlusion is on or off: with a
+    // radius too small to meet anything, the picture is the one without it.
+    rt.setDebugMode(RayTracer::DebugMode::LIT);
+    rt.setAmbientOcclusion(3, 1e-6f);
+    const Image tiny = rt.render(scene, camera, 64, 48);
+    rt.setAmbientOcclusion(0, 1.f);
+    CHECK(samePixels(tiny, rt.render(scene, camera, 64, 48)));
+}
+
 TEST_CASE("renderjob: pending colour fills the image until tiles land") {
     const Scene scene = teapotScene();
     RayTracer rt;

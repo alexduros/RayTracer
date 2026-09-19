@@ -54,7 +54,7 @@ constexpr int kMinWindowHeight = 600;
 constexpr float kViewportAspect = 3.f / 2.f;
 // Layout: two panels on top (preview | render), the Controls strip below.
 constexpr float kMargin = 10.f;
-constexpr float kControlsHeight = 304.f;
+constexpr float kControlsHeight = 352.f;
 constexpr float kMinTopHeight = 200.f;
 constexpr float kPreviewShare = 0.46f;  // share of the top row's width given to the preview
 
@@ -499,6 +499,8 @@ int main(int argc, char** argv) {
     bool rtShadows = true;
     int rtShadowSamples = 4;  // shadow rays per light axis: 1 = hard shadows
     float rtLightRadius = Scene::kDefaultLightRadius;  // fraction of the model's size
+    int rtAoSamples = 0;        // occlusion rays per hit axis: 0 = off
+    float rtAoRadius = 0.2f;    // fraction of the model's size
     bool rtSpecular = true;
     float rtModelReflectivity = 0.f;   // Material::reflectivity of the model, 0 = matte
     float rtGroundReflectivity = 0.f;  // ... and of the ground plane
@@ -706,6 +708,11 @@ int main(int argc, char** argv) {
             rt.setShadowSamples(static_cast<unsigned int>(rtShadowSamples));
             rt.setSpecularEnabled(rtSpecular);
             rt.setMaxDepth(static_cast<unsigned int>(rtMaxDepth));
+            // The AO mode with occlusion off would be all white: show it at 4x4.
+            const bool aoMode = static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::AMBIENT_OCCLUSION;
+            const int aoSamples = aoMode && rtAoSamples == 0 ? 4 : rtAoSamples;
+            rt.setAmbientOcclusion(static_cast<unsigned int>(aoSamples),
+                                   rtAoRadius * scene.getBoundingBox().getSize());
             scene.setLightRadius(rtLightRadius);
             scene.setModelReflectivity(rtModelReflectivity);
             scene.setGroundReflectivity(rtGroundReflectivity);
@@ -960,6 +967,22 @@ int main(int argc, char** argv) {
             if (rtShadowSamples > 1) {
                 rowWidget("Light size");
                 ImGui::SliderFloat("##lightsize", &rtLightRadius, 0.f, 0.5f, "%.2f x model");
+            }
+            rowLabel("Occlusion");
+            {
+                const char* aoLabels[] = {"Off", "2x2 rays/hit", "4x4 rays/hit", "8x8 rays/hit"};
+                const int aoChoices[] = {0, 2, 4, 8};
+                int aoIndex = 0;
+                for (int i = 0; i < IM_ARRAYSIZE(aoChoices); ++i)
+                    if (aoChoices[i] == rtAoSamples) aoIndex = i;
+                ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+                if (ImGui::Combo("##ao", &aoIndex, aoLabels, IM_ARRAYSIZE(aoLabels))) rtAoSamples = aoChoices[aoIndex];
+                ImGui::SameLine();
+                helpMarker(RayTracer::info(RayTracer::DebugMode::AMBIENT_OCCLUSION));
+            }
+            if (rtAoSamples > 0 || static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::AMBIENT_OCCLUSION) {
+                rowWidget("AO radius");
+                ImGui::SliderFloat("##aoradius", &rtAoRadius, 0.02f, 1.f, "%.2f x model");
             }
             rowWidget("Threads");
             ImGui::SliderInt("##threads", &rtThreads, 1, maxThreads, "%d");

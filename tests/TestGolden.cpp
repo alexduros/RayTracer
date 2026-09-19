@@ -32,6 +32,7 @@ const ModeSpec kModes[] = {
     {"lit", RayTracer::DebugMode::LIT},         {"ambient", RayTracer::DebugMode::AMBIENT},
     {"hitmask", RayTracer::DebugMode::HIT_MASK}, {"normals", RayTracer::DebugMode::NORMALS},
     {"depth", RayTracer::DebugMode::DEPTH},     {"objectid", RayTracer::DebugMode::OBJECT_ID},
+    {"ao", RayTracer::DebugMode::AMBIENT_OCCLUSION},
 };
 
 bool matches(const Image& actual, const Image& expected, std::string& report) {
@@ -55,10 +56,29 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
     return double(different) / double(pixels) <= kMaxDifferentFraction;
 }
 
+// What a golden turns on besides the defaults, encoded in its name: "_aa2" /
+// "_aa2j", "_ground", "_soft4", "_mirror", "_ao4".
+struct Settings {
+    unsigned int aaSamples = 1;
+    bool jitter = false;
+    bool ground = false;
+    unsigned int shadowSamples = 1;
+    float groundReflectivity = 0.f;
+    unsigned int aoSamples = 0;  // radius 0.2 x the model size
+};
+
+Settings withGround() {
+    Settings s;
+    s.ground = true;
+    return s;
+}
+
 // `model` is a bare name (".off" assumed) or a file name with its extension.
-// Settings are encoded in the golden's name: "_aa2" / "_aa2j", "_ground", "_soft4", "_mirror".
-void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int aaSamples = 1, bool jitter = false,
-                 bool ground = false, unsigned int shadowSamples = 1, float groundReflectivity = 0.f) {
+void goldenModel(const char* model, float yawDeg, float pitchDeg, const Settings& settings = Settings()) {
+    const unsigned int aaSamples = settings.aaSamples, shadowSamples = settings.shadowSamples;
+    const unsigned int aoSamples = settings.aoSamples;
+    const bool jitter = settings.jitter, ground = settings.ground;
+    const float groundReflectivity = settings.groundReflectivity;
     Scene scene;
     scene.addObjectsFromFile(test::modelPath(model));
     scene.setUpAxis(resolveUpAxis(test::modelPath(model), scene));  // as the CLI and the viewer do
@@ -74,15 +94,24 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int a
     rt.setDepthRange(distance - size / 2.f, distance + size / 2.f);
     rt.setAntiAliasing(aaSamples, jitter);
     rt.setShadowSamples(shadowSamples);
+    rt.setAmbientOcclusion(aoSamples, 0.2f * size);
     std::string stem = std::filesystem::path(model).stem().string();
     if (aaSamples > 1) stem += "_aa" + std::to_string(aaSamples) + (jitter ? "j" : "");
     if (ground) stem += "_ground";
     if (shadowSamples > 1) stem += "_soft" + std::to_string(shadowSamples);
-    const bool litOnly = shadowSamples > 1 || groundReflectivity > 0.f;
+    const bool litOnly = shadowSamples > 1 || groundReflectivity > 0.f || aoSamples > 0;
     if (groundReflectivity > 0.f) stem += "_mirror";
+    if (aoSamples > 0) stem += "_ao" + std::to_string(aoSamples);
     for (const ModeSpec& m : kModes) {
-        // Only Lit casts shadow and reflected rays; other modes would repeat the goldens above.
-        if (litOnly && m.mode != RayTracer::DebugMode::LIT) continue;
+        // The AO mode only when occlusion is on (it is all white otherwise).
+        // With sampled or bouncing effects on, only the modes they change:
+        // the others would repeat the goldens above.
+        bool wanted = true;
+        if (m.mode == RayTracer::DebugMode::AMBIENT_OCCLUSION)
+            wanted = aoSamples > 0;
+        else if (litOnly)
+            wanted = m.mode == RayTracer::DebugMode::LIT;
+        if (!wanted) continue;
         rt.setDebugMode(m.mode);
         const Image img = rt.render(scene, camera, kSize, kSize);
         const std::string name = stem + "_" + m.slug + ".png";
@@ -106,10 +135,30 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, unsigned int a
 TEST_CASE("golden: teapot in every mode") { goldenModel("teapot", 25.f, 20.f); }
 TEST_CASE("golden: ram in every mode") { goldenModel("ram", -35.f, 15.f); }
 TEST_CASE("golden: cube.obj (six materials) in every mode") { goldenModel("cube.obj", 25.f, 20.f); }
-TEST_CASE("golden: teapot with 2x2 supersampling") { goldenModel("teapot", 25.f, 20.f, 2, false); }
-TEST_CASE("golden: teapot with 2x2 jittered supersampling") { goldenModel("teapot", 25.f, 20.f, 2, true); }
-TEST_CASE("golden: teapot on its ground plane (shadows)") { goldenModel("teapot", 25.f, 20.f, 1, false, true); }
-TEST_CASE("golden: teapot on its ground plane with 4x4 soft shadows") {
-    goldenModel("teapot", 25.f, 20.f, 1, false, true, 4);
+TEST_CASE("golden: teapot with 2x2 supersampling") {
+    Settings s;
+    s.aaSamples = 2;
+    goldenModel("teapot", 25.f, 20.f, s);
 }
-TEST_CASE("golden: teapot on a mirror ground plane") { goldenModel("teapot", 25.f, 20.f, 1, false, true, 1, 0.5f); }
+TEST_CASE("golden: teapot with 2x2 jittered supersampling") {
+    Settings s;
+    s.aaSamples = 2;
+    s.jitter = true;
+    goldenModel("teapot", 25.f, 20.f, s);
+}
+TEST_CASE("golden: teapot on its ground plane (shadows)") { goldenModel("teapot", 25.f, 20.f, withGround()); }
+TEST_CASE("golden: teapot on its ground plane with 4x4 soft shadows") {
+    Settings s = withGround();
+    s.shadowSamples = 4;
+    goldenModel("teapot", 25.f, 20.f, s);
+}
+TEST_CASE("golden: teapot on a mirror ground plane") {
+    Settings s = withGround();
+    s.groundReflectivity = 0.5f;
+    goldenModel("teapot", 25.f, 20.f, s);
+}
+TEST_CASE("golden: teapot on its ground plane with 4x4 ambient occlusion") {
+    Settings s = withGround();
+    s.aoSamples = 4;
+    goldenModel("teapot", 25.f, 20.f, s);
+}

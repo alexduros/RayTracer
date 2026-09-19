@@ -70,12 +70,14 @@ build/raymini-cli --help
 - Modes: `lit` (ambient + per light: Lambert diffuse, Blinn-Phong highlight
   from Material::shininess, both scaled by the fraction of the light shadow
   rays find unblocked; `setShadows` / `setSpecularEnabled` switch the last two;
+  ambient and diffuse scaled by the ambient occlusion when it is on;
   then on a material of reflectivity k, (1 - k) x that + k x what the ray
   mirrored about the normal sees, recursively while depth < `setMaxDepth`
   (default 4, 0 = off bit for bit)),
   `ambient`, `hitmask`, `normals`, `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
-  (golden-ratio hue palette by object index). `RayTracer::info(mode)` holds
+  (golden-ratio hue palette by object index), `ao` (the open share of the
+  hemisphere as grey; all white when occlusion is off). `RayTracer::info(mode)` holds
   each mode's name, principle, how to read it and its reference; the GUI
   shows it under the render, the CLI in `--help`, the README in a table.
   Keep the three in sync when adding a mode.
@@ -94,9 +96,16 @@ build/raymini-cli --help
   4x4 in the GUI (Soft shadows / Light size). Shadow rays ask
   `RayTracer::occluded` (stops at the first blocker).
 - Randomness comes from `Sampler` (`src/core/Sampler.h`): seeded per pixel
-  and per stream (AA jitter, shadows), so pictures do not depend on tile
-  order and one effect never reshuffles another's samples. Add a stream for
-  each new sampled effect.
+  and per stream (AA jitter, shadows, occlusion), so pictures do not depend
+  on tile order and one effect never reshuffles another's samples. The
+  samplers `shade` needs travel together as `PixelSamplers`; add a stream
+  and a member there for each new sampled effect.
+- Ambient occlusion: `RayTracer::setAmbientOcclusion(n, radius)` casts n x n
+  cosine-weighted hemisphere rays (jittered grid on the concentric disk,
+  lifted), open if they meet nothing within the radius; 0 = off (default).
+  CLI `--ao n --ao-radius f` (fraction of the model size, 0.2), GUI
+  Occlusion / AO radius. Costs n x n rays per hit: ram at 384x256 0.02 s ->
+  0.24 s with 8x8 on one thread.
 - `RenderJob` traces tile by tile (32 px) on N worker threads (default one
   per core, `RenderJob::defaultThreadCount`, never more than the tiles) that
   pull tile indices from an atomic counter, top row first; each worker keeps
@@ -146,7 +155,7 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- No refraction, ambient occlusion or textures yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
+- No refraction or textures yet. See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
   OBJ texture coordinates are parsed but not stored.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it
