@@ -43,15 +43,21 @@ public:
     /// test accepts always enters every box on the way to that triangle.
     void build (const Mesh & mesh, unsigned int maxLeafSize = kDefaultLeafSize);
 
-    /// Closest front-facing triangle of `mesh`, which must be the mesh the
-    /// tree was built from. `t` is read as the farthest distance worth
-    /// reporting: only hits strictly closer are returned (a closer object
-    /// already won the rest), and on success `t` and `hit` are updated. At
-    /// equal distance the lowest triangle index wins, which is what the scan
-    /// in Ray::nearestHit gives, so both return the same triangle.
-    bool nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & t) const;
+    /// Closest front-facing triangle of `mesh` (either side for a two-sided
+    /// ray), which must be the mesh the tree was built from. `t` is read as
+    /// the farthest distance worth reporting: only hits strictly closer are
+    /// returned (a closer object already won the rest), and on success `t`,
+    /// `hit` and `triangle` (its index) are updated. At equal distance the
+    /// lowest triangle index wins, which is what the scan in Ray::nearestHit
+    /// gives, so both return the same triangle.
+    bool nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & t, unsigned int & triangle) const;
+    inline bool nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & t) const {
+        unsigned int triangle = 0;
+        return nearestHit (ray, mesh, hit, t, triangle);
+    }
 
-    /// True when some front-facing triangle of `mesh` is hit strictly closer
+    /// True when some front-facing triangle of `mesh` (either side for a
+    /// two-sided ray) is hit strictly closer
     /// than `tMax`. Stops at the first one found: the question a shadow ray
     /// asks, cheaper than looking for the closest.
     bool anyHit (const Ray & ray, const Mesh & mesh, float tMax) const;

@@ -16,14 +16,18 @@
 class Ray {
 public:
     inline Ray () {}
-    inline Ray (const Vec3Df & origin, const Vec3Df & direction)
-        : origin (origin), direction (direction) {}
+    /// A two-sided ray also meets triangles from behind: rays travelling
+    /// inside a transparent object leave it through the back of its surface.
+    /// Every other ray culls back faces.
+    inline Ray (const Vec3Df & origin, const Vec3Df & direction, bool twoSided = false)
+        : origin (origin), direction (direction), twoSided (twoSided) {}
     virtual ~Ray () {}
 
     inline const Vec3Df & getOrigin () const { return origin; }
     inline Vec3Df & getOrigin () { return origin; }
     inline const Vec3Df & getDirection () const { return direction; }
     inline Vec3Df & getDirection () { return direction; }
+    inline bool isTwoSided () const { return twoSided; }
 
     /// Slab test against an axis-aligned box; `intersect` receives the entry point.
     bool intersect (const BoundingBox & bbox, Vec3Df & intersect) const;
@@ -59,18 +63,24 @@ public:
         return true;
     }
 
-    /// Ray / triangle test with back-face culling. On success `hit` holds the
+    /// Ray / triangle test, culling back faces unless the ray is two-sided. On success `hit` holds the
     /// interpolated position, normal and AO coefficient, and `t` the distance
     /// along the ray (Euclidean when `direction` is normalized).
     bool hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float & t) const;
 
-    /// Closest front-facing triangle of `mesh`. `hit` and `t` are left
-    /// untouched when nothing is hit.
-    bool nearestHit (const Mesh & mesh, Vertex & hit, float & t) const;
+    /// Closest front-facing triangle of `mesh` (either side for a two-sided
+    /// ray), and its index. `hit`, `t` and `triangle` are left untouched when
+    /// nothing is hit.
+    bool nearestHit (const Mesh & mesh, Vertex & hit, float & t, unsigned int & triangle) const;
+    inline bool nearestHit (const Mesh & mesh, Vertex & hit, float & t) const {
+        unsigned int triangle = 0;
+        return nearestHit (mesh, hit, t, triangle);
+    }
 
 private:
     Vec3Df origin;
     Vec3Df direction;
+    bool twoSided = false;
 };
 
 #endif // RAY_H

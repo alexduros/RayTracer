@@ -100,7 +100,8 @@ void compareRays(const std::string& name, const Scene& scene, const std::vector<
         const bool foundB = bruteForce.closestHit(scene, rays[k], b);
         if (foundB) ++hits;
         const bool same = foundA == foundB &&
-                          (!foundA || (a.objectIndex == b.objectIndex && a.distance == b.distance &&
+                          (!foundA || (a.objectIndex == b.objectIndex && a.triangleIndex == b.triangleIndex &&
+                                       a.backFace == b.backFace && a.distance == b.distance &&
                                        a.vertex.getPos() == b.vertex.getPos() &&
                                        a.vertex.getNormal() == b.vertex.getNormal()));
         if (!same && ++mismatches <= 3)
@@ -126,8 +127,9 @@ void compareRays(const std::string& name, const Scene& scene, const std::vector<
 /// `count` random rays around `box`, cycling through four kinds: from outside
 /// toward the model (like a primary ray), from inside the box in any direction
 /// (like a shadow ray), and both again along an exact axis with +0 or -0 on
-/// the other two components (1 / 0 = +-inf in the slab test).
-std::vector<Ray> randomRays(const BoundingBox& box, unsigned int count) {
+/// the other two components (1 / 0 = +-inf in the slab test). Two-sided rays
+/// also meet back faces, as rays inside glass do.
+std::vector<Ray> randomRays(const BoundingBox& box, unsigned int count, bool twoSided = false) {
     const float size = box.getSize();
     std::minstd_rand rng(20260914u);
     std::vector<Ray> rays;
@@ -151,7 +153,7 @@ std::vector<Ray> randomRays(const BoundingBox& box, unsigned int count) {
             origin = randomPointIn(box, 0.1f, rng);
             if (fromOutside) origin[axis] -= sign * 2.f * size;
         }
-        rays.push_back(Ray(origin, direction));
+        rays.push_back(Ray(origin, direction, twoSided));
     }
     return rays;
 }
@@ -318,6 +320,31 @@ TEST_CASE("bvh: 10 000 random rays hit exactly what brute force hits (teapot on 
 TEST_CASE("bvh: 1 000 random rays hit exactly what brute force hits (minion, 84k triangles)") {
     const Scene s = loadModel("minion", false);
     compareRays("minion", s, randomRays(s.getBoundingBox(), 1000));
+}
+
+TEST_CASE("bvh: two-sided rays hit exactly what brute force hits, on the same side (teapot, ram, cube.obj)") {
+    for (const char* model : {"teapot", "ram", "cube.obj"}) {
+        const Scene s = loadModel(model, true);
+        compareRays(std::string(model) + " two-sided", s, randomRays(s.getBoundingBox(), 4000, true));
+    }
+}
+
+TEST_CASE("bvh: a two-sided ray meets a triangle from behind and says so") {
+    const Scene s = fixtures::sceneOf(fixtures::quad(0.f, 1.f));
+    RayTracer rt;
+    RayTracer::Hit hit;
+    const Vec3Df up(0.f, 0.f, 1.f), down(0.f, 0.f, -1.f);
+    CHECK(!rt.closestHit(s, Ray(Vec3Df(0.2f, 0.1f, -2.f), up), hit));  // culled from behind
+    REQUIRE(rt.closestHit(s, Ray(Vec3Df(0.2f, 0.1f, -2.f), up, true), hit));
+    CHECK(hit.backFace);
+    CHECK_CLOSE(hit.distance, 2.f, 1e-6);
+    REQUIRE(rt.closestHit(s, Ray(Vec3Df(0.2f, 0.1f, 2.f), down, true), hit));
+    CHECK(!hit.backFace);
+    REQUIRE(rt.closestHit(s, Ray(Vec3Df(0.2f, 0.1f, 2.f), down), hit));
+    CHECK(!hit.backFace);
+    CHECK_EQ(hit.triangleIndex, 0u);  // (0.2, 0.1) lies in the first triangle of the quad
+    REQUIRE(rt.closestHit(s, Ray(Vec3Df(-0.5f, 0.5f, 2.f), down), hit));
+    CHECK_EQ(hit.triangleIndex, 1u);
 }
 
 TEST_CASE("bvh: rays aimed exactly at triangle edges and corners hit what brute force hits") {

@@ -98,7 +98,7 @@ void Bvh::build (const Mesh & mesh, unsigned int maxLeafSize) {
     builder.build (0, static_cast<unsigned int> (triangles.size ()));
 }
 
-bool Bvh::nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & t) const {
+bool Bvh::nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & t, unsigned int & triangle) const {
     if (nodes.empty ())
         return false;
     const Vec3Df & d = ray.getDirection ();
@@ -161,8 +161,10 @@ bool Bvh::nearestHit (const Ray & ray, const Mesh & mesh, Vertex & hit, float & 
             stack[size++] = {farChild, tFar};
         }
     }
-    if (found)
+    if (found) {
         t = best;
+        triangle = bestTriangle;
+    }
     return found;
 }
 

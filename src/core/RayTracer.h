@@ -56,8 +56,10 @@ public:
     /// Closest intersection of a ray with the scene.
     struct Hit {
         unsigned int objectIndex = 0;
+        unsigned int triangleIndex = 0;  // in the object's mesh
         float distance = 0.f;   // Euclidean distance from the ray origin
         Vertex vertex;          // interpolated position / normal
+        bool backFace = false;  // met from behind, by a two-sided ray: leaving the object
     };
 
     /// What a mode computes, how to read the picture, and the study it comes
@@ -152,10 +154,11 @@ public:
     inline const Vec3Df & getBackgroundColor () const { return backgroundColor; }
     inline const Stats & getLastStats () const { return lastStats; }
 
-    /// Closest front-facing triangle over every object, through each object's
-    /// BVH or, when it is disabled, by testing every triangle. At equal
-    /// distance the lowest object index wins, then the lowest triangle index,
-    /// so both paths return the same hit.
+    /// Closest front-facing triangle over every object (either side for a
+    /// two-sided ray, then `backFace` tells which), through each object's BVH
+    /// or, when it is disabled, by testing every triangle. At equal distance
+    /// the lowest object index wins, then the lowest triangle index, so both
+    /// paths return the same hit.
     bool closestHit (const Scene & scene, const Ray & ray, Hit & hit) const;
 
     /// True when a front-facing triangle lies along `ray` strictly closer than

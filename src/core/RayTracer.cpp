@@ -249,19 +249,32 @@ const RayTracer::ModeInfo & RayTracer::plannedMode (int index) {
 bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) const {
     bool found = false;
     best.distance = std::numeric_limits<float>::max ();
+    best.backFace = false;
     const std::vector<Object> & objects = scene.getObjects ();
     for (unsigned int i = 0; i < objects.size (); ++i) {
         const Object & object = objects[i];
         Vertex v;
         float t = best.distance;  // the BVH only looks for hits closer than this
-        const bool hit = bvhEnabled ? object.getBvh ().nearestHit (ray, object.getMesh (), v, t)
-                                    : ray.nearestHit (object.getMesh (), v, t);
+        unsigned int triangle = 0;
+        const bool hit = bvhEnabled ? object.getBvh ().nearestHit (ray, object.getMesh (), v, t, triangle)
+                                    : ray.nearestHit (object.getMesh (), v, t, triangle);
         if (hit && t < best.distance) {
             best.distance = t;
             best.vertex = v;
             best.objectIndex = i;
+            best.triangleIndex = triangle;
             found = true;
         }
+    }
+    if (found && ray.isTwoSided ()) {
+        // Which side, from the triangle's own (geometric) normal: the
+        // interpolated one can disagree near a silhouette.
+        const Mesh & mesh = objects[best.objectIndex].getMesh ();
+        const Triangle & triangle = mesh.getTriangles ()[best.triangleIndex];
+        const Vec3Df & a = mesh.getVertices ()[triangle.getVertex (0)].getPos ();
+        const Vec3Df & b = mesh.getVertices ()[triangle.getVertex (1)].getPos ();
+        const Vec3Df & c = mesh.getVertices ()[triangle.getVertex (2)].getPos ();
+        best.backFace = Vec3Df::dotProduct (Vec3Df::crossProduct (b - a, c - a), ray.getDirection ()) > 0.f;
     }
     return found;
 }

@@ -31,7 +31,7 @@ bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float
     Vec3Df normal = Vec3Df::crossProduct(B - A, C - A);
     normal.normalize();
 
-    if (Vec3Df::dotProduct(normal, direction) > 0)
+    if (!twoSided && Vec3Df::dotProduct(normal, direction) > 0)
         return false;
 
     float distance = -Vec3Df::dotProduct(origin - A, normal) / Vec3Df::dotProduct(direction, normal);
@@ -63,15 +63,17 @@ bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float
     }
 }
 
-bool Ray::nearestHit (const Mesh & mesh, Vertex & hit, float & t) const {
+bool Ray::nearestHit (const Mesh & mesh, Vertex & hit, float & t, unsigned int & triangle) const {
     bool found = false;
     float best = std::numeric_limits<float>::max ();
     Vertex candidate;
     float tc = 0.f;
-    for (const Triangle & triangle : mesh.getTriangles ()) {
-        if (this->hit (triangle, mesh, candidate, tc) && tc < best) {
+    const std::vector<Triangle> & triangles = mesh.getTriangles ();
+    for (unsigned int i = 0; i < triangles.size (); ++i) {
+        if (this->hit (triangles[i], mesh, candidate, tc) && tc < best) {
             best = tc;
             hit = candidate;
+            triangle = i;
             found = true;
         }
     }
