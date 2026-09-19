@@ -49,13 +49,15 @@ regenerates them and the timings.
 | ![Blinn-Phong](docs/evolution/02-specular.png)<br>**2. Blinn-Phong specular**: the ram turns glossy, with highlights on the head, the horn and the back in the colour of the light that makes them. | ![Anti-aliasing](docs/evolution/05-antialiasing.png)<br>**5. Anti-aliasing** (`--aa 2`): 4 rays per pixel, the staircase edges smooth out. |
 | ![Soft shadows](docs/evolution/06-soft-shadows.png)<br>**6. Soft shadows** (`--shadow-samples 8`): each light a disk, 64 shadow rays; sharp at the feet, penumbra further out. | ![Mirror reflections](docs/evolution/07-reflections.png)<br>**7. Mirror reflections** (`--ground-reflectivity 0.4`): the ram shows upside down in the floor, which darkens where it mirrors the black sky. |
 | ![Ambient occlusion](docs/evolution/08-occlusion.png)<br>**8. Ambient occlusion** (`--ao 8`): 64 hemisphere rays per hit; the creases under the horn, the belly's reflection and the floor at the feet darken. | ![Ambient occlusion mode](docs/evolution/08-occlusion-ao.png)<br>**8, the occlusion itself** (`--mode ao`): the open share of each point's hemisphere, white = open. |
+| ![Refraction](docs/evolution/07b-refraction.png)<br>**7b. Refraction** (`--transparency 1`), the stretch of experiment 7, done after 8: the ram in clear glass bends the floor behind it, catches reflections at its rims and turns dark where light reflects entirely inside. | ![Glass teapot](docs/evolution/07b-teapot.png)<br>**7b, on the teapot**, whose smooth body reads better: the floor shows through, shifted and bent, the lid and the handle stay visible by their rims. |
 
 Steps 3 and 4 change the time, not the picture (the script checks the
 pixels are identical). **3. BVH**: the picture of step 2 on one thread,
 2.9 s brute force -> 0.018 s. **4. Tile-parallel rendering**: the picture
 of step 6, 2.8 s on one thread -> 0.49 s on ten cores (4 performance + 6
 efficiency). Steps 1 and 2 shipped together, and anti-aliasing (5) came
-first; the gallery follows the experiment numbers.
+first; the gallery follows the experiment numbers, except 7b, which came
+after 8 and builds on it.
 
 ## Build
 

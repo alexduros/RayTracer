@@ -31,6 +31,11 @@ render 06-soft-shadows   --ground --aa 2 --shadow-samples 8
 render 07-reflections    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4
 render 08-occlusion      --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
 render 08-occlusion-ao   --ground --aa 2 --mode ao --ao 8
+# The stretch of experiment 7, done after 8: the model as clear glass.
+render 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1
+printf '%-18s ' 07b-teapot
+"$cli" teapot --yaw 25 --pitch 20 --size 384x256 --ground --aa 2 --shadow-samples 8 --transparency 1 \
+    --out "$out/07b-teapot.png" | sed -n 's/^render  //p'
 
 timed() {
     local label=$1 png=$2
