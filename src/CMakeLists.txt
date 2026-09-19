@@ -5,6 +5,8 @@
 add_library(raymini_core STATIC
   core/Bvh.cpp
   core/Camera.cpp
+  core/Display.cpp
+  core/HdrImage.cpp
   core/Image.cpp
   core/Mesh.cpp
   core/Object.cpp

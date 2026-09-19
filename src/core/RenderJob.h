@@ -22,6 +22,7 @@
 #include <thread>
 
 #include "Camera.h"
+#include "HdrImage.h"
 #include "Image.h"
 #include "RayTracer.h"
 #include "Scene.h"
@@ -68,9 +69,11 @@ public:
     unsigned int width () const { return w; }
     unsigned int height () const { return h; }
 
-    /// Copy of the image so far: completed tiles hold final pixels, the rest
-    /// still hold the pending colour.
+    /// The image so far through the tracer's display: completed tiles hold
+    /// final pixels, the rest still hold the pending colour.
     Image snapshot () const;
+    /// The same in linear radiance, before the display.
+    HdrImage hdrSnapshot () const;
     /// Statistics over the completed tiles (all of them once complete);
     /// `seconds` is set when the workers exit.
     RayTracer::Stats stats () const;
@@ -84,9 +87,9 @@ private:
     Camera camera;
     unsigned int w, h, tile, tilesX, tilesY, threads;
 
-    Image working;                 // each worker writes only the pixels of its own tile
+    HdrImage working;              // each worker writes only the pixels of its own tile
     mutable std::mutex mutex;
-    Image published;               // guarded by mutex
+    HdrImage published;            // guarded by mutex
     RayTracer::Stats accumulated;  // guarded by mutex
     std::atomic<unsigned int> nextTile{0};
     std::atomic<unsigned int> tilesDone{0};

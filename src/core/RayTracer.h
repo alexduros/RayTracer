@@ -14,6 +14,8 @@
 #include "Camera.h"
 #include "Ray.h"
 #include "Scene.h"
+#include "Display.h"
+#include "HdrImage.h"
 #include "Image.h"
 #include "Sampler.h"
 
@@ -82,12 +84,14 @@ public:
     static const ModeInfo & reflectionsInfo ();
     /// ... and for refraction (glass).
     static const ModeInfo & refractionInfo ();
+    /// ... and for the display: exposure, tone curve, encoding.
+    static const ModeInfo & toneMappingInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 8;
+    static constexpr int kPlannedModeCount = 7;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -156,6 +160,11 @@ public:
     inline float getDepthFar () const { return depthFar; }
     inline void setAmbientIntensity (float a) { ambientIntensity = a; }
     inline float getAmbientIntensity () const { return ambientIntensity; }
+    /// How render () turns radiance into bytes: exposure, tone curve,
+    /// encoding. The default is linear, clipped at 1, as before displays
+    /// existed; the CLI and the viewer default to sRGB.
+    inline void setDisplay (const Display & d) { display = d; }
+    inline const Display & getDisplay () const { return display; }
     inline void setBackgroundColor (const Vec3Df & c) { backgroundColor = c; }
     inline const Vec3Df & getBackgroundColor () const { return backgroundColor; }
     inline const Stats & getLastStats () const { return lastStats; }
@@ -201,16 +210,20 @@ public:
     float ambientOcclusion (const Scene & scene, const Vec3Df & p, const Vec3Df & n, Sampler & sampler) const;
 
     /// Trace pixels [x0, x1) x [y0, y1) of a width x height frame into `image`
-    /// (which must already have that size), accumulating `stats`. Pixels are
-    /// independent, so any partition of the frame gives the same picture; this
-    /// is what RenderJob calls per tile.
+    /// (which must already have that size) as linear radiance, accumulating
+    /// `stats`. Pixels are independent, so any partition of the frame gives
+    /// the same picture; this is what RenderJob calls per tile.
     void renderRegion (const Scene & scene, const Camera & camera,
                        unsigned int width, unsigned int height,
                        unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1,
-                       Image & image, Stats & stats) const;
+                       HdrImage & image, Stats & stats) const;
 
-    /// Synchronous full-frame render; the reference the tests compare against.
-    /// Records the statistics in getLastStats().
+    /// Synchronous full-frame render in linear radiance, above 1 included;
+    /// the reference the tests compare against. Records the statistics in
+    /// getLastStats().
+    HdrImage renderHdr (const Scene & scene, const Camera & camera,
+                        unsigned int width, unsigned int height);
+    /// renderHdr () through the display, in bytes.
     Image render (const Scene & scene, const Camera & camera,
                   unsigned int width, unsigned int height);
 
@@ -228,6 +241,7 @@ private:
     float depthFar = 10.f;
     float ambientIntensity = 0.15f;
     Vec3Df backgroundColor = Vec3Df (0.f, 0.f, 0.f);
+    Display display;
     unsigned int aaSamplesPerAxis = 1;
     bool aaJitter = false;
     bool shadows = true;

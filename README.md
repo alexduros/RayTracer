@@ -29,7 +29,9 @@ with the raytracer split into a library that builds without any GL dependency.
   creases and contact points), n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id,
   ambient occlusion),
-  traced tile by tile on every core (`--threads n`; same pixels for any count).
+  traced tile by tile on every core (`--threads n`; same pixels for any count),
+  in floating-point radiance that a display maps to the screen last (metered
+  exposure, a tone curve, sRGB) or that is saved as it is, in `.hdr`.
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
 - CLI: render any model to a PNG, no display needed.
@@ -88,6 +90,10 @@ build/raymini-cli ram --ground-reflectivity 0.4 --aa 2 --yaw -35 --pitch 15     
 build/raymini-cli ram --ground --ao 8 --aa 2 --yaw -35 --pitch 15               # ambient occlusion
 build/raymini-cli ram --ground --mode ao --yaw -35 --pitch 15                   # the occlusion alone
 build/raymini-cli teapot --ground --transparency 1 --aa 2 --yaw 25 --pitch 20   # a glass teapot
+build/raymini-cli ram --ground --tonemap reinhard --exposure +0.5                 # another curve, half a stop over
+build/raymini-cli ram --ground --display linear                                   # the look before experiment 9
+build/raymini-cli ram --ground --out renders/ram.hdr                              # radiance, no display (RGBE)
+build/raymini-cli ram --ground --ambient 0.05 --light 0 3 3 3 1 1 1 1 --color 0.9 0.9 0.95   # retune rig and material
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -111,8 +117,12 @@ Viewer controls:
 - Left-drag in the preview to orbit, scroll to zoom.
 - Raytracer panel: Render Scene traces on worker threads (one per core by
   default, Threads in Render), so the UI stays live while the image fills in
-  tile by tile behind a progress bar; Cancel stops it. Then Save PNG (into `renders/`), timing and hit ratio. Starts on
-  the teapot unless a path is given on the command line.
+  tile by tile behind a progress bar; Cancel stops it. Then Save PNG or Save
+  HDR (into `renders/`), timing and hit ratio. Below, the display: Auto
+  exposure, an exposure in stops (a correction over the metered one when
+  Auto is on), the tone curve and sRGB; changing them re-maps the last
+  render at once, without tracing again. Starts on the teapot unless a path
+  is given on the command line.
 
 ## Render modes
 
@@ -158,6 +168,22 @@ default; `--mode ao` alone takes 8 × 8. Each hit costs n × n extra rays:
 the ram on its ground at 384x256 takes 0.02 s without, 0.24 s with 8 × 8 on
 one thread. Coarse meshes with smooth normals show a few grey specks, where
 rays leave below the true face.
+
+**Exposure, tone mapping and encoding** (`--display filmic|linear`,
+`--exposure`, `--auto-exposure`, `--tonemap none|reinhard|aces`, `--white`,
+`--gamma srgb|g`; the display row of the Raytracer panel): the tracer
+computes linear radiance in floats, above 1 wherever lights add up, and the
+display maps it to the screen last. The default, `filmic`, meters the
+exposure that brings the log-average luminance to mid grey (0.18, Reinhard
+et al.'s key), applies the ACES filmic curve and encodes in sRGB; `linear` is
+the conversion of every render before experiment 9, and of the goldens
+(radiance × 255, clipped). Without a curve everything above 1 is one flat
+white; Reinhard's L (1 + L / L_white²) / (1 + L) on luminance keeps the hue
+and compresses gently, ACES adds a filmic toe and more contrast. `.hdr`
+output keeps the radiance itself (Ward's RGBE). Reinhard, Stark, Shirley &
+Ferwerda, "Photographic Tone Reproduction for Digital Images", SIGGRAPH 2002;
+Narkowicz, "ACES Filmic Tone Mapping Curve", 2015; Ward, "Real Pixels",
+Graphics Gems II, 1991.
 
 **Refraction (glass)** (`--transparency g`, `--ior n`, `--max-depth n`;
 Glass and Index in the viewer; MTL `d`, `Tr` and `Ni`): on a material of

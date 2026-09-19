@@ -16,11 +16,6 @@
 
 namespace {
 
-inline unsigned char toByte (float c) {
-    int v = static_cast<int> (c * 255.f + 0.5f);
-    return static_cast<unsigned char> (std::max (0, std::min (255, v)));
-}
-
 /// How far secondary rays (shadows, reflections) start off the surface along
 /// the normal, so the surface cannot hit itself ("acne"); scaled to the model.
 inline float surfaceBias (const Scene & scene) {
@@ -179,6 +174,20 @@ const RayTracer::ModeInfo kRefractionInfo = {
     "(refraction in recursive ray tracing); the Fresnel equations, M. Born & E. Wolf, \"Principles of Optics\", "
     "section 1.5."};
 
+const RayTracer::ModeInfo kToneMappingInfo = {
+    "display", "Exposure, tone mapping and encoding",
+    "The tracer computes linear radiance in floats, above 1 wherever lights add up; the display maps it to the "
+    "screen last: x 2^exposure (stops; auto brings the log-average luminance to mid grey 0.18), then a tone "
+    "curve, none (clip at 1), Reinhard's L (1 + L / Lwhite^2) / (1 + L) on luminance, or the ACES filmic curve per "
+    "channel, then the sRGB encoding (or a plain gamma) and 8 bits.",
+    "Without a curve, everything above 1 is the same flat white; with one, highlights keep their gradations and "
+    "the image darkens slightly overall (Reinhard gently, ACES with more contrast and a filmic toe). sRGB makes "
+    "dark tones lighter than the old linear bytes: shadows open up. Exposure changes brightness without "
+    "re-rendering (the viewer re-maps its last render instantly); .hdr files keep the radiance itself.",
+    "E. Reinhard, M. Stark, P. Shirley & J. Ferwerda, \"Photographic Tone Reproduction for Digital Images\", "
+    "SIGGRAPH 2002; K. Narkowicz, \"ACES Filmic Tone Mapping Curve\", 2015; G. Ward, \"Real Pixels\", Graphics "
+    "Gems II, 1991 (RGBE); IEC 61966-2-1 (sRGB)."};
+
 } // namespace
 
 const RayTracer::ModeInfo & RayTracer::info (DebugMode mode) {
@@ -200,6 +209,10 @@ const RayTracer::ModeInfo & RayTracer::reflectionsInfo () {
 
 const RayTracer::ModeInfo & RayTracer::refractionInfo () {
     return kRefractionInfo;
+}
+
+const RayTracer::ModeInfo & RayTracer::toneMappingInfo () {
+    return kToneMappingInfo;
 }
 
 namespace {
@@ -235,12 +248,6 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
      "Needs an aperture and a focus distance on Camera plus per-pixel sampling. Experiment 10.",
      "M. Potmesil & I. Chakravarty, \"A Lens and Aperture Camera Model for Synthetic Image Generation\", SIGGRAPH "
      "1981; Cook, Porter & Carpenter, SIGGRAPH 1984."},
-    {"tonemap", "Tone mapping and exposure",
-     "Radiance stays linear in floats and is mapped to the display range by an exposure and a tone curve before "
-     "sRGB encoding, so bright scenes no longer clip.",
-     "Needs a floating-point image buffer. Experiment 9.",
-     "E. Reinhard, M. Stark, P. Shirley & J. Ferwerda, \"Photographic Tone Reproduction for Digital Images\", "
-     "SIGGRAPH 2002."},
     {"wireframe", "Wireframe overlay",
      "Pixels whose barycentric coordinates lie close to a triangle edge are drawn dark over the shaded image, "
      "showing the tessellation of the model.",
@@ -519,7 +526,7 @@ Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats, Pi
 void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
                               unsigned int width, unsigned int height,
                               unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1,
-                              Image & image, Stats & stats) const {
+                              HdrImage & image, Stats & stats) const {
     const unsigned int n = std::max (1u, aaSamplesPerAxis);
     for (unsigned int y = y0; y < y1; y++) {
         for (unsigned int x = x0; x < x1; x++) {
@@ -543,18 +550,23 @@ void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
                 }
                 color /= static_cast<float> (n * n);
             }
-            image.setPixel (x, y, toByte (color[0]), toByte (color[1]), toByte (color[2]));
+            image.set (static_cast<int> (x), static_cast<int> (y), color);
         }
     }
 }
 
-Image RayTracer::render (const Scene & scene, const Camera & camera,
-                         unsigned int width, unsigned int height) {
-    Image image (width, height, Image::RGB888);
+HdrImage RayTracer::renderHdr (const Scene & scene, const Camera & camera,
+                               unsigned int width, unsigned int height) {
+    HdrImage image (static_cast<int> (width), static_cast<int> (height));
     Stats stats;
     const auto start = std::chrono::steady_clock::now ();
     renderRegion (scene, camera, width, height, 0, 0, width, height, image, stats);
     stats.seconds = std::chrono::duration<double> (std::chrono::steady_clock::now () - start).count ();
     lastStats = stats;
     return image;
+}
+
+Image RayTracer::render (const Scene & scene, const Camera & camera,
+                         unsigned int width, unsigned int height) {
+    return display.apply (renderHdr (scene, camera, width, height));
 }

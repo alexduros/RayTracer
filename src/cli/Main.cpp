@@ -7,6 +7,7 @@
 // machine without a display.
 // ---------------------------------------------------------------------------
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -16,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 #ifdef _WIN32
 #include <io.h>
 #define isatty _isatty
@@ -25,6 +27,8 @@
 #endif
 
 #include "Camera.h"
+#include "Display.h"
+#include "HdrImage.h"
 #include "Image.h"
 #include "Orientation.h"
 #include "RayTracer.h"
@@ -44,8 +48,9 @@ A bare name such as "teapot" or "cube" resolves to the bundled models/ directory
 OBJ files load their MTL materials (one object per material).
 
 Options:
-  --out <file.png>       output path, parent directories are created
-                         (default renders/<model>_<mode>.png)
+  --out <file>           output path, parent directories are created
+                         (default renders/<model>_<mode>.png); a .hdr file keeps the linear
+                         radiance (Radiance RGBE), before exposure, tone curve and encoding
   --size <W>x<H>         image size (default 256x256)
   --mode <mode>          one of the modes below (default lit)
   --aa <n>               anti-aliasing: n x n rays per pixel, 1..8 (default 1 = off)
@@ -71,6 +76,26 @@ Options:
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
   --threads <n>          worker threads, 0 = one per core (default 0); the picture is identical
+  --display <preset>     filmic (default): exposure measured on the image, ACES curve, sRGB;
+                         linear: the historical conversion (no exposure, clipped at 1, linear
+                         bytes), that of every render before experiment 9 and of the goldens.
+                         The options below adjust the preset, in any order
+  --exposure <ev|auto>   stops: a correction on top of the measured exposure when it is on,
+                         the exposure itself when it is off; auto turns the measure on
+  --auto-exposure <on|off>
+                         measure the exposure that brings the log-average luminance to mid
+                         grey, 0.18 (Reinhard et al.'s key)
+  --tonemap <curve>      none (clip at 1), reinhard or aces
+  --white <L>            Reinhard's white point: the radiance that maps to pure white
+                         (default: none, highlights approach white without reaching it)
+  --gamma <srgb|g>       output encoding: srgb or a power 1/g; 1 = linear bytes
+  --ambient <a>          ambient intensity (default 0.15)
+  --light <i> <x> <y> <z> <r> <g> <b> <intensity>
+                         replace light i of the rig (0 key, 1 fill, 2 rim), or add one with
+                         i = 3; position in half model sizes around the model's centre
+  --color <r> <g> <b>    the model's colour (default: the file's, or orange)
+  --specular <k>         the model's highlight strength
+  --shininess <n>        the model's Blinn-Phong exponent
   --fov <deg>            vertical field of view (default 45)
   --yaw <deg>            orbit around the model about +Y (default 0: camera on +Z)
   --pitch <deg>          orbit elevation, -89..89 (default 0)
@@ -103,6 +128,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << mirror.principle << "\n"
         << "      Read: " << mirror.reading << "\n"
         << "      Ref:  " << mirror.reference << "\n";
+    const RayTracer::ModeInfo& tone = RayTracer::toneMappingInfo();
+    out << "\n--exposure / --tonemap / --white / --gamma  " << tone.name << "\n"
+        << "      " << tone.principle << "\n"
+        << "      Read: " << tone.reading << "\n"
+        << "      Ref:  " << tone.reference << "\n";
     const RayTracer::ModeInfo& glass = RayTracer::refractionInfo();
     out << "\n--transparency / --ior / --max-depth  " << glass.name << "\n"
         << "      " << glass.principle << "\n"
@@ -144,9 +174,51 @@ struct Options {
     unsigned int maxDepth = 8;
     bool bvh = true;
     unsigned int threads = 0;  // 0 = one per core
+    // The display: a preset, then whichever settings were given, in any order.
+    std::string displayPreset = "filmic";
+    std::optional<float> exposure;
+    std::optional<bool> autoExposure;
+    std::optional<Display::ToneMap> toneMap;
+    std::optional<float> whitePoint;
+    std::optional<Display::Encoding> encoding;
+    float gamma = 2.2f;
+    std::optional<float> ambient;
+    struct LightOverride {
+        int index;
+        Vec3Df position, color;
+        float intensity;
+    };
+    std::vector<LightOverride> lights;
+    std::optional<Vec3Df> color;
+    std::optional<float> specularStrength, shininess;
     std::optional<UpAxis> up;  // empty = auto
     bool quiet = false;
 };
+
+Display displayFor(const Options& o) {
+    Display d = o.displayPreset == "linear" ? Display::linear() : Display::filmic();
+    if (o.autoExposure) d.autoExposure = *o.autoExposure;
+    if (o.exposure) d.exposure = *o.exposure;
+    if (o.toneMap) d.toneMap = *o.toneMap;
+    if (o.whitePoint) d.whitePoint = *o.whitePoint;
+    if (o.encoding) {
+        d.encoding = *o.encoding;
+        d.gamma = o.gamma;
+    }
+    return d;
+}
+
+std::string describe(const Display& d, bool autoExposure) {
+    std::string s = d.encoding == Display::Encoding::SRGB     ? "sRGB"
+                    : d.encoding == Display::Encoding::LINEAR ? "linear"
+                                                              : "gamma " + std::to_string(d.gamma).substr(0, 4);
+    s += d.toneMap == Display::ToneMap::ACES       ? ", aces"
+         : d.toneMap == Display::ToneMap::REINHARD ? ", reinhard"
+                                                   : ", clipped at 1";
+    char ev[64];
+    std::snprintf(ev, sizeof(ev), ", exposure %+.2f EV%s", d.exposure, autoExposure ? " (auto)" : "");
+    return s + ev;
+}
 
 bool parseMode(const std::string& name, RayTracer::DebugMode& mode) {
     for (int i = 0; i < RayTracer::kModeCount; ++i) {
@@ -204,6 +276,96 @@ bool parseArgs(int argc, char** argv, Options& o) {
                 std::cerr << "--light-radius must be 0 or more\n";
                 return false;
             }
+        } else if (a == "--display") {
+            if (!(v = value(i, "--display"))) return false;
+            o.displayPreset = v;
+            if (o.displayPreset != "filmic" && o.displayPreset != "linear") {
+                std::cerr << "--display must be filmic or linear\n";
+                return false;
+            }
+        } else if (a == "--exposure") {
+            if (!(v = value(i, "--exposure"))) return false;
+            if (std::string(v) == "auto") {
+                o.autoExposure = true;
+            } else {
+                o.exposure = static_cast<float>(std::atof(v));
+            }
+        } else if (a == "--auto-exposure") {
+            if (!(v = value(i, "--auto-exposure"))) return false;
+            if (std::string(v) != "on" && std::string(v) != "off") {
+                std::cerr << "--auto-exposure must be on or off\n";
+                return false;
+            }
+            o.autoExposure = std::string(v) == "on";
+        } else if (a == "--tonemap") {
+            if (!(v = value(i, "--tonemap"))) return false;
+            const std::string t = v;
+            if (t == "none") {
+                o.toneMap = Display::ToneMap::NONE;
+            } else if (t == "reinhard") {
+                o.toneMap = Display::ToneMap::REINHARD;
+            } else if (t == "aces") {
+                o.toneMap = Display::ToneMap::ACES;
+            } else {
+                std::cerr << "--tonemap must be none, reinhard or aces\n";
+                return false;
+            }
+        } else if (a == "--white") {
+            if (!(v = value(i, "--white"))) return false;
+            o.whitePoint = static_cast<float>(std::atof(v));
+            if (*o.whitePoint <= 0.f) {
+                std::cerr << "--white must be more than 0\n";
+                return false;
+            }
+        } else if (a == "--gamma") {
+            if (!(v = value(i, "--gamma"))) return false;
+            if (std::string(v) == "srgb") {
+                o.encoding = Display::Encoding::SRGB;
+            } else {
+                const float g = static_cast<float>(std::atof(v));
+                if (g < 0.1f || g > 10.f) {
+                    std::cerr << "--gamma must be srgb or a number between 0.1 and 10\n";
+                    return false;
+                }
+                o.encoding = g == 1.f ? Display::Encoding::LINEAR : Display::Encoding::GAMMA;
+                o.gamma = g;
+            }
+        } else if (a == "--ambient") {
+            if (!(v = value(i, "--ambient"))) return false;
+            o.ambient = static_cast<float>(std::atof(v));
+            if (*o.ambient < 0.f) {
+                std::cerr << "--ambient must be 0 or more\n";
+                return false;
+            }
+        } else if (a == "--light") {
+            if (i + 8 >= argc) {
+                std::cerr << "--light needs <i> <x> <y> <z> <r> <g> <b> <intensity>\n";
+                return false;
+            }
+            Options::LightOverride l;
+            l.index = std::atoi(argv[++i]);
+            for (int k = 0; k < 3; ++k) l.position[k] = static_cast<float>(std::atof(argv[++i]));
+            for (int k = 0; k < 3; ++k) l.color[k] = static_cast<float>(std::atof(argv[++i]));
+            l.intensity = static_cast<float>(std::atof(argv[++i]));
+            if (l.index < 0 || l.intensity < 0.f) {
+                std::cerr << "--light: the index and the intensity must be 0 or more\n";
+                return false;
+            }
+            o.lights.push_back(l);
+        } else if (a == "--color") {
+            if (i + 3 >= argc) {
+                std::cerr << "--color needs <r> <g> <b>\n";
+                return false;
+            }
+            Vec3Df c;
+            for (int k = 0; k < 3; ++k) c[k] = static_cast<float>(std::atof(argv[++i]));
+            o.color = c;
+        } else if (a == "--specular") {
+            if (!(v = value(i, "--specular"))) return false;
+            o.specularStrength = static_cast<float>(std::atof(v));
+        } else if (a == "--shininess") {
+            if (!(v = value(i, "--shininess"))) return false;
+            o.shininess = std::max(1.f, static_cast<float>(std::atof(v)));
         } else if (a == "--no-specular") {
             o.specular = false;
         } else if (a == "--ao") {
@@ -370,14 +532,35 @@ int main(int argc, char** argv) {
     scene.setUpAxis(up);
     scene.addDefaultLights();
     if (o.lightRadius >= 0.f) scene.setLightRadius(o.lightRadius);
+    // Light overrides, in the rig's own units: half the model's size around its centre.
+    for (const Options::LightOverride& l : o.lights) {
+        std::vector<Light>& lights = scene.getLights();
+        const BoundingBox& box = scene.getBoundingBox();
+        const float half = std::max(box.getSize(), 1e-3f) / 2.f;
+        const float radius = lights.empty() ? Scene::kDefaultLightRadius * 2.f * half : lights[0].getRadius();
+        const Light light(box.getCenter() + half * l.position, l.color, l.intensity, radius);
+        if (l.index < static_cast<int>(lights.size())) {
+            lights[static_cast<size_t>(l.index)] = light;
+        } else if (l.index == static_cast<int>(lights.size())) {
+            lights.push_back(light);
+        } else {
+            std::cerr << "--light " << l.index << ": the rig has " << lights.size()
+                      << " lights, so the index must be at most " << lights.size() << "\n";
+            return 2;
+        }
+    }
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
     scene.setModelReflectivity(o.reflectivity);
     scene.setGroundReflectivity(o.groundReflectivity);
     // Glass only when asked: an OBJ's MTL may already make some of it glass.
     for (Object& object : scene.getObjects()) {
         if (object.isBackdrop()) continue;
-        if (o.transparency) object.getMaterial().setTransparency(*o.transparency);
-        if (o.ior) object.getMaterial().setIor(*o.ior);
+        Material& m = object.getMaterial();
+        if (o.transparency) m.setTransparency(*o.transparency);
+        if (o.ior) m.setIor(*o.ior);
+        if (o.color) m.setColor(*o.color);
+        if (o.specularStrength) m.setSpecular(*o.specularStrength);
+        if (o.shininess) m.setShininess(*o.shininess);
     }
 
     const BoundingBox& bbox = scene.getBoundingBox();
@@ -398,6 +581,9 @@ int main(int argc, char** argv) {
     if (o.aoSamples < 0) o.aoSamples = o.mode == RayTracer::DebugMode::AMBIENT_OCCLUSION ? 8 : 0;
     rt.setAmbientOcclusion(static_cast<unsigned int>(o.aoSamples), o.aoRadius * size);
     rt.setBvhEnabled(o.bvh);
+    const Display display = displayFor(o);
+    rt.setDisplay(display);
+    if (o.ambient) rt.setAmbientIntensity(*o.ambient);
     if (o.depthNear < 0.f || o.depthFar < 0.f) {
         rt.setDepthRange(std::max(0.f, camDistance - 0.5f * size), camDistance + 0.5f * size);
     } else {
@@ -414,12 +600,17 @@ int main(int argc, char** argv) {
     }
     job.wait();
     if (showProgress) std::fprintf(stderr, "\r                \r");
-    const Image image = job.snapshot();
+    const HdrImage hdr = job.hdrSnapshot();
     const RayTracer::Stats st = job.stats();
+    // The display comes last: an automatic exposure needs the whole image.
+    const Display shown = display.resolved(hdr);
 
     const auto parent = std::filesystem::path(o.out).parent_path();
     if (!parent.empty()) std::filesystem::create_directories(parent);
-    if (!image.save(o.out)) {
+    std::string ext = std::filesystem::path(o.out).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+    const bool saved = ext == ".hdr" ? hdr.save(o.out) : shown.apply(hdr).save(o.out);
+    if (!saved) {
         std::cerr << "could not write " << o.out << "\n";
         return 1;
     }
@@ -452,6 +643,8 @@ int main(int argc, char** argv) {
                     o.jitter ? " jittered" : "", effects.c_str(), o.bvh ? "bvh" : "brute force", job.threadCount(),
                     job.threadCount() > 1 ? "s" : "", st.seconds, st.hits, st.rays,
                     st.rays ? 100.0 * st.hits / st.rays : 0.0, st.minHitDist, st.maxHitDist);
+        std::printf("display %s\n", ext == ".hdr" ? "none: linear radiance in Radiance RGBE"
+                                                   : describe(shown, display.autoExposure).c_str());
         std::printf("wrote   %s\n", o.out.c_str());
     }
     return 0;

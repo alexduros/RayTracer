@@ -29,7 +29,7 @@ in the step-by-step gallery.
 
 ## Before the timeline: experiments 9 and 10
 
-- **9 · Linear pipeline, exposure, tone mapping** (as specified). It comes
+- ✓ **9 · Linear pipeline, exposure, tone mapping** (done). It comes
   first, out of order (Reinhard et al., SIGGRAPH 2002): every later light
   transport step produces radiance above 1, and a float frame buffer is the
   tool they all need. It also covers Ward's "Real Pixels" (Graphics Gems II,

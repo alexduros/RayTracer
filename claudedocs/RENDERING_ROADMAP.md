@@ -25,6 +25,7 @@ the implementation order with tests; this page is the map.
 | Mirror reflections | A reflective surface blends in what a ray mirrored about its normal sees, recursively up to a depth. |
 | Ambient occlusion | Hemisphere rays measure how open each point's surroundings are; a mode of its own and a factor on the ambient and diffuse light. |
 | Refraction (glass) | A transparent surface splits the light between reflection and a ray bent by Snell's law, in the Fresnel proportions. |
+| Tone mapping and exposure | Radiance stays in floats; a metered exposure, a tone curve and sRGB map it to the screen last. |
 
 ## 1. Local shading
 
@@ -86,9 +87,9 @@ Needs: textures, tangent frames per triangle. Test: a flat quad with a bumped no
 **Principle:** Rays start from random points on a lens disk and converge on the focal plane, blurring whatever lies nearer or farther.
 Needs: aperture and focus distance on `Camera`, per-pixel sampling. Test: a quad on the focal plane keeps hard edges, one far from it blurs, aperture 0 reproduces the pinhole goldens. Reference: Potmesil & Chakravarty, SIGGRAPH 1981; Cook, Porter & Carpenter 1984. (Experiment 10)
 
-### Tone mapping and exposure
+### Tone mapping and exposure (done)
 **Principle:** Radiance stays linear in floats and is mapped to the display range by an exposure and a tone curve before sRGB encoding, so bright scenes no longer clip.
-Needs: a floating-point image buffer between the tracer and the 8-bit output. Test: linear 0.5 encodes to sRGB 188, values above 1 no longer clip flat, exposure 2 doubles the linear value. Reference: Reinhard, Stark, Shirley & Ferwerda, SIGGRAPH 2002. (Experiment 9)
+Done: `HdrImage` between the tracer and the bytes, `Display` (exposure in stops, metered or set; no curve, Reinhard or ACES; linear, sRGB or gamma), presets `filmic` (the CLI and viewer default) and `linear` (the tracer's default and the goldens'), `.hdr` output. Tests: sRGB 0.5 -> 188, exposure in stops, curves keep gradations above 1, Reinhard's white point and hue, metering to the key 0.18, RGBE round trip, tiles and threads give the same floats and bytes. Reference: Reinhard, Stark, Shirley & Ferwerda, SIGGRAPH 2002. (Experiment 9)
 
 ### Motion blur
 **Principle:** Each ray samples a random instant of the shutter interval while objects or the camera move through it, smearing motion.
@@ -140,5 +141,5 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 2. BVH, then tile threads: the cat and the minion become interactive. **Done**: the minion renders in milliseconds, and threads keep the sampled effects fast.
 3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows and ambient occlusion done**, each with its own per-pixel `Sampler` stream; depth of field will add a third.
 4. Reflections and refraction, then textures from OBJ UVs. **Reflections and refraction done.**
-5. Tone mapping, then environment lighting and path tracing.
+5. Tone mapping, then environment lighting and path tracing. **Tone mapping done**; from here on, `RAY_TRACING_TIMELINE.md` sets the order.
 6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.

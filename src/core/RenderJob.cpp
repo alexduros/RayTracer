@@ -4,15 +4,6 @@
 #include <cstring>
 #include <vector>
 
-namespace {
-
-unsigned char toByte (float c) {
-    const int v = static_cast<int> (c * 255.f + 0.5f);
-    return static_cast<unsigned char> (std::max (0, std::min (255, v)));
-}
-
-} // namespace
-
 RenderJob::RenderJob (const RayTracer & tracer, const Scene & scene, const Camera & camera,
                       unsigned int width, unsigned int height, unsigned int tileSize,
                       const Vec3Df & pendingColor, unsigned int threadCount)
@@ -25,11 +16,10 @@ RenderJob::RenderJob (const RayTracer & tracer, const Scene & scene, const Camer
       tilesX ((width + tile - 1) / tile),
       tilesY ((height + tile - 1) / tile),
       threads (std::max (1u, std::min (threadCount ? threadCount : defaultThreadCount (), tilesX * tilesY))),
-      working (width, height, Image::RGB888),
-      published (width, height, Image::RGB888) {
-    const unsigned char r = toByte (pendingColor[0]), g = toByte (pendingColor[1]), b = toByte (pendingColor[2]);
-    working.fill (r, g, b);
-    published.fill (r, g, b);
+      working (static_cast<int> (width), static_cast<int> (height)),
+      published (static_cast<int> (width), static_cast<int> (height)) {
+    working.fill (pendingColor);
+    published.fill (pendingColor);
 }
 
 unsigned int RenderJob::defaultThreadCount () {
@@ -70,6 +60,10 @@ double RenderJob::elapsedSeconds () const {
 }
 
 Image RenderJob::snapshot () const {
+    return tracer.getDisplay ().apply (hdrSnapshot ());
+}
+
+HdrImage RenderJob::hdrSnapshot () const {
     std::lock_guard<std::mutex> lock (mutex);
     return published;
 }
@@ -119,10 +113,10 @@ void RenderJob::work () {
         // Publish the finished tile: copy its rows and fold in its stats.
         {
             std::lock_guard<std::mutex> lock (mutex);
-            const size_t rowBytes = static_cast<size_t> (x1 - x0) * 3;
+            const size_t rowFloats = static_cast<size_t> (x1 - x0) * 3;
             for (unsigned int y = y0; y < y1; ++y) {
                 const size_t offset = (static_cast<size_t> (y) * w + x0) * 3;
-                std::memcpy (published.data () + offset, working.data () + offset, rowBytes);
+                std::memcpy (published.data () + offset, working.data () + offset, rowFloats * sizeof (float));
             }
             accumulated.accumulate (tileStats);
         }

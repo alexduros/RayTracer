@@ -143,7 +143,17 @@ build/raymini-cli --help
   hit leaves the object, which orders the indices. `Hit::triangleIndex` comes
   from `nearestHit`. Every other ray still culls back faces. Glass shadows
   are opaque; a glass hit splits a ray in two, so depth costs.
-- Colors stay linear [0,1] until the final 8-bit conversion in `render()`.
+- Display (experiment 9): the tracer writes linear radiance, above 1 kept,
+  into an `HdrImage` (`renderHdr`, `renderRegion`, `RenderJob::hdrSnapshot`);
+  a `Display` (`src/core/Display.h`) maps it to bytes last: exposure in stops
+  (set, or metered to the key 0.18 then corrected), a curve (none, Reinhard,
+  ACES), an encoding (linear, sRGB, gamma). The tracer's default is
+  `Display::linear ()`, the historical bytes, so unit tests and goldens keep
+  their values; the CLI and the viewer default to `Display::filmic ()`
+  (metered, ACES, sRGB), `--display linear` for the old look, `.hdr` output
+  for the radiance. The viewer's display row re-maps the last render without
+  tracing. CLI rig and material overrides: `--ambient`, `--light`,
+  `--color`, `--specular`, `--shininess`.
 
 ## Conventions for adding an effect
 

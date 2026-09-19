@@ -17,6 +17,7 @@ add_executable(raymini_tests
   TestReflection.cpp
   TestOcclusion.cpp
   TestRefraction.cpp
+  TestDisplay.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -42,6 +43,16 @@ add_test(NAME cli_glass COMMAND raymini-cli ram --size 32x32 --ground --transpar
          --max-depth 6 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_glass.png)
 add_test(NAME cli_bad_ior COMMAND raymini-cli ram --ior 0.5 --quiet)
 set_tests_properties(cli_bad_ior PROPERTIES WILL_FAIL TRUE)
+add_test(NAME cli_display COMMAND raymini-cli teapot --size 32x32 --display linear --tonemap reinhard --white 4
+         --exposure 1 --gamma 2.2 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_display.png)
+add_test(NAME cli_hdr COMMAND raymini-cli teapot --size 32x32 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli.hdr)
+add_test(NAME cli_overrides COMMAND raymini-cli teapot --size 32x32 --light 0 3 3 3 1 0.5 0.2 1
+         --light 3 0 4 0 1 1 1 0.5 --ambient 0.05 --color 0.2 0.4 0.9 --specular 0.5 --shininess 64 --quiet
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_overrides.png)
+add_test(NAME cli_bad_tonemap COMMAND raymini-cli teapot --tonemap filmic --quiet)
+set_tests_properties(cli_bad_tonemap PROPERTIES WILL_FAIL TRUE)
+add_test(NAME cli_bad_light COMMAND raymini-cli teapot --light 5 0 1 0 1 1 1 1 --quiet)
+set_tests_properties(cli_bad_light PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_threads COMMAND raymini-cli teapot --size 32x32 --threads 3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_threads.png)
 add_test(NAME cli_bad_threads COMMAND raymini-cli teapot --threads many --quiet)

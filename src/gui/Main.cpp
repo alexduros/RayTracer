@@ -32,6 +32,8 @@
 #include "imgui_impl_opengl3.h"
 
 #include "Camera.h"
+#include "Display.h"
+#include "HdrImage.h"
 #include "Image.h"
 #include "Mesh.h"
 #include "Orientation.h"
@@ -486,7 +488,10 @@ int main(int argc, char** argv) {
     RayTracer rt;
     std::unique_ptr<RenderJob> renderJob;  // in-flight render, if any
     unsigned int lastUploadedTiles = 0;
-    Image lastRender;  // last finished (or cancelled) render
+    Image lastRender;  // last finished (or cancelled) render, through the display
+    HdrImage lastHdr;  // the same in linear radiance: the display re-maps it without tracing
+    Display rtDisplay = Display::filmic();  // exposure, tone curve, encoding of the raytraced panel
+    float lastShownEv = 0.f;                // the exposure actually applied (metered + correction)
     RayTracer::Stats lastStats;
     int lastRenderMode = 0;
     bool lastRenderCancelled = false;
@@ -550,6 +555,7 @@ int main(int argc, char** argv) {
         }
         renderJob.reset();  // a render of the previous geometry is meaningless now
         lastRender = Image();
+        lastHdr = HdrImage();
         lastRenderCancelled = false;
         lastSavedPath.clear();
     };
@@ -729,12 +735,13 @@ int main(int argc, char** argv) {
             renderJob->start();
             lastUploadedTiles = 0;
             lastRender = Image();
+            lastHdr = HdrImage();
             lastRenderMode = rtMode;
             lastRenderSamples = rtAA * rtAA;
             lastRenderThreads = static_cast<int>(renderJob->threadCount());
             lastRenderCancelled = false;
             lastSavedPath.clear();
-            uploadTexture(rtTexture, rtTexW, rtTexH, renderJob->snapshot());  // pending fill
+            uploadTexture(rtTexture, rtTexW, rtTexH, rtDisplay.apply(renderJob->hdrSnapshot()));  // pending fill
         }
 
         if (renderJob) {
@@ -742,11 +749,14 @@ int main(int argc, char** argv) {
             const unsigned int done = renderJob->completedTiles();
             const bool finished = renderJob->isDone();
             if (done != lastUploadedTiles || finished) {
-                uploadTexture(rtTexture, rtTexW, rtTexH, renderJob->snapshot());
+                // Through the panel's display, re-metered as tiles land.
+                uploadTexture(rtTexture, rtTexW, rtTexH, rtDisplay.apply(renderJob->hdrSnapshot()));
                 lastUploadedTiles = done;
             }
             if (finished) {
-                lastRender = renderJob->snapshot();
+                lastHdr = renderJob->hdrSnapshot();
+                lastShownEv = rtDisplay.resolved(lastHdr).exposure;
+                lastRender = rtDisplay.apply(lastHdr);
                 lastStats = renderJob->stats();
                 lastRenderCancelled = renderJob->isCancelled();
                 renderJob.reset();
@@ -770,6 +780,16 @@ int main(int argc, char** argv) {
                 lastSavedPath = lastRender.save(name) ? name : "save failed";
             }
             ImGui::SameLine();
+            if (ImGui::Button("Save HDR")) {
+                // The radiance itself, before the display (Radiance RGBE).
+                std::filesystem::create_directories("renders");
+                char name[128];
+                std::snprintf(name, sizeof(name), "renders/render_%s_%dx%d.hdr",
+                              RayTracer::info(static_cast<RayTracer::DebugMode>(lastRenderMode)).slug, rtTexW,
+                              rtTexH);
+                lastSavedPath = lastHdr.save(name) ? name : "save failed";
+            }
+            ImGui::SameLine();
             if (lastRenderCancelled) {
                 // Stats only cover published tiles: rays / (pixels x rays per pixel) is the share done.
                 ImGui::Text("%dx%d cancelled after %.2fs (%.0f%% done)", rtTexW, rtTexH, lastStats.seconds,
@@ -788,6 +808,44 @@ int main(int argc, char** argv) {
         } else {
             ImGui::SameLine();
             ImGui::TextDisabled("(no render yet)");
+        }
+
+        // The display: how radiance becomes the picture. Re-applied to the
+        // last render at once, without tracing again.
+        {
+            bool changed = ImGui::Checkbox("Auto exposure", &rtDisplay.autoExposure);
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.f);
+            changed |= ImGui::SliderFloat("##ev", &rtDisplay.exposure, -6.f, 6.f,
+                                          rtDisplay.autoExposure ? "%+.1f EV over" : "%+.1f EV");
+            itemTooltip(rtDisplay.autoExposure ? "A correction on top of the metered exposure (mid grey 0.18)."
+                                               : "Exposure in stops: +1 doubles the light.");
+            ImGui::SameLine();
+            const char* curves[] = {"No curve (clip)", "Reinhard", "ACES filmic"};
+            int curve = static_cast<int>(rtDisplay.toneMap);
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8.f);
+            if (ImGui::Combo("##curve", &curve, curves, IM_ARRAYSIZE(curves))) {
+                rtDisplay.toneMap = static_cast<Display::ToneMap>(curve);
+                changed = true;
+            }
+            ImGui::SameLine();
+            bool srgbOut = rtDisplay.encoding == Display::Encoding::SRGB;
+            if (ImGui::Checkbox("sRGB", &srgbOut)) {
+                rtDisplay.encoding = srgbOut ? Display::Encoding::SRGB : Display::Encoding::LINEAR;
+                changed = true;
+            }
+            ImGui::SameLine();
+            helpMarker(RayTracer::toneMappingInfo());
+            if (lastHdr.isValid()) {
+                ImGui::SameLine();
+                ImGui::TextDisabled("%+.2f EV applied", lastShownEv);
+            }
+            if (changed && !renderJob && lastHdr.isValid()) {
+                lastShownEv = rtDisplay.resolved(lastHdr).exposure;
+                lastRender = rtDisplay.apply(lastHdr);
+                uploadTexture(rtTexture, rtTexW, rtTexH, lastRender);
+                lastSavedPath.clear();
+            }
         }
 
         // What the picture means: the mode shown (or about to be), how to read

@@ -311,7 +311,7 @@ sampled one octant only.
   normal would need the triangle's normal in `Hit`); a distance falloff
   (obscurance, as in Zhukov et al.) instead of the binary hit.
 
-## 9. Linear pipeline, exposure and tone mapping
+## 9. Linear pipeline, exposure and tone mapping (done)
 
 Keep the float image, then apply exposure, a tone mapper (Reinhard or ACES)
 and sRGB encoding before quantizing. Add light and material overrides on the
@@ -321,6 +321,46 @@ CLI so the default cyan/yellow/white rig can be tuned without code changes.
   flat 255 with tone mapping; exposure 2 doubles the linear value before
   encoding; `--gamma 1` reproduces the old goldens.
 - CLI: `--exposure <ev> --tonemap none|reinhard|aces --light <i> <x> <y> <z> <r> <g> <b> <intensity>`.
+- Done: the tracer writes linear radiance into an `HdrImage` (floats, above
+  1 kept; `RayTracer::renderHdr`, `renderRegion`, `RenderJob::hdrSnapshot`),
+  and a `Display` (`src/core/Display.h`) turns it into bytes last: exposure
+  in stops, either set or metered (`Display::meteredExposure`: the log-average
+  luminance brought to Reinhard et al.'s key 0.18, black background pixels
+  left out; a set exposure then corrects on top), a curve (none = clip,
+  Reinhard's L (1 + L / L_white²) / (1 + L) on luminance, Narkowicz's ACES
+  fit per channel), an encoding (linear, sRGB, or a power). Presets:
+  `Display::linear ()`, the tracer's default, byte for byte the old
+  conversion, so every golden and unit test stands unchanged (the planned
+  `--gamma 1` check became this default); `Display::filmic ()` (metered, ACES,
+  sRGB), the default of the CLI (`--display filmic|linear`, then
+  `--exposure`, `--auto-exposure`, `--tonemap`, `--white`, `--gamma` adjust it
+  in any order) and of the viewer, whose display row re-maps the last render
+  without tracing again. `.hdr` output (and input, for the environment maps
+  to come) in Radiance RGBE through stb: Ward's "Real Pixels", 1991. The
+  planned overrides: `--ambient`, `--light i x y z r g b intensity` (rig
+  units, half the model's size around its centre; i = 3 adds a light),
+  `--color`, `--specular`, `--shininess`. Tests in `tests/TestDisplay.cpp`:
+  the default equals the old conversion on 311 values; sRGB encodes 0.5 as
+  188 and its two pieces meet at 0.0031308; +1 EV doubles and -2 EV quarters
+  the value before encoding; with Reinhard or ACES, 0.5 to 6 give rising
+  bytes below 255 where no curve gives a flat 255; Reinhard halves a
+  luminance of 1, keeps colour ratios and maps the white point to exactly 1;
+  ACES is 0 at 0, monotonic, settles at 1 and puts mid grey at Narkowicz's
+  0.267; metering brings a flat 0.72 image to -2 EV and a 0.02/2 pair to its
+  log-average 0.2; the filmic preset folds the metered exposure and adds the
+  set one; a plane under three lights holds 3.15 in the float buffer and the
+  bytes are that buffer through the display; RGBE round-trips a 1/256..128
+  ramp within one mantissa step; tiles and threads give the same floats and
+  bytes through a filmic display. Golden `teapot_ground_filmic_lit`; ctest
+  `cli_display`, `cli_hdr`, `cli_overrides`, `cli_bad_tonemap`,
+  `cli_bad_light`. Every other golden and gallery picture unchanged.
+- Seen on the ram: the scene was lit for linear bytes, which darken the
+  mid-tones and so read as contrast. Through sRGB the ambient term (0.15)
+  lifts the shadows, and the ram looks flatter than before, more physically
+  shown. An ambient near 0.05 (`--ambient 0.05`) gives the contrast back; the
+  default was left alone, since it moves every golden.
+- Left: Tumblin & Rushmeier's operator (1993), Reinhard's local
+  (dodge-and-burn) operator, a histogram view of the radiance.
 
 ## 10. Depth of field
 
