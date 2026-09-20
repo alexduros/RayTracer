@@ -18,6 +18,7 @@ add_executable(raymini_tests
   TestOcclusion.cpp
   TestRefraction.cpp
   TestDisplay.cpp
+  TestPrimitive.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)

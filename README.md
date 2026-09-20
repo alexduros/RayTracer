@@ -32,6 +32,9 @@ with the raytracer split into a library that builds without any GL dependency.
   traced tile by tile on every core (`--threads n`; same pixels for any count),
   in floating-point radiance that a display maps to the screen last (metered
   exposure, a tone curve, sRGB) or that is saved as it is, in `.hdr`.
+- Analytic primitives beside the meshes: a sphere, a cylinder and a disc
+  given by their equation, hit at the root of a polynomial, exact at any
+  zoom (`--sphere`).
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
 - CLI: render any model to a PNG, no display needed.
@@ -54,7 +57,7 @@ regenerates them and the timings.
 | ![Soft shadows](docs/evolution/06-soft-shadows.png)<br>**6. Soft shadows** (`--shadow-samples 8`): each light a disk, 64 shadow rays; sharp at the feet, penumbra further out. | ![Mirror reflections](docs/evolution/07-reflections.png)<br>**7. Mirror reflections** (`--ground-reflectivity 0.4`): the ram shows upside down in the floor, which darkens where it mirrors the black sky. |
 | ![Ambient occlusion](docs/evolution/08-occlusion.png)<br>**8. Ambient occlusion** (`--ao 8`): 64 hemisphere rays per hit; the creases under the horn, the belly's reflection and the floor at the feet darken. | ![Ambient occlusion mode](docs/evolution/08-occlusion-ao.png)<br>**8, the occlusion itself** (`--mode ao`): the open share of each point's hemisphere, white = open. |
 | ![Refraction](docs/evolution/07b-refraction.png)<br>**7b. Refraction** (`--transparency 1`), the stretch of experiment 7, done after 8: the ram in clear glass bends the floor behind it, catches reflections at its rims and turns dark where light reflects entirely inside. | ![Glass teapot](docs/evolution/07b-teapot.png)<br>**7b, on the teapot**, whose smooth body reads better: the floor shows through, shifted and bent, the lid and the handle stay visible by their rims. |
-| ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
+| ![Analytic primitives](docs/evolution/11-primitives.png)<br>**11. Analytic primitives** (`--sphere`): a mirror sphere and a glass one, given by their equation, stand beside the mesh. Their silhouettes are exact circles; the mirror is dark because it reflects a black sky. | ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
 
 Steps 3 and 4 change the time, not the picture (the script checks the
 pixels are identical). **3. BVH**: the picture of step 2 on one thread,
@@ -118,6 +121,8 @@ build/raymini-cli ram --ground --tonemap reinhard --exposure +0.5               
 build/raymini-cli ram --ground --display linear                                   # the look before experiment 9
 build/raymini-cli ram --ground --out renders/ram.hdr                              # radiance, no display (RGBE)
 build/raymini-cli ram --ground --ambient 0.05 --light 0 3 3 3 1 1 1 1 --color 0.9 0.9 0.95   # retune rig and material
+build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15 \
+    --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass   # analytic spheres
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -192,6 +197,18 @@ default; `--mode ao` alone takes 8 × 8. Each hit costs n × n extra rays:
 the ram on its ground at 384x256 takes 0.02 s without, 0.24 s with 8 × 8 on
 one thread. Coarse meshes with smooth normals show a few grey specks, where
 rays leave below the true face.
+
+**Analytic primitives** (`--sphere x y z r matte|mirror|glass`, repeatable;
+`src/core/Primitive.h`): a sphere, a cylinder or a disc is an equation, not a
+tessellation. The ray meets it where a polynomial vanishes, so one root
+replaces thousands of triangle tests and the silhouette stays a perfect
+circle however close the camera gets — a tessellated sphere only converges
+to it, by the sagitta of its facets. Positions and radii are given in half
+model sizes around the model's centre, like `--light`. Primitives sit in the
+scene next to the meshes, cast and receive shadows, reflect and refract.
+Goldstein & Nagel, "3-D Visual Simulation", *Simulation* 16(1), 1971, where
+solids were quadrics combined by boolean operators; Roth, "Ray Casting for
+Modeling Solids", CGIP 18(2), 1982.
 
 **Exposure, tone mapping and encoding** (`--display filmic|linear`,
 `--exposure`, `--auto-exposure`, `--tonemap none|reinhard|aces`, `--white`,

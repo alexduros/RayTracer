@@ -31,6 +31,7 @@
 #include "HdrImage.h"
 #include "Image.h"
 #include "Orientation.h"
+#include "Primitive.h"
 #include "RayTracer.h"
 #include "RenderJob.h"
 #include "Scene.h"
@@ -92,6 +93,11 @@ Options:
   --white <L>            Reinhard's white point: the radiance that maps to pure white
                          (default: none, highlights approach white without reaching it)
   --gamma <srgb|g>       output encoding: srgb or a power 1/g; 1 = linear bytes
+  --sphere <x> <y> <z> <r> <kind>
+                         add an analytic sphere: an equation, not triangles, so its
+                         silhouette stays exact at any zoom. Position and radius in half
+                         model sizes around the model's centre (like --light); kind is
+                         matte, mirror or glass. Repeatable
   --ambient <a>          ambient intensity (default 0.15)
   --light <i> <x> <y> <z> <r> <g> <b> <intensity>
                          replace light i of the rig (0 key, 1 fill, 2 rim), or add one with
@@ -193,6 +199,12 @@ struct Options {
         float intensity;
     };
     std::vector<LightOverride> lights;
+    struct SphereSpec {
+        Vec3Df centre;
+        float radius;
+        std::string kind;
+    };
+    std::vector<SphereSpec> spheres;
     std::optional<Vec3Df> color;
     std::optional<float> specularStrength, shininess;
     std::optional<UpAxis> up;  // empty = auto
@@ -337,6 +349,24 @@ bool parseArgs(int argc, char** argv, Options& o) {
                 o.encoding = g == 1.f ? Display::Encoding::LINEAR : Display::Encoding::GAMMA;
                 o.gamma = g;
             }
+        } else if (a == "--sphere") {
+            if (i + 5 >= argc) {
+                std::cerr << "--sphere needs <x> <y> <z> <r> <matte|mirror|glass>\n";
+                return false;
+            }
+            Options::SphereSpec sphere;
+            for (int k = 0; k < 3; ++k) sphere.centre[k] = static_cast<float>(std::atof(argv[++i]));
+            sphere.radius = static_cast<float>(std::atof(argv[++i]));
+            sphere.kind = argv[++i];
+            if (sphere.radius <= 0.f) {
+                std::cerr << "--sphere: the radius must be more than 0\n";
+                return false;
+            }
+            if (sphere.kind != "matte" && sphere.kind != "mirror" && sphere.kind != "glass") {
+                std::cerr << "--sphere: the kind must be matte, mirror or glass\n";
+                return false;
+            }
+            o.spheres.push_back(sphere);
         } else if (a == "--ambient") {
             if (!(v = value(i, "--ambient"))) return false;
             o.ambient = static_cast<float>(std::atof(v));
@@ -549,10 +579,32 @@ int main(int argc, char** argv) {
         std::cerr << e.what() << "\n";
         return 1;
     }
+    // Analytic primitives are placed in scene coordinates, after the model is
+    // oriented and before the lights, so the rig and the framing see them.
+    auto addSpheres = [&scene](const std::vector<Options::SphereSpec>& specs) {
+        if (specs.empty()) return;
+        const BoundingBox& box = scene.getBoundingBox();
+        const float half = std::max(box.getSize(), 1e-3f) / 2.f;
+        const Vec3Df centre = box.getCenter();
+        for (const Options::SphereSpec& spec : specs) {
+            Material material = Scene::defaultMaterial();
+            if (spec.kind == "mirror") {
+                // Dark under the mirror, or its own colour washes the reflection out.
+                material = Material(1.f, 0.3f, Vec3Df(0.06f, 0.06f, 0.07f), 200.f, 0.95f);
+            } else if (spec.kind == "glass") {
+                material = Material(1.f, 0.2f, Vec3Df(1.f, 1.f, 1.f), 128.f);
+                material.setTransparency(1.f);
+            }
+            scene.addObject(Object(std::make_shared<Sphere>(centre + half * spec.centre, half * spec.radius),
+                                   material));
+        }
+    };
+
     // Orient before placing lights: the scene is Y-up, the file may not be.
     std::string upSource = "option";
     const UpAxis up = o.up ? *o.up : resolveUpAxis(path, scene, &upSource);
     scene.setUpAxis(up);
+    addSpheres(o.spheres);
     scene.addDefaultLights();
     if (o.lightRadius >= 0.f) scene.setLightRadius(o.lightRadius);
     // Light overrides, in the rig's own units: half the model's size around its centre.

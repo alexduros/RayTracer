@@ -27,6 +27,8 @@ public:
 
     /// Rotate every model object so that file axis `up` points along scene
     /// +Y (exact axis permutations, so switching back and forth is lossless).
+    /// Primitives (Primitive.h) are placed in scene coordinates, not read
+    /// from a file, so they stay where they are: add them after orienting.
     /// A ground plane, if present, is rebuilt under the new bottom. Lights
     /// are left alone: place them after orienting.
     void setUpAxis (UpAxis up);
