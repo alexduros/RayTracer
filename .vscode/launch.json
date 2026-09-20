@@ -2,6 +2,13 @@
   // Every configuration debugs the Debug tree (build-debug/, -O0 -g), built
   // first by the "cmake: build Debug" task, from the repository root.
   // Debugger: cppdbg from ms-vscode.cpptools, driving lldb.
+  //
+  // Breakpoints only bind here. In build/ (Release, -O3, no -g) the hot path
+  // is inlined away: a breakpoint in Ray.h or Bvh.h reads "no locations" and
+  // never fires. Most of the tracing hot path lives in headers (Ray::hit's
+  // slab test, Bvh traversal): set breakpoints in the header, not only in
+  // the .cpp. Ray.cpp holds an intersect overload the render path never
+  // calls, only the tests do.
   "version": "0.2.0",
   "configurations": [
     {
@@ -10,7 +17,9 @@
       "request": "launch",
       "program": "${workspaceFolder}/build-debug/raymini-cli",
       // One worker thread, so breakpoints in the shading code hit in order.
-      "args": ["teapot", "--ground", "--threads", "1", "--out", "renders/debug.png"],
+      // Small and single-threaded: a breakpoint in the tracing code fires
+      // once per ray, so 64x64 is already 4096 stops.
+      "args": ["teapot", "--ground", "--threads", "1", "--size", "64x64", "--out", "renders/debug.png"],
       "cwd": "${workspaceFolder}",
       "MIMode": "lldb",
       "externalConsole": false,

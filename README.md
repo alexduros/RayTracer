@@ -81,6 +81,12 @@ cmake --build build -j
 `-DRAYMINI_BUILD_GUI=OFF` skips the viewer (no GLFW/GLM needed);
 `-DRAYMINI_BUILD_TESTS=OFF` skips the tests. Executables are written to `build/`.
 
+Ready-made builds for macOS and Linux are attached to every
+[release](https://github.com/alexduros/RayTracer/releases), one per step of
+the timeline, with the changelog section as its notes. `raymini-cli` in the
+archive needs nothing installed; the viewer needs GLFW and GLM.
+`scripts/package.sh build dist` builds the same archive locally.
+
 ## Run
 
 ```bash

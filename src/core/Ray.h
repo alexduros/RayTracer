@@ -29,7 +29,10 @@ public:
     inline Vec3Df & getDirection () { return direction; }
     inline bool isTwoSided () const { return twoSided; }
 
-    /// Slab test against an axis-aligned box; `intersect` receives the entry point.
+    /// Slab test against an axis-aligned box; `intersect` receives the entry
+    /// point. Only the tests call these two: the render path goes through the
+    /// overload below (Bvh traversal), so a breakpoint here never fires on a
+    /// render, and does not even bind in raymini or raymini-cli.
     bool intersect (const BoundingBox & bbox, Vec3Df & intersect) const;
     inline bool intersect (const BoundingBox & bbox) const {
         Vec3Df v;

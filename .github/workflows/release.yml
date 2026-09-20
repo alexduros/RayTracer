@@ -1,0 +1,92 @@
+name: Release
+
+# A tag v<version> ships that version: the binaries for macOS and Linux, and
+# the CHANGELOG section of the tag as the release notes.
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The version in the tag must match the one in CMakeLists.txt; the job below
+# refuses the tag otherwise, and scripts/package.sh refuses a binary that
+# reports a different one.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag against CMakeLists.txt
+        run: |
+          tag=${GITHUB_REF_NAME#v}
+          version=$(sed -n 's/^project(raymini VERSION \([0-9][0-9.]*\).*/\1/p' CMakeLists.txt)
+          echo "tag $tag, CMakeLists.txt $version"
+          [ "$tag" = "$version" ]
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglfw3-dev libglm-dev libgl1-mesa-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install glfw glm
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j 4
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        run: scripts/package.sh build dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}
+          path: dist/*.tar.gz
+
+  release:
+    name: release
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: package-*
+          merge-multiple: true
+
+      - name: Release notes from the changelog
+        run: |
+          scripts/changelog-section.sh "${GITHUB_REF_NAME#v}" > notes.md
+          [ -s notes.md ] || { echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME#v}"; exit 1; }
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l dist
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz \
+            --title "raymini $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag

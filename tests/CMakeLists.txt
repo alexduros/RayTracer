@@ -29,6 +29,12 @@ target_compile_options(raymini_tests PRIVATE ${RAYMINI_WARNINGS})
 
 add_test(NAME unit   COMMAND raymini_tests --exclude golden)
 add_test(NAME golden COMMAND raymini_tests --filter golden)
+# The binary reports the version CMake built it with: what the release
+# archive is named after (scripts/package.sh checks the same thing).
+add_test(NAME cli_version COMMAND raymini-cli --version)
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "^raymini ${PROJECT_VERSION}
+$")
+
 add_test(NAME cli_smoke COMMAND raymini-cli teapot --size 32x32 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_smoke.png)
 add_test(NAME cli_soft_shadows COMMAND raymini-cli teapot --size 32x32 --ground --shadow-samples 2

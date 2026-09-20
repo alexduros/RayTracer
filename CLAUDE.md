@@ -56,6 +56,16 @@ build/raymini-cli --help
 - `renders/`, `build/` and `imgui.ini` are gitignored.
 - CI (`.github/workflows/ci.yml`) builds and tests on Ubuntu and macOS and
   uploads sample renders as artifacts.
+- Debugging: breakpoints need a Debug tree, `cmake -S . -B build-debug
+  -DCMAKE_BUILD_TYPE=Debug && cmake --build build-debug -j`, which is what
+  the VS Code launch configurations run and debug. In `build/` (Release, no
+  `-g`) a breakpoint on the tracing hot path reports "no locations" and never
+  fires, because it is inlined away. That hot path lives in headers — the
+  slab test `Ray::intersect(box, invDirection, tMax, tEntry)` in `Ray.h`, the
+  traversal in `Bvh.cpp` — so set the breakpoint there; the `intersect`
+  overload in `Ray.cpp` is only ever called by the tests. One ray under a
+  debugger beats a whole frame: `raymini_tests --filter bvh:` or
+  `raymini-cli teapot --size 8x8 --threads 1`.
 
 ## Rendering pipeline as it exists today
 
@@ -154,6 +164,29 @@ build/raymini-cli --help
   for the radiance. The viewer's display row re-maps the last render without
   tracing. CLI rig and material overrides: `--ambient`, `--light`,
   `--color`, `--specular`, `--shininess`.
+
+## Shipping a step
+
+Each step of the timeline is a release. The loop, from the paper to the tag:
+
+1. Send the paper's link, so it can be read while the work starts.
+2. Branch (`step-<n>-<slug>`), build the step the way the section below
+   says, open a pull request. CI builds and tests it on Ubuntu and macOS and
+   attaches the release archive, so packaging is proven before the tag.
+3. Add the entry to `CHANGELOG.md` under a new version heading (a rendering
+   feature bumps the minor) and bump `project(raymini VERSION ...)` in
+   `CMakeLists.txt`; `raymini-cli --version` and the ctest `cli_version`
+   follow from it.
+4. Merge the pull request, then tag it: `git tag v<version> && git push
+   origin v<version>`. `.github/workflows/release.yml` refuses a tag that
+   disagrees with `CMakeLists.txt`, builds both platforms, runs the tests,
+   packages with `scripts/package.sh` and publishes the GitHub release with
+   the changelog section as its notes.
+
+`scripts/package.sh build dist` runs locally and writes the same archive as
+CI: the binaries, `models/`, the README, the changelog and a RUNNING.txt.
+`scripts/changelog-section.sh <version>` prints the notes the release will
+carry.
 
 ## Conventions for adding an effect
 
