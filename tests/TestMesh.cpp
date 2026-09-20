@@ -22,8 +22,9 @@ TEST_CASE("mesh: loadOFF triangulates quads and computes unit normals") {
 }
 
 TEST_CASE("mesh: loadOFF ignores colours, comments, CRLF and counts on the OFF line") {
-    // Per-vertex extras, per-face colours after the indices (as in
-    // seashell.off), a comment line, and the counts on the "OFF" line.
+    // Per-vertex extras, per-face colours after the indices (some of the
+    // course models carry them), a comment line, and the counts on the "OFF"
+    // line rather than the next one.
     const std::string path = fixtures::writeOFF("extras.off",
         "OFF 4 2 0\n"
         "# a comment\n"
@@ -37,11 +38,11 @@ TEST_CASE("mesh: loadOFF ignores colours, comments, CRLF and counts on the OFF l
     CHECK(m.getTriangles()[1] == Triangle(0, 2, 3));
     CHECK(m.getVertices()[2].getPos() == Vec3Df(1.f, 1.f, 0.f));
 
-    // The bundled models with face colours load with their full face count.
-    Mesh shell;
-    shell.loadOFF(test::modelPath("seashell"));
-    CHECK_EQ(shell.getVertices().size(), 915u);
-    CHECK_EQ(shell.getTriangles().size(), 1680u);
+    // A bundled model loads with its full count, not a truncated one.
+    Mesh ram;
+    ram.loadOFF(test::modelPath("ram"));
+    CHECK_EQ(ram.getVertices().size(), 1803u);
+    CHECK_EQ(ram.getTriangles().size(), 3054u);
 
     // Windows line endings and blank lines.
     Mesh crlf;

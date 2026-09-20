@@ -43,7 +43,7 @@ raymini $version — $os $(uname -m)
   bin/raymini-cli --help
 
 raymini-cli needs nothing else: it renders to a PNG without a display, and a
-bare model name (teapot, ram, minion, cube.obj) resolves inside models/ when
+bare model name (teapot, ram, ram_HD, spot, cube.obj) resolves inside models/ when
 you run it from this directory.
 
 bin/raymini, the viewer, is here only when the archive was built with it, and

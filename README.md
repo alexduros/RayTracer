@@ -108,7 +108,7 @@ archive needs nothing installed; the viewer needs GLFW and GLM.
 ## Run
 
 ```bash
-build/raymini [models/minion.off]                     # viewer (model optional)
+build/raymini [models/belly.obj]                      # viewer (model optional)
 build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20
 build/raymini-cli cube --mode lit --yaw 25 --pitch 20  # OBJ + MTL sample
 build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15   # floor + shadows, the Rendu.png look
@@ -277,7 +277,7 @@ tests/                  raymini_tests + tests/golden/*.png
 third_party/            imgui, glad, stb
 scripts/                render-evolution.sh, which renders docs/evolution/
 docs/evolution/         the README's pictures, one per experiment
-models/                 OFF models (teapot, ram, minion, dragon, ...), cube.obj/.mtl, orientation.txt
+models/                 six shapes and why each is there (models/README.md), orientation.txt
 claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
 .github/workflows/      CI: build + tests + sample renders on Ubuntu and macOS
 ```
@@ -294,7 +294,7 @@ implementation order, each step with the test that proves it.
 ## Notes
 
 - The scene is Y-up, but model files follow no convention (the teapot and
-  the ram are Z-up, the minion Y-up). Each model is rotated on load so its
+  the ram are Z-up, Spot and the mascot Y-up). Each model is rotated on load so its
   own up axis becomes +Y: `models/orientation.txt` lists the axis for every
   bundled model, files not listed get a heuristic (the flattest side of the
   bounding box is the bottom), and the viewer's "Up axis" menu or
