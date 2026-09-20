@@ -4,32 +4,12 @@
 # +x -x +y -y +z -z. Models missing here fall back to the "flattest side is
 # the bottom" heuristic; the viewer and raymini-cli --up can override.
 #
-# Curated by looking at each model. Most of the original course models are
-# Z-up (ground.off is a quad in the XY plane); later additions are Y-up.
-Apple          +z
-Sword01        +y
-asu            +y
-b-wing-v2      +z
-dragon         +y
-goblet         +z
-ground         +z
-ground_HD      +z
-head           +y
-heart          +y
-helm           +y
-house          +y
-king           +y
-klingon        +z
-minion         +y
-mushroom       +y
-pear           +y
-r2             +z
+# Curated by looking at each model. The course models are Z-up (the teapot and
+# the ram); Spot is Y-up, and the heuristic gets her wrong, which is why the
+# manifest exists.
+belly          +y
+cube           +y
 ram            +z
 ram_HD         +z
-seashell       +y
-space_shuttle  +z
-space_station  +y
+spot           +y
 teapot         +z
-volks          +y
-x29_plane      +z
-cube           +y

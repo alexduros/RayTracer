@@ -1,0 +1,31 @@
+# Exported by three-d-stage
+newmtl fur
+Kd 0.3763 0.0685 0.0110
+Ks 0.2000 0.2000 0.2000
+Ns 56
+d 1.0000
+
+newmtl tan_belly
+Kd 0.7758 0.4678 0.2918
+Ks 0.2000 0.2000 0.2000
+Ns 40
+d 1.0000
+
+newmtl cream
+Kd 0.9647 0.8550 0.7231
+Ks 0.2000 0.2000 0.2000
+Ns 44
+d 1.0000
+
+newmtl fur_dark
+Kd 0.1095 0.0116 0.0075
+Ks 0.2000 0.2000 0.2000
+Ns 76
+d 1.0000
+
+newmtl bandana
+Kd 0.9131 0.0887 0.0103
+Ks 0.2000 0.2000 0.2000
+Ns 90
+d 1.0000
+

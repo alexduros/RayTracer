@@ -317,9 +317,9 @@ TEST_CASE("bvh: 10 000 random rays hit exactly what brute force hits (teapot on 
     const Scene s = loadModel("teapot", true);
     compareRays("teapot+ground", s, randomRays(s.getBoundingBox(), 10000));
 }
-TEST_CASE("bvh: 1 000 random rays hit exactly what brute force hits (minion, 84k triangles)") {
-    const Scene s = loadModel("minion", false);
-    compareRays("minion", s, randomRays(s.getBoundingBox(), 1000));
+TEST_CASE("bvh: 1 000 random rays hit exactly what brute force hits (ram_HD, 50k triangles)") {
+    const Scene s = loadModel("ram_HD", false);
+    compareRays("ram_HD", s, randomRays(s.getBoundingBox(), 1000));
 }
 
 TEST_CASE("bvh: two-sided rays hit exactly what brute force hits, on the same side (teapot, ram, cube.obj)") {

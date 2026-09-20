@@ -11,6 +11,31 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-20
+
+### Added
+
+- **Spot**, Keenan Crane's cow (CC0): 5 856 triangles with texture
+  coordinates and a texture map, the only model here that has them — OFF
+  stores no UVs. What texture mapping will be built on (timeline step 12).
+- **Belly**, the project's mascot: 74 478 triangles over five materials,
+  also with texture coordinates.
+- `models/README.md`: what each model is for and where it comes from.
+
+### Removed
+
+- Two dozen course models nothing tested or documented (the minion, the
+  dragon, the shuttle, the Klingon ship...): 7 MB out of the repository and
+  out of every release archive. Six shapes remain, each earning its place.
+  Any OFF or OBJ file still loads by path.
+
+### Changed
+
+- The BVH's heavy-model test moved from the minion to `ram_HD` (50 544
+  triangles): same hits as brute force on 1 000 random rays, 0.018 s against
+  40.7 s at 256x256 with shadows, on one thread.
+- The OFF loader's face-colour test reads the ram rather than the seashell.
+
 ## [0.3.0] - 2026-09-20
 
 ### Changed
@@ -86,7 +111,8 @@ framework, modernised to C++17, GLFW and Dear ImGui).
   physical property or an invariant, plus 42 golden images, run on Ubuntu and
   macOS by the CI.
 
-[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.1.0

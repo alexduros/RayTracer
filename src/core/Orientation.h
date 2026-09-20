@@ -1,5 +1,5 @@
 // Which way is up. OFF and OBJ files carry no convention: some of the bundled
-// models are Z-up (teapot, ram), others Y-up (minion). The scene itself is
+// models are Z-up (teapot, ram), others Y-up (spot). The scene itself is
 // Y-up (the floor is horizontal, the camera orbits about Y), so a model is
 // rotated on load so that its own up axis becomes +Y (Scene::setUpAxis).
 //

@@ -19,8 +19,12 @@ tests that prove each one.
 - `tests/` — `raymini_tests` (tiny harness in `tests/Test.h`, no external
   dependency) plus `tests/golden/*.png`.
 - `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
-  backends), glad, stb. `models/` — 26 OFF files plus `cube.obj`/`cube.mtl`
-  (six materials, one per face) and `orientation.txt` (up axis per model).
+  backends), glad, stb. `models/` — six shapes and what each is for, listed
+  in `models/README.md`: `teapot.off`, `ram.off`, `ram_HD.off` (50k
+  triangles, the heavy one), `cube.obj`/`cube.mtl` (six materials),
+  `spot.obj` + `spot_texture.png` (the only UVs, CC0, for texture mapping)
+  and `belly.obj`/`belly.mtl` (the mascot, five materials, 74k triangles).
+  `orientation.txt` gives the up axis of each.
 - `claudedocs/RENDERING_ROADMAP.md` — every rendering mode the raytracer
   could offer next, one-sentence principle each; mirrored by
   `RayTracer::plannedMode()` (greyed out in the viewer's mode menu, printed
@@ -43,7 +47,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 
-build/raymini [models/minion.off]     # viewer; model optional, picker in Controls
+build/raymini [models/belly.obj]      # viewer; model optional, picker in Controls
 build/raymini-cli teapot --mode normals --size 512x512 --yaw 25 --pitch 20 \
     --out renders/teapot.png                                      # headless
 build/raymini-cli --help
@@ -133,9 +137,10 @@ build/raymini-cli --help
   are byte-identical for any tile size and thread count; `renderRegion` is
   const and the scene read-only, so workers share them (TSan-clean). On an
   M-series Mac (10 cores), teapot at 256x256 renders in about 5 ms on one
-  thread (0.29 s brute force) and minion (84k triangles) on its ground with
-  shadows in about 20 ms (60 s brute force); loading the OFF file (0.1 s)
-  now dominates. Soft shadows multiply the shadow work by n x n: ram on its
+  thread (0.29 s brute force) and ram_HD (50k triangles) on its ground with
+  shadows in 18 ms (41 s brute force); loading the file now dominates. The
+  same held for the minion (84k triangles, 17 ms against 60 s) while it was
+  bundled. Soft shadows multiply the shadow work by n x n: ram on its
   ground at 384x384 with 2x2 AA and 8x8 shadow rays takes 3.9 s on one
   thread, 0.75 s on ten.
 - Ambient light is 0.05 by default (`setAmbientIntensity`, CLI `--ambient`).
@@ -229,7 +234,7 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   before `addDefaultLights`. `Orientation.h` resolves "Auto" from
   `models/orientation.txt` (curated for every bundled model) and otherwise
   from the flattest-side heuristic, which is wrong for models with a flat
-  back (the minion), hence the manifest and the `--up` / "Up axis"
-  override. Add new bundled models to the manifest.
+  back (it lays Spot on her side), hence the manifest and the `--up` /
+  "Up axis" override. Add new bundled models to the manifest.
 - GL preview and raytraced panel share eye, target, up, vertical fov and
   aspect (3:2), so a render reproduces the preview exactly.
