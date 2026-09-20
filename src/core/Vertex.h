@@ -24,6 +24,10 @@ public:
     inline Vertex (const Vec3Df & pos, const Vec3Df & normal)
         : pos (pos), normal (normal),
           marked (false), id (-1), id_object (-1), ambientOcclusionCoeff (0) {}
+    /// With texture coordinates (OBJ `vt`), interpolated like the normal.
+    inline Vertex (const Vec3Df & pos, const Vec3Df & normal, float u, float v)
+        : pos (pos), normal (normal),
+          marked (false), id (-1), id_object (-1), ambientOcclusionCoeff (0), u (u), v (v) {}
     virtual ~Vertex () {}
 
     inline const Vec3Df & getPos () const { return pos; }
@@ -38,6 +42,10 @@ public:
     inline bool operator== (const Vertex & v) const { return (v.pos == pos && v.normal == normal); }
     inline int getIdObject () const { return id_object; }
     inline void setIdObject (int newId) { id_object = newId; }
+    /// Texture coordinates, 0 on a model that carries none (OFF files).
+    inline float getU () const { return u; }
+    inline float getV () const { return v; }
+    inline void setTexCoord (float newU, float newV) { u = newU; v = newV; }
     inline float getAmbientOcclusionCoeff () const { return ambientOcclusionCoeff; }
     inline void setAmbientOcclusionCoeff (float a) { ambientOcclusionCoeff = a; }
 
@@ -56,6 +64,7 @@ private:
     int id;
     int id_object;
     float ambientOcclusionCoeff;
+    float u = 0.f, v = 0.f;
 };
 
 extern std::ostream & operator<< (std::ostream & output, const Vertex & v);

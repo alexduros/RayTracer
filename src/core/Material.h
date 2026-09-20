@@ -9,8 +9,10 @@
 #define MATERIAL_H
 
 #include <iostream>
+#include <memory>
 #include <vector>
 
+#include "Texture.h"
 #include "Vec3D.h"
 
 // Ce modèle suppose une couleur spéculaire blanche (1.0, 1.0, 1.0)
@@ -34,6 +36,13 @@ public:
     inline float getDiffuse () const { return diffuse; }
     inline float getSpecular () const { return specular; }
     inline Vec3Df getColor () const { return color; }
+    /// The colour at a point of the surface: the texture (MTL map_Kd) read
+    /// through its coordinates and tinted by `color`, or `color` alone.
+    inline Vec3Df getColorAt (float u, float v) const {
+        return diffuseMap ? color * diffuseMap->sample (u, v) : color;
+    }
+    inline const std::shared_ptr<const Texture> & getDiffuseMap () const { return diffuseMap; }
+    inline void setDiffuseMap (const std::shared_ptr<const Texture> & map) { diffuseMap = map; }
     inline float getShininess () const { return shininess; }
     inline float getReflectivity () const { return reflectivity; }
     inline float getTransparency () const { return transparency; }
@@ -54,6 +63,7 @@ private:
     float specular;
     Vec3Df color;
     float shininess;
+    std::shared_ptr<const Texture> diffuseMap;  // MTL map_Kd, shared and never modified
     float reflectivity = 0.f;
     float transparency = 0.f;
     float ior = 1.5f;

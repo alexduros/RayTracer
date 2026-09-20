@@ -27,6 +27,7 @@ the implementation order with tests; this page is the map.
 | Refraction (glass) | A transparent surface splits the light between reflection and a ray bent by Snell's law, in the Fresnel proportions. |
 | Tone mapping and exposure | Radiance stays in floats; a metered exposure, a tone curve and sRGB map it to the screen last. |
 | Analytic primitives | A sphere, a cylinder or a disc is an equation: the ray meets it at the root of a polynomial, exactly, at any zoom. |
+| Textures | The material's colour is read from an image through the coordinates the surface carries, bilinearly. |
 
 ## 1. Local shading
 
@@ -74,9 +75,9 @@ Needs: HDR loading (stb reads `.hdr`), equirectangular lookup, hemisphere sampli
 
 ## 3. Materials and textures (for complex models)
 
-### Textures, procedural and image
+### Textures, image (done) and procedural (to come)
 **Principle:** The material colour becomes a function of the hit: a checker or noise of the position, or a bitmap looked up through interpolated texture coordinates.
-Needs: keep `vt` from OBJ files and `map_Kd` from MTL, barycentric interpolation of UVs. Test: a checker plane alternates at the right period, a 2x2 image texture puts each colour in its quadrant. Reference: Catmull 1974; Perlin, "An Image Synthesizer", SIGGRAPH 1985.
+Done for images (timeline step 12, v0.5.0): `vt` kept from OBJ, `map_Kd` from MTL, barycentric interpolation, bilinear read, sRGB decoded, wrapping, a `uv` mode, and Spot with her texture. Tests: each texel owns its quadrant, the read between two texels is their mean, 188 decodes to 0.5, a seam keeps its two vertices. Procedural patterns (a checker of the position, then Perlin noise) wait for timeline step 25. Reference: Catmull 1974; Perlin, "An Image Synthesizer", SIGGRAPH 1985.
 
 ### Normal and bump mapping
 **Principle:** A texture perturbs the shading normal per pixel to fake fine surface detail without adding geometry.

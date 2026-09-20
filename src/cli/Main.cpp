@@ -32,6 +32,7 @@
 #include "Image.h"
 #include "Orientation.h"
 #include "Primitive.h"
+#include "Texture.h"
 #include "RayTracer.h"
 #include "RenderJob.h"
 #include "Scene.h"
@@ -80,7 +81,8 @@ Options:
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
   --threads <n>          worker threads, 0 = one per core (default 0); the picture is identical
-  --display <preset>     filmic (default): exposure measured on the image, ACES curve, sRGB;
+  --display <preset>     for lit renders only, the analysis modes keeping the raw values.
+                         filmic (default): exposure measured on the image, ACES curve, sRGB;
                          linear: the historical conversion (no exposure, clipped at 1, linear
                          bytes), that of every render before experiment 9 and of the goldens.
                          The options below adjust the preset, in any order
@@ -103,6 +105,9 @@ Options:
                          replace light i of the rig (0 key, 1 fill, 2 rim), or add one with
                          i = 3; position in half model sizes around the model's centre
   --color <r> <g> <b>    the model's colour (default: the file's, or orange)
+  --texture <file>       image read through the model's texture coordinates (PNG, JPEG...),
+                         tinted by its colour; only OBJ files carry coordinates, and
+                         --mode uv shows them
   --specular <k>         the model's highlight strength
   --shininess <n>        the model's Blinn-Phong exponent
   --fov <deg>            vertical field of view (default 45)
@@ -138,6 +143,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << mirror.principle << "\n"
         << "      Read: " << mirror.reading << "\n"
         << "      Ref:  " << mirror.reference << "\n";
+    const RayTracer::ModeInfo& texture = RayTracer::textureInfo();
+    out << "\n--texture  " << texture.name << "\n"
+        << "      " << texture.principle << "\n"
+        << "      Read: " << texture.reading << "\n"
+        << "      Ref:  " << texture.reference << "\n";
     const RayTracer::ModeInfo& tone = RayTracer::toneMappingInfo();
     out << "\n--exposure / --tonemap / --white / --gamma  " << tone.name << "\n"
         << "      " << tone.principle << "\n"
@@ -206,12 +216,17 @@ struct Options {
     };
     std::vector<SphereSpec> spheres;
     std::optional<Vec3Df> color;
+    std::string texture;
     std::optional<float> specularStrength, shininess;
     std::optional<UpAxis> up;  // empty = auto
     bool quiet = false;
 };
 
 Display displayFor(const Options& o) {
+    // The analysis modes do not show light: their pixels are a normal, a
+    // distance, a coordinate. Metering and a tone curve would lie about
+    // them, so only Lit goes through the filmic display.
+    if (o.mode != RayTracer::DebugMode::LIT) return Display::linear();
     Display d = o.displayPreset == "linear" ? Display::linear() : Display::filmic();
     if (o.autoExposure) d.autoExposure = *o.autoExposure;
     if (o.exposure) d.exposure = *o.exposure;
@@ -397,6 +412,9 @@ bool parseArgs(int argc, char** argv, Options& o) {
             Vec3Df c;
             for (int k = 0; k < 3; ++k) c[k] = static_cast<float>(std::atof(argv[++i]));
             o.color = c;
+        } else if (a == "--texture") {
+            if (!(v = value(i, "--texture"))) return false;
+            o.texture = v;
         } else if (a == "--specular") {
             if (!(v = value(i, "--specular"))) return false;
             o.specularStrength = static_cast<float>(std::atof(v));
@@ -628,12 +646,16 @@ int main(int argc, char** argv) {
     scene.setModelReflectivity(o.reflectivity);
     scene.setGroundReflectivity(o.groundReflectivity);
     // Glass only when asked: an OBJ's MTL may already make some of it glass.
+    // A texture given here replaces the one the MTL may have loaded.
+    const std::shared_ptr<const Texture> texture = o.texture.empty() ? nullptr : Texture::load(o.texture);
+    if (!o.texture.empty() && !texture) return 1;
     for (Object& object : scene.getObjects()) {
         if (object.isBackdrop()) continue;
         Material& m = object.getMaterial();
         if (o.transparency) m.setTransparency(*o.transparency);
         if (o.ior) m.setIor(*o.ior);
         if (o.color) m.setColor(*o.color);
+        if (!o.texture.empty()) m.setDiffuseMap(texture);
         if (o.specularStrength) m.setSpecular(*o.specularStrength);
         if (o.shininess) m.setShininess(*o.shininess);
     }

@@ -725,6 +725,9 @@ int main(int argc, char** argv) {
             scene.setModelReflectivity(rtModelReflectivity);
             scene.setGroundReflectivity(rtGroundReflectivity);
             // The job copies tracer, scene and camera: editing them meanwhile is safe.
+            // The analysis modes do not show light: no metering, no curve.
+            if (static_cast<RayTracer::DebugMode>(rtMode) != RayTracer::DebugMode::LIT)
+                rt.setDisplay(Display::linear());
             // Glass goes on a copy, so setting it back to 0 restores what the
             // file says (an MTL can make some materials glass already).
             Scene toRender = scene;

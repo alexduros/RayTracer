@@ -11,6 +11,34 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-20
+
+Step 12 of the timeline: E. Catmull, "A Subdivision Algorithm for Computer
+Display of Curved Surfaces", PhD thesis, University of Utah, 1974, chapter
+6 — the surface carries its own frame, and a picture is read through it.
+
+### Added
+
+- **Textures.** The `vt` of an OBJ file, until now parsed and thrown away,
+  are kept, interpolated over the triangle by the same barycentric weights
+  as the normal, and read from an image: `map_Kd` in the MTL, or
+  `--texture <file>` on the command line. The read is bilinear, texels are
+  decoded from sRGB to linear when the image loads, coordinates outside
+  [0, 1] wrap, and the material's Kd tints the result
+  (`src/core/Texture.h`).
+- **A uv mode** that paints the coordinates, u to red and v to green: what
+  an unwrapping looks like before anything is mapped onto it.
+- **Spot arrives dressed**: `models/spot.mtl` ties her mesh to her texture,
+  which Keenan Crane's archive leaves as two unrelated files. Goldens
+  `spot_textured_lit` and `spot_uv`.
+
+### Fixed
+
+- The analysis modes no longer go through the filmic display. A normal, a
+  distance, a coordinate is not light: metering it and bending it through a
+  tone curve was lying about it. Only Lit is displayed that way now; the
+  others keep their raw values, as they did before v0.2.0.
+
 ## [0.4.0] - 2026-09-20
 
 ### Added
@@ -111,7 +139,8 @@ framework, modernised to C++17, GLFW and Dear ImGui).
   physical property or an invariant, plus 42 golden images, run on Ubuntu and
   macOS by the CI.
 
-[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.5.0
 [0.4.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.2.0

@@ -35,6 +35,9 @@ with the raytracer split into a library that builds without any GL dependency.
 - Analytic primitives beside the meshes: a sphere, a cylinder and a disc
   given by their equation, hit at the root of a polynomial, exact at any
   zoom (`--sphere`).
+- Textures: an OBJ's texture coordinates read through an image (`map_Kd` or
+  `--texture`), bilinear, decoded from sRGB, with a `uv` mode to check an
+  unwrapping.
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
 - CLI: render any model to a PNG, no display needed.
@@ -57,6 +60,7 @@ regenerates them and the timings.
 | ![Soft shadows](docs/evolution/06-soft-shadows.png)<br>**6. Soft shadows** (`--shadow-samples 8`): each light a disk, 64 shadow rays; sharp at the feet, penumbra further out. | ![Mirror reflections](docs/evolution/07-reflections.png)<br>**7. Mirror reflections** (`--ground-reflectivity 0.4`): the ram shows upside down in the floor, which darkens where it mirrors the black sky. |
 | ![Ambient occlusion](docs/evolution/08-occlusion.png)<br>**8. Ambient occlusion** (`--ao 8`): 64 hemisphere rays per hit; the creases under the horn, the belly's reflection and the floor at the feet darken. | ![Ambient occlusion mode](docs/evolution/08-occlusion-ao.png)<br>**8, the occlusion itself** (`--mode ao`): the open share of each point's hemisphere, white = open. |
 | ![Refraction](docs/evolution/07b-refraction.png)<br>**7b. Refraction** (`--transparency 1`), the stretch of experiment 7, done after 8: the ram in clear glass bends the floor behind it, catches reflections at its rims and turns dark where light reflects entirely inside. | ![Glass teapot](docs/evolution/07b-teapot.png)<br>**7b, on the teapot**, whose smooth body reads better: the floor shows through, shifted and bent, the lid and the handle stay visible by their rims. |
+| ![Texture](docs/evolution/12-texture.png)<br>**12. Textures** (Spot, from her MTL): the picture follows the surface through the coordinates the file carries. The rams and the teapot cannot have this: OFF stores no coordinates. | ![UV](docs/evolution/12-uv.png)<br>**12, the coordinates themselves** (`--mode uv`): u in red, v in green. The seams of the unwrapping show as hard edges. |
 | ![Analytic primitives](docs/evolution/11-primitives.png)<br>**11. Analytic primitives** (`--sphere`): a mirror sphere and a glass one, given by their equation, stand beside the mesh. Their silhouettes are exact circles; the mirror is dark because it reflects a black sky. | ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
 
 Steps 3 and 4 change the time, not the picture (the script checks the
@@ -123,6 +127,8 @@ build/raymini-cli ram --ground --out renders/ram.hdr                            
 build/raymini-cli ram --ground --ambient 0.05 --light 0 3 3 3 1 1 1 1 --color 0.9 0.9 0.95   # retune rig and material
 build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15 \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass   # analytic spheres
+build/raymini-cli spot --ground --aa 2 --yaw -150 --pitch 12                   # textured, from her MTL
+build/raymini-cli spot --mode uv --yaw -150 --pitch 12                         # her unwrapping
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -166,6 +172,7 @@ The same text is shown under the render in the viewer and printed by
 | **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
 | **Depth** | Eye-to-hit distance mapped between near and far: white at near, dark grey at far, black = nothing hit. | Brighter is closer; tighten near/far around the model if it is all one shade. | The z-buffer: E. Catmull, PhD thesis, University of Utah, 1974 |
 | **Object id** | One palette colour per object (per material group for OBJ). | Same colour = same object; a one-colour OFF model is expected. | The item buffer: Weghorst, Hooper & Greenberg, "Improved Computational Methods for Ray Tracing", ACM TOG 3(1), 1984 |
+| **Texture coordinates (uv)** | The (u, v) the surface carries, interpolated over the triangle: u → red, v → green. | Smooth gradients are a continuous unwrapping, hard edges are seams; black means the file carries none (every OFF here). | Catmull, PhD thesis, University of Utah, 1974 |
 | **Ambient occlusion** | n × n rays over the hemisphere around the normal, cosine-weighted; the share that meets nothing within the radius, as grey. In Lit mode the same share scales the ambient and diffuse terms. | White is open, darker is enclosed: creases, the inside of the horns, the floor around the feet. A small radius darkens only contact points, a large one whole cavities; few samples leave grain. | Zhukov, Iones & Kronin, "An Ambient Light Illumination Model", Eurographics Rendering Workshop 1998; Malley's method on Shirley & Chiu's concentric map |
 
 **Anti-aliasing** (`--aa n`, `--jitter`; Anti-alias / Jitter in the viewer):
@@ -197,6 +204,18 @@ default; `--mode ao` alone takes 8 × 8. Each hit costs n × n extra rays:
 the ram on its ground at 384x256 takes 0.02 s without, 0.24 s with 8 × 8 on
 one thread. Coarse meshes with smooth normals show a few grey specks, where
 rays leave below the true face.
+
+**Textures** (`--texture <file>`, or `map_Kd` in an MTL; the `uv` mode shows
+the coordinates): the material's colour becomes a picture read through the
+surface's own coordinates. Each vertex carries its (u, v), they are
+interpolated over the triangle by the same barycentric weights as the
+normal, and the four texels around that point are read bilinearly. Texels
+are decoded from sRGB to linear when the image loads, since everything the
+tracer computes is linear; the material's Kd tints the result; coordinates
+outside [0, 1] wrap, so a texture tiles. Only OBJ files carry coordinates —
+OFF stores none — so Spot is the model to try it on. Catmull, "A Subdivision
+Algorithm for Computer Display of Curved Surfaces", PhD thesis, University
+of Utah, 1974, chapter 6.
 
 **Analytic primitives** (`--sphere x y z r matte|mirror|glass`, repeatable;
 `src/core/Primitive.h`): a sphere, a cylinder or a disc is an equation, not a
