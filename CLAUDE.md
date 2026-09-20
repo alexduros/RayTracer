@@ -56,6 +56,16 @@ build/raymini-cli --help
 - `renders/`, `build/` and `imgui.ini` are gitignored.
 - CI (`.github/workflows/ci.yml`) builds and tests on Ubuntu and macOS and
   uploads sample renders as artifacts.
+- Debugging: breakpoints need a Debug tree, `cmake -S . -B build-debug
+  -DCMAKE_BUILD_TYPE=Debug && cmake --build build-debug -j`, which is what
+  the VS Code launch configurations run and debug. In `build/` (Release, no
+  `-g`) a breakpoint on the tracing hot path reports "no locations" and never
+  fires, because it is inlined away. That hot path lives in headers — the
+  slab test `Ray::intersect(box, invDirection, tMax, tEntry)` in `Ray.h`, the
+  traversal in `Bvh.cpp` — so set the breakpoint there; the `intersect`
+  overload in `Ray.cpp` is only ever called by the tests. One ray under a
+  debugger beats a whole frame: `raymini_tests --filter bvh:` or
+  `raymini-cli teapot --size 8x8 --threads 1`.
 
 ## Rendering pipeline as it exists today
 
