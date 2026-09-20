@@ -11,6 +11,17 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-20
+
+### Changed
+
+- **The default ambient light drops from 0.15 to 0.05.** The old value was
+  chosen when radiance went straight into bytes, a conversion that darkens
+  the mid-tones and passed for contrast. Since 0.2.0 the display lifts them
+  properly (sRGB), and 0.15 washed the shadows out. Every lit picture gains
+  contrast; the twelve lit goldens and the gallery are regenerated, the
+  other modes are untouched, and `--ambient` still overrides it.
+
 ## [0.2.0] - 2026-09-20
 
 Step 11 of the timeline: R. A. Goldstein & R. Nagel, "3-D Visual
@@ -75,6 +86,7 @@ framework, modernised to C++17, GLFW and Dear ImGui).
   physical property or an invariant, plus 42 golden images, run on Ubuntu and
   macOS by the CI.
 
-[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.1.0

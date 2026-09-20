@@ -98,7 +98,7 @@ Options:
                          silhouette stays exact at any zoom. Position and radius in half
                          model sizes around the model's centre (like --light); kind is
                          matte, mirror or glass. Repeatable
-  --ambient <a>          ambient intensity (default 0.15)
+  --ambient <a>          ambient intensity (default 0.05)
   --light <i> <x> <y> <z> <r> <g> <b> <intensity>
                          replace light i of the rig (0 key, 1 fill, 2 rim), or add one with
                          i = 3; position in half model sizes around the model's centre

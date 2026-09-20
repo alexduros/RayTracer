@@ -138,6 +138,10 @@ build/raymini-cli --help
   now dominates. Soft shadows multiply the shadow work by n x n: ram on its
   ground at 384x384 with 2x2 AA and 8x8 shadow rays takes 3.9 s on one
   thread, 0.75 s on ten.
+- Ambient light is 0.05 by default (`setAmbientIntensity`, CLI `--ambient`).
+  It was 0.15 while radiance went straight into bytes; the display of
+  experiment 9 lifts the dark tones, so that much ambient flattened every
+  picture.
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.

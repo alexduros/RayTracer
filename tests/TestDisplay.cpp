@@ -169,7 +169,7 @@ TEST_CASE("display: HDR images keep radiance above 1 and survive a Radiance .hdr
     RayTracer rt;
     rt.setSpecularEnabled(false);
     const HdrImage hdr = rt.renderHdr(s, cam, 16, 16);
-    CHECK_CLOSE(hdr.get(8, 8)[0], 0.15f + 3.f * 1.f, 0.02f);  // ambient + three lights head-on
+    CHECK_CLOSE(hdr.get(8, 8)[0], 0.05f + 3.f * 1.f, 0.02f);  // ambient + three lights head-on
     // The 8-bit render is that buffer through the display, pixel for pixel.
     const Image bytes = rt.render(s, cam, 16, 16);
     const Image mapped = rt.getDisplay().apply(hdr);

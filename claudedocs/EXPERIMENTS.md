@@ -355,10 +355,10 @@ CLI so the default cyan/yellow/white rig can be tuned without code changes.
   `cli_display`, `cli_hdr`, `cli_overrides`, `cli_bad_tonemap`,
   `cli_bad_light`. Every other golden and gallery picture unchanged.
 - Seen on the ram: the scene was lit for linear bytes, which darken the
-  mid-tones and so read as contrast. Through sRGB the ambient term (0.15)
-  lifts the shadows, and the ram looks flatter than before, more physically
-  shown. An ambient near 0.05 (`--ambient 0.05`) gives the contrast back; the
-  default was left alone, since it moves every golden.
+  mid-tones and so read as contrast. Through sRGB the ambient term lifted
+  the shadows, and the ram looked flatter than before, more physically
+  shown. The default ambient went from 0.15 to 0.05 in v0.3.0, which gives
+  the contrast back; it moved the twelve lit goldens and the gallery.
 - Left: Tumblin & Rushmeier's operator (1993), Reinhard's local
   (dodge-and-burn) operator, a histogram view of the radiance.
 
