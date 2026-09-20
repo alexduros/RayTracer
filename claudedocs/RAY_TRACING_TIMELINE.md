@@ -58,14 +58,22 @@ R. A. Goldstein & R. Nagel, "3-D Visual Simulation", *Simulation* 16(1),
   Golden `spheres_lit`.
 - **M** · modelling. Enables 17, 18 and every analytic test scene.
 
-### 12 · 1974 · Texture mapping ★
+### 12 · 1974 · Texture mapping ★ (done, v0.5.0)
 E. Catmull, "A Subdivision Algorithm for Computer Display of Curved
-Surfaces", PhD thesis, University of Utah, 1974.
-- **Here:** keep OBJ `vt`, read MTL `map_Kd` (stb), interpolate UVs with
-  the barycentrics `Ray::hit` computes, bilinear lookup; a UV view mode.
-- **Proof:** a 2x2 texture puts each colour in its quadrant; a checker
-  alternates at its period; no texture = today's picture.
-- **M** · effect.
+Surfaces", PhD thesis, University of Utah, 1974 (chapter 6).
+- **Here:** `src/core/Texture.h` — OBJ `vt` kept and interpolated by the
+  barycentrics `Ray::hit` already computes, bilinear read, sRGB decoded at
+  load, wrapping outside [0, 1], tinted by Kd. MTL `map_Kd`, CLI
+  `--texture`, a `uv` mode, and `models/spot.mtl` so Spot carries her
+  texture. The analysis modes stopped going through the filmic display on
+  the way.
+- **Proof:** each texel owns its quadrant and coordinates wrap; the read
+  halfway between two texels is their mean; 188 decodes to linear 0.5; the
+  coordinates interpolate across a quad to the value each point deserves; a
+  seam keeps its two vertices; a map_Kd that points nowhere leaves the
+  colour. Goldens `spot_textured_lit`, `spot_uv`.
+- **M** · effect. Filtering at a distance comes in 19; procedural patterns
+  in 25.
 
 **✓ 1975, 1977** · B. T. Phong, CACM 18(6); J. Blinn, SIGGRAPH 1977.
 Experiment 2.

@@ -11,7 +11,8 @@ them. `raymini-cli <name>` and the viewer's picker resolve a bare name here.
 | `cube.obj`, `cube.mtl` | 12 | The only OBJ with materials, one per face: it proves the MTL path and the object-id mode. |
 | `belly.obj`, `belly.mtl` | 74 478 | Belly, the project's mascot: five materials, and the heaviest model here. It has texture coordinates too. |
 | `spot.obj` | 5 856 | Spot, with texture coordinates and a texture map: what the teapot and the rams cannot have, since OFF stores no UVs. |
-| `spot_texture.png` | — | Spot's texture, 1024 x 1024, to be read once texture mapping lands (timeline step 12). |
+| `spot_texture.png` | — | Spot's texture, read through her coordinates. |
+| `spot.mtl` | — | Ties the two together: Keenan Crane ships the mesh and the texture as unrelated files, so this `map_Kd` is ours. |
 
 `models/orientation.txt` says which axis of each file points up; without it,
 Spot is laid on her side by the flattest-side heuristic.

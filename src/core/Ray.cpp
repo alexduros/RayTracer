@@ -24,6 +24,10 @@ bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float
             & Bn = vertices[triangle.getVertex(1)].getNormal(),
             & Cn = vertices[triangle.getVertex(2)].getNormal();
 
+    const float Au = vertices[triangle.getVertex(0)].getU(), Av = vertices[triangle.getVertex(0)].getV();
+    const float Bu = vertices[triangle.getVertex(1)].getU(), Bv = vertices[triangle.getVertex(1)].getV();
+    const float Cu = vertices[triangle.getVertex(2)].getU(), Cv = vertices[triangle.getVertex(2)].getV();
+
     float Ac = vertices[triangle.getVertex(0)].getAmbientOcclusionCoeff();
     float Bc = vertices[triangle.getVertex(1)].getAmbientOcclusionCoeff();
     float Cc = vertices[triangle.getVertex(2)].getAmbientOcclusionCoeff();
@@ -56,6 +60,7 @@ bool Ray::hit (const Triangle & triangle, const Mesh & mesh, Vertex & hit, float
         hit.setPos(A * uvw[0] + B * uvw[1] + C * uvw[2]);
         hit.setNormal(An * uvw[0] + Bn * uvw[1] + Cn * uvw[2]);
         hit.setAmbientOcclusionCoeff((Ac * uvw[0] + Bc * uvw[1] + Cc * uvw[2]));
+        hit.setTexCoord(Au * uvw[0] + Bu * uvw[1] + Cu * uvw[2], Av * uvw[0] + Bv * uvw[1] + Cv * uvw[2]);
         t = distance;
         return true;
     } else {

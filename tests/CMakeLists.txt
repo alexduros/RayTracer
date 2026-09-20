@@ -19,6 +19,7 @@ add_executable(raymini_tests
   TestRefraction.cpp
   TestDisplay.cpp
   TestPrimitive.cpp
+  TestTexture.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -60,6 +61,11 @@ add_test(NAME cli_bad_tonemap COMMAND raymini-cli teapot --tonemap filmic --quie
 set_tests_properties(cli_bad_tonemap PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_bad_light COMMAND raymini-cli teapot --light 5 0 1 0 1 1 1 1 --quiet)
 set_tests_properties(cli_bad_light PROPERTIES WILL_FAIL TRUE)
+add_test(NAME cli_texture COMMAND raymini-cli spot --size 32x32 --ground --texture
+         ${CMAKE_CURRENT_SOURCE_DIR}/../models/spot_texture.png --quiet
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_texture.png)
+add_test(NAME cli_uv_mode COMMAND raymini-cli spot --size 32x32 --mode uv --quiet
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_uv.png)
 add_test(NAME cli_threads COMMAND raymini-cli teapot --size 32x32 --threads 3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_threads.png)
 add_test(NAME cli_bad_threads COMMAND raymini-cli teapot --threads many --quiet)

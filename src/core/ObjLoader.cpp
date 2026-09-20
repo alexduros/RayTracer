@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <tuple>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -59,17 +60,20 @@ Corner parseCorner (const std::string & token, size_t nv, size_t nvt, size_t nvn
     return c;
 }
 
-/// Faces sharing one material; vertices are de-duplicated on (position, normal).
+/// Faces sharing one material; vertices are de-duplicated on
+/// (position, texture coordinate, normal): a seam gives one corner two
+/// texture coordinates, and they must stay two vertices.
 struct Group {
     std::string material;
     std::vector<Vertex> vertices;
     std::vector<Triangle> triangles;
-    std::map<std::pair<int, int>, unsigned int> lookup;
+    std::map<std::tuple<int, int, int>, unsigned int> lookup;
     bool missingNormals = false;
 
     unsigned int vertexFor (const Corner & c, const std::vector<Vec3Df> & positions,
-                            const std::vector<Vec3Df> & normals) {
-        const auto key = std::make_pair (c.v, c.vn);
+                            const std::vector<Vec3Df> & normals,
+                            const std::vector<std::pair<float, float>> & texcoords) {
+        const auto key = std::make_tuple (c.v, c.vt, c.vn);
         const auto it = lookup.find (key);
         if (it != lookup.end ())
             return it->second;
@@ -80,7 +84,8 @@ struct Group {
         } else {
             missingNormals = true;
         }
-        vertices.push_back (Vertex (positions[c.v - 1], n));
+        const std::pair<float, float> uv = c.vt > 0 ? texcoords[c.vt - 1] : std::make_pair (0.f, 0.f);
+        vertices.push_back (Vertex (positions[c.v - 1], n, uv.first, uv.second));
         const unsigned int index = static_cast<unsigned int> (vertices.size () - 1);
         lookup[key] = index;
         return index;
@@ -132,8 +137,31 @@ std::map<std::string, Material> loadMTL (const std::string & filename) {
             float ni = 1.f;
             if (ss >> ni)
                 materials[current].setIor (ni);
+        } else if (key == "map_Kd") {
+            // Options (-s, -o, -bm...) come before the file name; the name is
+            // what is left, and may contain spaces.
+            std::string rest;
+            std::getline (ss, rest);
+            std::string file = trim (rest);
+            while (!file.empty () && file[0] == '-') {
+                const size_t space = file.find (' ');
+                if (space == std::string::npos)
+                    break;
+                size_t next = file.find_first_not_of (' ', space);
+                if (next == std::string::npos)
+                    break;
+                // Skip the option and its value, whatever the value is.
+                const size_t after = file.find (' ', next);
+                file = after == std::string::npos ? std::string () : trim (file.substr (after));
+            }
+            if (!file.empty ()) {
+                const std::filesystem::path p = std::filesystem::path (file).is_absolute ()
+                                                    ? std::filesystem::path (file)
+                                                    : std::filesystem::path (filename).parent_path () / file;
+                materials[current].setDiffuseMap (Texture::load (p.string ()));
+            }
         }
-        // Ka, illum, map_*: not represented by Material yet.
+        // Ka, illum, other map_*: not represented by Material yet.
     }
     return materials;
 }
@@ -144,7 +172,7 @@ std::vector<Object> loadOBJ (const std::string & filename, const Material & fall
         throw std::runtime_error ("loadOBJ: cannot open " + filename);
 
     std::vector<Vec3Df> positions, normals;
-    size_t texcoords = 0;  // counted for index validation only; not stored
+    std::vector<std::pair<float, float>> texcoords;
     std::vector<std::string> mtlFiles;
     std::vector<Group> groups;
     std::map<std::string, size_t> groupIndex;
@@ -180,7 +208,11 @@ std::vector<Object> loadOBJ (const std::string & filename, const Material & fall
                 throw std::runtime_error ("loadOBJ: malformed normal at " + where);
             normals.push_back (n);
         } else if (key == "vt") {
-            ++texcoords;
+            float u = 0.f, v = 0.f;
+            if (!(ss >> u))
+                throw std::runtime_error ("loadOBJ: malformed texture coordinate at " + where);
+            ss >> v;  // a 1D texture has no v; w, if present, is ignored
+            texcoords.push_back ({u, v});
         } else if (key == "mtllib") {
             std::string f;
             while (ss >> f)
@@ -193,14 +225,14 @@ std::vector<Object> loadOBJ (const std::string & filename, const Material & fall
             std::vector<Corner> corners;
             std::string token;
             while (ss >> token)
-                corners.push_back (parseCorner (token, positions.size (), texcoords, normals.size (), where));
+                corners.push_back (parseCorner (token, positions.size (), texcoords.size (), normals.size (), where));
             if (corners.size () < 3)
                 throw std::runtime_error ("loadOBJ: face with fewer than 3 vertices at " + where);
             Group & g = groupFor (currentMaterial);
-            const unsigned int first = g.vertexFor (corners[0], positions, normals);
+            const unsigned int first = g.vertexFor (corners[0], positions, normals, texcoords);
             for (size_t i = 1; i + 1 < corners.size (); ++i) {  // fan triangulation
-                const unsigned int b = g.vertexFor (corners[i], positions, normals);
-                const unsigned int c = g.vertexFor (corners[i + 1], positions, normals);
+                const unsigned int b = g.vertexFor (corners[i], positions, normals, texcoords);
+                const unsigned int c = g.vertexFor (corners[i + 1], positions, normals, texcoords);
                 g.triangles.push_back (Triangle (first, b, c));
             }
         }

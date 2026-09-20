@@ -97,7 +97,8 @@ build/raymini-cli --help
   `ambient`, `hitmask`, `normals`, `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
   (golden-ratio hue palette by object index), `ao` (the open share of the
-  hemisphere as grey; all white when occlusion is off). `RayTracer::info(mode)` holds
+  hemisphere as grey; all white when occlusion is off), `uv` (texture
+  coordinates, u to red and v to green; black without any). `RayTracer::info(mode)` holds
   each mode's name, principle, how to read it and its reference; the GUI
   shows it under the render, the CLI in `--help`, the README in a table.
   Keep the three in sync when adding a mode.
@@ -155,6 +156,16 @@ build/raymini-cli --help
   `setGroundReflectivity`; CLI `--reflectivity k --ground-reflectivity k
   --max-depth n`, GUI mirror slider next to Ground, Mirror, Bounces. Reflected
   rays reuse the pixel's shadow sampler and are not counted in `Stats`.
+- Textures (`src/core/Texture.h`, experiment 12): an OBJ's `vt` are kept
+  (`Vertex::getU/getV`, de-duplicated on position + coordinate + normal, so
+  a seam stays two vertices), interpolated in `Ray::hit` like the normal,
+  and read bilinearly with wrapping; texels are decoded from sRGB to linear
+  at load. `Material::getColorAt(u, v)` is the colour to shade with — never
+  `getColor()` in the shading path. MTL `map_Kd`, CLI `--texture`, mode
+  `uv`. Only OBJ carries coordinates; OFF models read (0, 0) everywhere.
+- The display (filmic) applies to Lit only: the analysis modes show values,
+  not light, so the CLI and the viewer render them through
+  `Display::linear()`.
 - Analytic primitives (`src/core/Primitive.h`, experiment 11): an `Object`
   holds a mesh or a `Primitive` (shared, immutable), and `closestHit` /
   `occluded` intersect whichever it is; a primitive has no BVH (one root)

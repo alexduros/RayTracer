@@ -122,6 +122,14 @@ const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
      "S. Zhukov, A. Iones & G. Kronin, \"An Ambient Light Illumination Model\", Eurographics Rendering Workshop "
      "1998; cosine-weighted directions by Malley's method, on P. Shirley & K. Chiu's concentric map (JGT 2(3), "
      "1997)."},
+    {"uv", "Texture coordinates",
+     "The (u, v) coordinates the surface carries, interpolated over the triangle and shown as red and green: "
+     "u to red, v to green. A model whose file gives none (every OFF here) is black.",
+     "Smooth gradients mean a continuous unwrapping; a hard edge is a seam, where one corner of the mesh holds "
+     "two coordinates. Red grows one way over the surface, green the other; the checker of a texture would follow "
+     "the same lines. Black means no coordinates at all.",
+     "E. Catmull, \"A Subdivision Algorithm for Computer Display of Curved Surfaces\", PhD thesis, University of "
+     "Utah, 1974: the surface carries its own frame, and a picture is read through it."},
 };
 
 const RayTracer::ModeInfo kAntiAliasingInfo = {
@@ -174,6 +182,18 @@ const RayTracer::ModeInfo kRefractionInfo = {
     "(refraction in recursive ray tracing); the Fresnel equations, M. Born & E. Wolf, \"Principles of Optics\", "
     "section 1.5."};
 
+const RayTracer::ModeInfo kTextureInfo = {
+    "texture", "Textures (image)",
+    "The material's colour becomes a picture read through the surface's own coordinates: the (u, v) of each "
+    "vertex, interpolated over the triangle by the same barycentric weights as the normal, then a bilinear read "
+    "of the four texels around that point. Texels are decoded from sRGB to linear when the image loads, and the "
+    "result is tinted by the material's Kd.",
+    "Detail without geometry: the texture follows the surface, and it stays sharp up close because the read is "
+    "bilinear, while a distant surface aliases (mip-maps come later). Coordinates outside [0, 1] wrap, so a "
+    "texture tiles. Only OBJ files carry coordinates; the mode uv shows them.",
+    "E. Catmull, \"A Subdivision Algorithm for Computer Display of Curved Surfaces\", PhD thesis, University of "
+    "Utah, 1974 (chapter 6)."};
+
 const RayTracer::ModeInfo kToneMappingInfo = {
     "display", "Exposure, tone mapping and encoding",
     "The tracer computes linear radiance in floats, above 1 wherever lights add up; the display maps it to the "
@@ -215,6 +235,10 @@ const RayTracer::ModeInfo & RayTracer::toneMappingInfo () {
     return kToneMappingInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::textureInfo () {
+    return kTextureInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
@@ -230,12 +254,6 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
      "integrate it over the hemisphere.",
      "Needs HDR image loading (stb reads .hdr) and hemisphere sampling.",
      "P. Debevec, \"Rendering Synthetic Objects into Real Scenes\", SIGGRAPH 1998."},
-    {"textures", "Textures (procedural and image)",
-     "The material colour becomes a function of the hit: a checker or noise of the position, or a bitmap looked "
-     "up through interpolated texture coordinates.",
-     "Needs UVs kept from OBJ files and MTL map_Kd; procedural patterns first, since OFF models have no UVs.",
-     "E. Catmull, PhD thesis, University of Utah, 1974 (texture mapping); K. Perlin, \"An Image Synthesizer\", "
-     "SIGGRAPH 1985 (noise)."},
     {"pbr", "Physically based materials (GGX)",
      "A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and "
      "masking terms, driven by roughness and metalness.",
@@ -419,7 +437,9 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
             return hsvToRgb (hue, 0.6f, 0.95f);
         }
         case DebugMode::AMBIENT:
-            return mat.getColor ();
+            return mat.getColorAt (hit.vertex.getU (), hit.vertex.getV ());
+        case DebugMode::UV:
+            return Vec3Df (hit.vertex.getU (), hit.vertex.getV (), 0.f);
         case DebugMode::AMBIENT_OCCLUSION: {
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
@@ -438,7 +458,9 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
             // A perfect mirror or clear glass shows nothing of its own: skip
             // its shadow and occlusion rays.
             const Vec3Df own = !bounces || (1.f - k) * (1.f - glass) > 0.f
-                                   ? directLight (scene, mat, p, n, ray, samplers)
+                                   ? directLight (scene, mat, p, n,
+                                                  Vec3Df (hit.vertex.getU (), hit.vertex.getV (), 0.f), ray,
+                                                  samplers)
                                    : Vec3Df (0.f, 0.f, 0.f);
             if (!bounces)
                 return own;
@@ -479,7 +501,7 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
 }
 
 Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
-                               const Ray & ray, PixelSamplers & samplers) const {
+                               const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const {
     // Lambert diffuse + Blinn-Phong highlight, each light scaled by how much
     // of it the point sees (hard or soft shadows), ambient and diffuse by how
     // open its surroundings are (occlusion).
@@ -487,7 +509,8 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
     v.normalize ();
     // 1 when occlusion is off: every product below is then unchanged.
     const float open = ambientOcclusion (scene, p, n, samplers.occlusion);
-    Vec3Df color = (open * ambientIntensity) * mat.getColor ();
+    const Vec3Df albedo = mat.getColorAt (uv[0], uv[1]);
+    Vec3Df color = (open * ambientIntensity) * albedo;
     for (const Light & light : scene.getLights ()) {
         Vec3Df l = light.getPos () - p;
         l.normalize ();
@@ -498,7 +521,7 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
         if (visibility <= 0.f)
             continue;  // the whole light is blocked
         color += (open * visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
-                 (mat.getColor () * light.getColor ());
+                 (albedo * light.getColor ());
         if (specularEnabled && mat.getSpecular () > 0.f) {
             Vec3Df h = l + v;
             h.normalize ();

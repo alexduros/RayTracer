@@ -1,0 +1,7 @@
+# Added here: Keenan Crane's archive ships the mesh and the texture as two
+# separate files, with nothing tying them together. This is the tie.
+newmtl spot
+Kd 1.0000 1.0000 1.0000
+Ks 0.1000 0.1000 0.1000
+Ns 32
+map_Kd spot_texture.png

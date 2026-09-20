@@ -30,7 +30,8 @@ public:
         NORMALS,      // (n + 1) / 2 as RGB
         DEPTH,        // (distance - depthNear) / (depthFar - depthNear): blue (near) -> red (far)
         OBJECT_ID,    // distinct color per object index
-        AMBIENT_OCCLUSION  // open share of the hemisphere as grey (white = open)
+        AMBIENT_OCCLUSION,  // open share of the hemisphere as grey (white = open)
+        UV            // texture coordinates as red (u) and green (v)
     };
 
     /// Per-render counters, refreshed by every render() call.
@@ -74,7 +75,7 @@ public:
         const char * reading;    // how to interpret the colours
         const char * reference;  // the paper, thesis or book chapter
     };
-    static constexpr int kModeCount = 7;
+    static constexpr int kModeCount = 8;
     static const ModeInfo & info (DebugMode mode);
     /// Same account for anti-aliasing, which is a setting rather than a mode.
     static const ModeInfo & antiAliasingInfo ();
@@ -86,12 +87,14 @@ public:
     static const ModeInfo & refractionInfo ();
     /// ... and for the display: exposure, tone curve, encoding.
     static const ModeInfo & toneMappingInfo ();
+    /// ... and for textures.
+    static const ModeInfo & textureInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 7;
+    static constexpr int kPlannedModeCount = 6;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -231,7 +234,7 @@ private:
     /// Lit mode's own shading of a surface point: ambient, and per light
     /// Lambert and Blinn-Phong, scaled by shadows and occlusion.
     Vec3Df directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
-                        const Ray & ray, PixelSamplers & samplers) const;
+                        const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const;
     /// Colour a secondary ray brings back from a hit at `depth`: what it
     /// meets, shaded one bounce deeper, or the background.
     Vec3Df bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const;

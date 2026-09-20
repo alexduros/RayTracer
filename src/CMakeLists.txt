@@ -16,6 +16,7 @@ add_library(raymini_core STATIC
   core/RayTracer.cpp
   core/RenderJob.cpp
   core/Scene.cpp
+  core/Texture.cpp
   core/Triangle.cpp
   core/Vertex.cpp)
 target_include_directories(raymini_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)

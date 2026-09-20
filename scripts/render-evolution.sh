@@ -55,6 +55,14 @@ render 09-reinhard       --ground --aa 2 --shadow-samples 8 --ground-reflectivit
 render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass
 
+# Experiment 12: the only model that carries texture coordinates, with its
+# texture, and the coordinates themselves.
+printf '%-18s ' 12-texture
+"$cli" spot --yaw -150 --pitch 12 --size 384x256 --ground --aa 2 --shadow-samples 8 --ao 8 \
+    --out "$out/12-texture.png" | sed -n 's/^render  //p'
+printf '%-18s ' 12-uv
+"$cli" spot --yaw -150 --pitch 12 --size 384x256 --mode uv --aa 2 --out "$out/12-uv.png" | sed -n 's/^render  //p'
+
 timed() {
     local label=$1 png=$2
     shift 2

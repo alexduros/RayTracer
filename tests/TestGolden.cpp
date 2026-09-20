@@ -189,6 +189,22 @@ TEST_CASE("golden: teapot on its ground plane through the filmic display") {
     goldenModel("teapot", 25.f, 20.f, s);
 }
 
+TEST_CASE("golden: Spot with her texture, and her coordinates") {
+    // The only bundled model with texture coordinates, and its texture comes
+    // with it: spot.mtl points map_Kd at spot_texture.png.
+    Scene scene;
+    scene.addObjectsFromFile(test::modelPath("spot.obj"));
+    scene.setUpAxis(resolveUpAxis(test::modelPath("spot.obj"), scene));
+    scene.addDefaultLights();
+    scene.addGroundPlane();
+    const BoundingBox& bbox = scene.getBoundingBox();
+    const Camera camera = Camera::frame(bbox, kPi / 4.f, 1.f, 2.f, -150.f, 12.f);
+    RayTracer rt;
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_textured_lit.png");
+    rt.setDebugMode(RayTracer::DebugMode::UV);
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_uv.png");
+}
+
 TEST_CASE("golden: analytic spheres on a ground plane") {
     // No model file: three spheres given by their equation, matte, mirror
     // and glass, on the ground that catches their shadows.
