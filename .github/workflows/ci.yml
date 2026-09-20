@@ -1,8 +1,19 @@
 name: CI
 
 on:
+  # A branch push and its pull request used to start two identical runs. The
+  # branch only builds once it is master; everywhere else the pull request
+  # is the trigger. Documentation-only changes build nothing.
   push:
+    branches: [master]
+    paths-ignore: ['**.md', 'docs/**', 'claudedocs/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'claudedocs/**']
+
+# A new push to the same branch cancels the run it supersedes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
