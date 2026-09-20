@@ -239,7 +239,9 @@ private:
     DebugMode debugMode = DebugMode::LIT;
     float depthNear = 0.f;
     float depthFar = 10.f;
-    float ambientIntensity = 0.15f;
+    // 0.05, not the 0.15 of the linear-bytes years: the display (Display.h)
+    // lifts the dark tones now, and 0.15 washed the shadows out.
+    float ambientIntensity = 0.05f;
     Vec3Df backgroundColor = Vec3Df (0.f, 0.f, 0.f);
     Display display;
     unsigned int aaSamplesPerAxis = 1;
