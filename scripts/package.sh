@@ -49,6 +49,16 @@ you run it from this directory.
 bin/raymini, the viewer, is here only when the archive was built with it, and
 it needs GLFW and GLM installed (brew install glfw glm, or apt-get install
 libglfw3-dev libglm-dev) plus a display.
+
+On macOS, an archive downloaded from a browser is quarantined, and these
+binaries carry no Apple Developer ID: the first run is killed (exit 137) and
+the file may be moved out of the way. Clear the quarantine flag once, after
+unpacking:
+
+  xattr -dr com.apple.quarantine .
+
+Nothing else is needed; the binaries are ad-hoc signed, which is what arm64
+requires to run at all, but not what Gatekeeper wants to see.
 TXT
 
 tar -czf "$out/$name.tar.gz" -C "$out" "$name"

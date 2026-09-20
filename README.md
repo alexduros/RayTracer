@@ -87,6 +87,21 @@ the timeline, with the changelog section as its notes. `raymini-cli` in the
 archive needs nothing installed; the viewer needs GLFW and GLM.
 `scripts/package.sh build dist` builds the same archive locally.
 
+> **An experiment, not a product.** This repository is a study of ray tracing,
+> one paper at a time; the binaries come straight out of CI. They are ad-hoc
+> signed, never notarized, with no Apple Developer ID behind them, so macOS
+> quarantines the download: the first run is killed (exit 137) and the file
+> may be moved out of the way. Clear the flag once, in the folder you
+> unpacked:
+>
+> ```bash
+> xattr -dr com.apple.quarantine .
+> ```
+>
+> That check is there to protect you from what you download, so lift it only
+> because you know where this archive came from — or build from source
+> above, which needs none of it.
+
 ## Run
 
 ```bash
