@@ -38,6 +38,9 @@
 #ifndef RAYMINI_MODELS_DIR
 #define RAYMINI_MODELS_DIR ""
 #endif
+#ifndef RAYMINI_VERSION
+#define RAYMINI_VERSION "0.0.0-dev"
+#endif
 
 namespace {
 
@@ -102,6 +105,7 @@ Options:
   --distance <factor>    camera distance = factor x model size (default 2)
   --depth <near> <far>   depth-mode range in world units (default: model extent)
   --quiet                only print errors
+  --version              print the version and exit
   -h, --help             this text
 
 Modes (what each one computes, how to read it, and where it comes from):
@@ -245,6 +249,9 @@ bool parseArgs(int argc, char** argv, Options& o) {
         const char* v = nullptr;
         if (a == "-h" || a == "--help") {
             printUsage(std::cout);
+            std::exit(0);
+        } else if (a == "--version") {
+            std::cout << "raymini " << RAYMINI_VERSION << "\n";
             std::exit(0);
         } else if (a == "--quiet") {
             o.quiet = true;
@@ -495,15 +502,31 @@ bool parseArgs(int argc, char** argv, Options& o) {
     return true;
 }
 
-// "teapot" or "teapot.off" -> bundled models directory, unless the path exists as given.
-std::string resolveModel(const std::string& given) {
+// "teapot" or "teapot.off" -> a models directory, unless the path exists as
+// given. Looked for beside the current directory and beside the executable
+// (where the release archive keeps them), then in the directory this binary
+// was built against, which only exists on the machine that built it.
+std::string resolveModel(const std::string& given, const char* argv0) {
     namespace fs = std::filesystem;
     if (fs::exists(given)) return given;
-    // Bare name: the bundled directory, as given and with each supported extension.
-    const fs::path dir = RAYMINI_MODELS_DIR;
-    for (const char* ext : {"", ".off", ".obj"}) {
-        const fs::path candidate = dir / (given + ext);
-        if (fs::exists(candidate)) return candidate.string();
+
+    std::vector<fs::path> dirs = {fs::path("models")};
+    if (argv0 && *argv0) {
+        std::error_code ec;
+        const fs::path exe = fs::weakly_canonical(fs::path(argv0), ec);
+        if (!ec && exe.has_parent_path()) {
+            dirs.push_back(exe.parent_path() / "models");         // next to the binary
+            dirs.push_back(exe.parent_path() / ".." / "models");  // bin/ inside the archive
+        }
+    }
+    dirs.push_back(fs::path(RAYMINI_MODELS_DIR));
+
+    for (const fs::path& dir : dirs) {
+        if (dir.empty()) continue;
+        for (const char* ext : {"", ".off", ".obj"}) {
+            const fs::path candidate = dir / (given + ext);
+            if (fs::exists(candidate)) return candidate.string();
+        }
     }
     return given;  // let the loader report the error with the name the user typed
 }
@@ -514,7 +537,7 @@ int main(int argc, char** argv) {
     Options o;
     if (!parseArgs(argc, argv, o)) return 2;
 
-    const std::string path = resolveModel(o.model);
+    const std::string path = resolveModel(o.model, argc > 0 ? argv[0] : nullptr);
     if (o.out.empty()) {
         o.out = "renders/" + std::filesystem::path(path).stem().string() + "_" + o.modeName + ".png";
     }

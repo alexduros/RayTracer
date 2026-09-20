@@ -165,6 +165,29 @@ build/raymini-cli --help
   tracing. CLI rig and material overrides: `--ambient`, `--light`,
   `--color`, `--specular`, `--shininess`.
 
+## Shipping a step
+
+Each step of the timeline is a release. The loop, from the paper to the tag:
+
+1. Send the paper's link, so it can be read while the work starts.
+2. Branch (`step-<n>-<slug>`), build the step the way the section below
+   says, open a pull request. CI builds and tests it on Ubuntu and macOS and
+   attaches the release archive, so packaging is proven before the tag.
+3. Add the entry to `CHANGELOG.md` under a new version heading (a rendering
+   feature bumps the minor) and bump `project(raymini VERSION ...)` in
+   `CMakeLists.txt`; `raymini-cli --version` and the ctest `cli_version`
+   follow from it.
+4. Merge the pull request, then tag it: `git tag v<version> && git push
+   origin v<version>`. `.github/workflows/release.yml` refuses a tag that
+   disagrees with `CMakeLists.txt`, builds both platforms, runs the tests,
+   packages with `scripts/package.sh` and publishes the GitHub release with
+   the changelog section as its notes.
+
+`scripts/package.sh build dist` runs locally and writes the same archive as
+CI: the binaries, `models/`, the README, the changelog and a RUNNING.txt.
+`scripts/changelog-section.sh <version>` prints the notes the release will
+carry.
+
 ## Conventions for adding an effect
 
 1. Write the unit test first on synthetic geometry (`tests/Fixtures.h` has a

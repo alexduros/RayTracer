@@ -42,6 +42,28 @@ jobs:
           build/raymini-cli ram    --mode lit     --size 512x512 --yaw -35 --pitch 15 --out renders/ram_lit.png
           build/raymini-cli cube   --mode lit     --size 512x512 --yaw 25  --pitch 20 --out renders/cube_lit.png
 
+      # The release archive, built on every push and pull request so a tag
+      # never discovers packaging problems (.github/workflows/release.yml
+      # runs the same script).
+      - name: Package
+        run: scripts/package.sh build dist
+
+      # The archive has to work on its own: the binaries find models/ beside
+      # them, not the path this machine built them against.
+      - name: Run the packaged build
+        run: |
+          mkdir -p dist/extract
+          tar -xzf dist/*.tar.gz -C dist/extract
+          cd dist/extract/*/
+          ./bin/raymini-cli teapot --size 64x64 --quiet --out packaged.png
+          test -s packaged.png
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}
+          path: dist/*.tar.gz
+
       # Renders plus whatever the golden tests produced (useful when they fail).
       - name: Upload renders
         if: always()
