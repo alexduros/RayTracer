@@ -83,7 +83,10 @@ cmake --build build -j
 
 Ready-made builds for macOS and Linux are attached to every
 [release](https://github.com/alexduros/RayTracer/releases), one per step of
-the timeline, with the changelog section as its notes. `raymini-cli` in the
+the timeline, with the changelog section as its notes. On macOS, clear the
+download's quarantine once after unpacking (`xattr -dr com.apple.quarantine .`):
+the binaries are ad-hoc signed, not notarized, so Gatekeeper otherwise kills
+them on sight. `raymini-cli` in the
 archive needs nothing installed; the viewer needs GLFW and GLM.
 `scripts/package.sh build dist` builds the same archive locally.
 
