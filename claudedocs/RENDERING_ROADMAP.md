@@ -26,6 +26,7 @@ the implementation order with tests; this page is the map.
 | Ambient occlusion | Hemisphere rays measure how open each point's surroundings are; a mode of its own and a factor on the ambient and diffuse light. |
 | Refraction (glass) | A transparent surface splits the light between reflection and a ray bent by Snell's law, in the Fresnel proportions. |
 | Tone mapping and exposure | Radiance stays in floats; a metered exposure, a tone curve and sRGB map it to the screen last. |
+| Analytic primitives | A sphere, a cylinder or a disc is an equation: the ray meets it at the root of a polynomial, exactly, at any zoom. |
 
 ## 1. Local shading
 

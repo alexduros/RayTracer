@@ -277,10 +277,12 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
     for (unsigned int i = 0; i < objects.size (); ++i) {
         const Object & object = objects[i];
         Vertex v;
-        float t = best.distance;  // the BVH only looks for hits closer than this
+        float t = best.distance;  // only hits closer than this are worth reporting
         unsigned int triangle = 0;
-        const bool hit = bvhEnabled ? object.getBvh ().nearestHit (ray, object.getMesh (), v, t, triangle)
-                                    : ray.nearestHit (object.getMesh (), v, t, triangle);
+        const Primitive * primitive = object.getPrimitive ();
+        const bool hit = primitive ? primitive->intersect (ray, v, t)
+                         : bvhEnabled ? object.getBvh ().nearestHit (ray, object.getMesh (), v, t, triangle)
+                                      : ray.nearestHit (object.getMesh (), v, t, triangle);
         if (hit && t < best.distance) {
             best.distance = t;
             best.vertex = v;
@@ -289,7 +291,10 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
             found = true;
         }
     }
-    if (found && ray.isTwoSided ()) {
+    if (found && ray.isTwoSided () && objects[best.objectIndex].getPrimitive ()) {
+        // A primitive's normal is the surface's own: no interpolation to disagree.
+        best.backFace = Vec3Df::dotProduct (best.vertex.getNormal (), ray.getDirection ()) > 0.f;
+    } else if (found && ray.isTwoSided ()) {
         // Which side, from the triangle's own (geometric) normal: the
         // interpolated one can disagree near a silhouette.
         const Mesh & mesh = objects[best.objectIndex].getMesh ();
@@ -306,6 +311,12 @@ bool RayTracer::occluded (const Scene & scene, const Ray & ray, float maxDistanc
     Vertex v;
     float t = 0.f;
     for (const Object & object : scene.getObjects ()) {
+        if (const Primitive * primitive = object.getPrimitive ()) {
+            float limit = maxDistance;  // intersect only reports hits closer than this
+            if (primitive->intersect (ray, v, limit))
+                return true;
+            continue;
+        }
         if (bvhEnabled) {
             if (object.getBvh ().anyHit (ray, object.getMesh (), maxDistance))
                 return true;

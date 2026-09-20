@@ -11,6 +11,36 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-20
+
+Step 11 of the timeline: R. A. Goldstein & R. Nagel, "3-D Visual
+Simulation", *Simulation* 16(1), 1971 — the first useful ray caster, where
+solids were equations, not triangles.
+
+### Added
+
+- **Analytic primitives** (`src/core/Primitive.h`): a sphere, a cylinder and
+  a disc, met where a polynomial vanishes. One root instead of thousands of
+  triangle tests, and a silhouette that stays exact at any zoom. An `Object`
+  now holds a mesh or a primitive; the tracer intersects both, and a
+  primitive respects two-sided rays, so it can be glass.
+- **`--sphere <x> <y> <z> <r> <matte|mirror|glass>`** in `raymini-cli`,
+  repeatable, placed in half model sizes around the model's centre.
+- Golden `spheres_lit` (three spheres on their ground, no model file) and a
+  gallery picture of the ram between a mirror sphere and a glass one.
+
+### Tests
+
+- A sphere is hit at the root of its quadratic, from 200 directions, with
+  the outward unit normal; it is missed when the discriminant says so, and
+  grazed on the tangent.
+- From inside, only a two-sided ray meets it, and the hit is reported as a
+  back face: what glass needs.
+- The silhouette matches the analytic disc to the pixel, at 128x128.
+- A tessellated sphere converges to it: the error falls by more than half
+  every doubling, stays under the sagitta of the facets it is made of, and
+  never reaches zero.
+
 ## [0.1.0] - 2026-09-20
 
 The first packaged release: everything the first nine experiments built,
@@ -45,5 +75,6 @@ framework, modernised to C++17, GLFW and Dear ImGui).
   physical property or an invariant, plus 42 golden images, run on Ubuntu and
   macOS by the CI.
 
-[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.1.0

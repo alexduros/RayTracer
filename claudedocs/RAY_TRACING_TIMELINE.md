@@ -43,13 +43,19 @@ in the step-by-step gallery.
 **✓ 1968** · A. Appel, "Some Techniques for Shading Machine Renderings of
 Solids", AFIPS 1968. Ray casting and shadow rays: experiment 1.
 
-### 11 · 1971 · Analytic primitives ★
+### 11 · 1971 · Analytic primitives ★ (done, v0.2.0)
 R. A. Goldstein & R. Nagel, "3-D Visual Simulation", *Simulation* 16(1),
 1971 (MAGI's SynthaVision). Rays against exact quadrics instead of polygons.
-- **Here:** a primitive interface next to `Mesh`: spheres, planes, cylinders,
-  discs, intersected in closed form, in the BVH as boxes.
-- **Proof:** a sphere's hit distance is the root of the quadratic to 1e-6;
-  its silhouette is a circle; a tessellated sphere converges to it.
+- **Here:** `src/core/Primitive.h` — `Sphere`, `Cylinder` (open side) and
+  `Disc`, each its own intersection; an `Object` holds a mesh or one of
+  them, with no BVH (a root is cheaper than a tree) and a geometric normal,
+  so two-sided rays and glass work on them. CLI `--sphere x y z r
+  matte|mirror|glass`.
+- **Proof:** the hit distance is the root of the quadratic over 200
+  directions; the silhouette matches the analytic disc to the pixel; a
+  tessellated sphere converges to it, below the sagitta of its facets and
+  never to zero; from inside only a two-sided ray meets it, as a back face.
+  Golden `spheres_lit`.
 - **M** · modelling. Enables 17, 18 and every analytic test scene.
 
 ### 12 · 1974 · Texture mapping ★

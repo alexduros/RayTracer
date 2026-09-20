@@ -51,6 +51,10 @@ printf '%-18s ' 07b-teapot
 render 09-display        --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
 render 09-reinhard       --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --tonemap reinhard
 
+# Experiment 11: two spheres given by their equation stand next to the mesh.
+render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 \
+    --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass
+
 timed() {
     local label=$1 png=$2
     shift 2

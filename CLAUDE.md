@@ -10,7 +10,7 @@ tests that prove each one.
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
   Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Optics (reflect,
-  Snell, Fresnel), Image (stb). No GL, no
+  Snell, Fresnel), Primitive (sphere, cylinder, disc), Image (stb). No GL, no
   GLFW: it links anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
@@ -146,6 +146,13 @@ build/raymini-cli --help
   `setGroundReflectivity`; CLI `--reflectivity k --ground-reflectivity k
   --max-depth n`, GUI mirror slider next to Ground, Mirror, Bounces. Reflected
   rays reuse the pixel's shadow sampler and are not counted in `Stats`.
+- Analytic primitives (`src/core/Primitive.h`, experiment 11): an `Object`
+  holds a mesh or a `Primitive` (shared, immutable), and `closestHit` /
+  `occluded` intersect whichever it is; a primitive has no BVH (one root)
+  and its normal is geometric, so `Hit::backFace` comes straight from it.
+  They live in scene coordinates: `Scene::setUpAxis` leaves them alone, so
+  add them after orienting the model. CLI `--sphere x y z r
+  matte|mirror|glass`.
 - Glass: `Material::transparency` / `ior` (MTL `d`, `Tr`, `Ni`), CLI
   `--transparency g --ior n` (only when given), GUI Glass / Index. Rays
   inside an object are two-sided (`Ray(o, d, true)`: `Ray::hit` skips back-face

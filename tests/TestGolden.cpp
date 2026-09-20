@@ -6,9 +6,12 @@
 #include <filesystem>
 #include <string>
 
+#include <memory>
+
 #include "Camera.h"
 #include "Display.h"
 #include "Fixtures.h"
+#include "Primitive.h"
 #include "Image.h"
 #include "Orientation.h"
 #include "RayTracer.h"
@@ -55,6 +58,23 @@ bool matches(const Image& actual, const Image& expected, std::string& report) {
     report = "max channel diff " + std::to_string(maxDiff) + ", " + std::to_string(different) + "/" +
              std::to_string(pixels) + " pixels differ by more than " + std::to_string(kChannelTolerance);
     return double(different) / double(pixels) <= kMaxDifferentFraction;
+}
+
+/// Compare a render against tests/golden/<name>, or rewrite it under
+/// --update-golden. What was rendered is always kept in the test output
+/// directory, so a failure can be looked at.
+void compareToGolden(const Image& img, const std::string& name) {
+    const std::string goldenPath = test::goldenDir() + "/" + name;
+    REQUIRE(img.save(test::outputDir() + "/golden_" + name));
+    if (test::updateGolden()) {
+        REQUIRE(img.save(goldenPath));
+        return;
+    }
+    Image expected;
+    CHECK_MSG(expected.load(goldenPath), "missing " + goldenPath + " (run raymini_tests --update-golden)");
+    if (!expected.isValid()) return;
+    std::string report;
+    CHECK_MSG(matches(img, expected, report), name + ": " + report);
 }
 
 // What a golden turns on besides the defaults, encoded in its name: "_aa2" /
@@ -122,19 +142,7 @@ void goldenModel(const char* model, float yawDeg, float pitchDeg, const Settings
         if (!wanted) continue;
         rt.setDebugMode(m.mode);
         const Image img = rt.render(scene, camera, kSize, kSize);
-        const std::string name = stem + "_" + m.slug + ".png";
-        const std::string goldenPath = test::goldenDir() + "/" + name;
-        // Always keep what was rendered so a failure can be inspected.
-        REQUIRE(img.save(test::outputDir() + "/golden_" + name));
-        if (test::updateGolden()) {
-            REQUIRE(img.save(goldenPath));
-            continue;
-        }
-        Image expected;
-        CHECK_MSG(expected.load(goldenPath), "missing " + goldenPath + " (run raymini_tests --update-golden)");
-        if (!expected.isValid()) continue;
-        std::string report;
-        CHECK_MSG(matches(img, expected, report), name + ": " + report);
+        compareToGolden(img, stem + "_" + m.slug + ".png");
     }
 }
 
@@ -179,4 +187,25 @@ TEST_CASE("golden: teapot on its ground plane through the filmic display") {
     Settings s = withGround();
     s.filmic = true;
     goldenModel("teapot", 25.f, 20.f, s);
+}
+
+TEST_CASE("golden: analytic spheres on a ground plane") {
+    // No model file: three spheres given by their equation, matte, mirror
+    // and glass, on the ground that catches their shadows.
+    Scene scene;
+    scene.addObject(Object(std::make_shared<Sphere>(Vec3Df(0.f, 1.f, 0.f), 1.f), Scene::defaultMaterial()));
+    scene.addObject(Object(std::make_shared<Sphere>(Vec3Df(-2.1f, 0.7f, -0.6f), 0.7f),
+                           Material(1.f, 0.2f, Vec3Df(0.9f, 0.9f, 0.95f), 128.f, 0.9f)));
+    Material glass(1.f, 0.2f, Vec3Df(1.f, 1.f, 1.f), 128.f);
+    glass.setTransparency(1.f);
+    scene.addObject(Object(std::make_shared<Sphere>(Vec3Df(2.f, 0.8f, -0.4f), 0.8f), glass));
+    scene.addDefaultLights();
+    scene.addGroundPlane();
+
+    const BoundingBox& bbox = scene.getBoundingBox();
+    const float size = bbox.getSize(), distance = 2.f * size;
+    const Camera camera = Camera::frame(bbox, kPi / 4.f, 1.f, 2.f, 20.f, 12.f);
+    RayTracer rt;
+    rt.setDepthRange(distance - size / 2.f, distance + size / 2.f);
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "spheres_lit.png");
 }
