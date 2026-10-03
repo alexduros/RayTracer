@@ -63,6 +63,18 @@ printf '%-18s ' 12-texture
 printf '%-18s ' 12-uv
 "$cli" spot --yaw -150 --pitch 12 --size 384x256 --mode uv --aa 2 --out "$out/12-uv.png" | sed -n 's/^render  //p'
 
+# Experiment 13: the composition of step 11 without its floor, in a world.
+# Where the mirror and the glass showed a black sky, they show a place. Then
+# the ram as a perfect mirror, and the chrome teapot of Blinn & Newell's
+# figure 8.
+world=(--aa 2 --environment venice_sunset)
+render 13-environment    "${world[@]}" --shadow-samples 8 --ao 8 \
+    --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass
+render 13-chrome         "${world[@]}" --reflectivity 1
+printf '%-18s ' 13-teapot
+"$cli" teapot --yaw 25 --pitch 20 --size 384x256 "${world[@]}" --reflectivity 1 \
+    --out "$out/13-teapot.png" | sed -n 's/^render  //p'
+
 timed() {
     local label=$1 png=$2
     shift 2
