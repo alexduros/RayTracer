@@ -33,7 +33,8 @@ mkdir -p "$staging/bin" "$staging/models"
 cp "$build/raymini-cli" "$staging/bin/"
 # The viewer is optional: a build with -DRAYMINI_BUILD_GUI=OFF has none.
 [ -x "$build/raymini" ] && cp "$build/raymini" "$staging/bin/"
-cp models/*.off models/*.obj models/*.mtl models/orientation.txt "$staging/models/"
+# With the pictures the materials name: spot.mtl points at spot_texture.png.
+cp models/*.off models/*.obj models/*.mtl models/*.png models/orientation.txt "$staging/models/"
 cp README.md CHANGELOG.md "$staging/"
 
 cat > "$staging/RUNNING.txt" <<TXT

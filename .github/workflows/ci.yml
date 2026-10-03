@@ -68,6 +68,11 @@ jobs:
           cd dist/extract/*/
           ./bin/raymini-cli teapot --size 64x64 --quiet --out packaged.png
           test -s packaged.png
+          # ... with everything its models name: a texture left out of the
+          # archive is only a warning, so any word on stderr fails here.
+          ./bin/raymini-cli spot --size 64x64 --quiet --out spot.png 2> spot.err
+          cat spot.err
+          test ! -s spot.err
 
       - name: Upload the package
         uses: actions/upload-artifact@v4

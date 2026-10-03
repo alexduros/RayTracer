@@ -21,6 +21,11 @@ publishes it as the release notes, with the binaries for macOS and Linux.
   sky. Those options now touch the model alone, and the render line lists
   the mirrors and the glass the scene really holds (ctest
   `cli_mirror_sphere`). Since v0.2.0.
+- **The release archive ships Spot's texture.** `scripts/package.sh` copied
+  the meshes and their MTL files and no picture, so the Spot of the v0.5.0
+  archive came out untextured, with a warning and exit 0. It copies
+  `models/*.png` too, and CI renders Spot from the unpacked archive and
+  fails on any warning.
 
 ## [0.5.0] - 2026-09-20
 
