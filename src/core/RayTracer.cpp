@@ -194,6 +194,21 @@ const RayTracer::ModeInfo kTextureInfo = {
     "E. Catmull, \"A Subdivision Algorithm for Computer Display of Curved Surfaces\", PhD thesis, University of "
     "Utah, 1974 (chapter 6)."};
 
+const RayTracer::ModeInfo kEnvironmentInfo = {
+    "environment", "Environment map",
+    "The world around the scene is one panoramic picture, indexed by direction alone: a ray that meets nothing "
+    "reads it at the azimuth and the polar angle of its own direction (longitude across the picture, latitude "
+    "down it), bilinearly. Primary rays that miss show it as the backdrop; rays mirrored or bent by a surface "
+    "bring it back into that surface. A Radiance .hdr map is linear and keeps what is brighter than white; "
+    "any other image is decoded from sRGB.",
+    "Mirrors and glass show a place instead of black: the middle of a mirror ball shows what lies behind the "
+    "camera, its rim what lies straight behind the ball. Direction alone means the world is infinitely far: "
+    "its reflection does not shift as the object moves, and every point of a silhouette shows the same texel. "
+    "The picture's middle is the direction -Z, where a camera at yaw 0 looks. It is seen, not yet a light: "
+    "matte surfaces are still lit by the rig alone, and the analysis modes keep their flat background.",
+    "J. F. Blinn & M. E. Newell, \"Texture and Reflection in Computer Generated Images\", Communications of the "
+    "ACM 19(10), 1976."};
+
 const RayTracer::ModeInfo kToneMappingInfo = {
     "display", "Exposure, tone mapping and encoding",
     "The tracer computes linear radiance in floats, above 1 wherever lights add up; the display maps it to the "
@@ -239,6 +254,10 @@ const RayTracer::ModeInfo & RayTracer::textureInfo () {
     return kTextureInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::environmentInfo () {
+    return kEnvironmentInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
@@ -250,9 +269,10 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
      "Needs emissive materials and many samples per pixel; the BVH and the progressive display already exist.",
      "J. T. Kajiya, \"The Rendering Equation\", SIGGRAPH 1986."},
     {"environment", "Environment lighting (HDR sky)",
-     "A panoramic image lights the scene: rays that miss geometry return the sky's colour and diffuse surfaces "
-     "integrate it over the hemisphere.",
-     "Needs HDR image loading (stb reads .hdr) and hemisphere sampling.",
+     "The panoramic image around the scene lights it too: diffuse surfaces integrate it over the hemisphere, so "
+     "a model sits in the light of the place it is in.",
+     "The map and its lookup exist (the environment map, seen by every ray that escapes); needs the hemisphere "
+     "sampled against it, toward its bright texels first.",
      "P. Debevec, \"Rendering Synthetic Objects into Real Scenes\", SIGGRAPH 1998."},
     {"pbr", "Physically based materials (GGX)",
      "A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and "
@@ -536,7 +556,12 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
 
 Vec3Df RayTracer::bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const {
     Hit next;
-    return closestHit (scene, ray, next) ? shade (scene, ray, next, samplers, depth + 1) : backgroundColor;
+    return closestHit (scene, ray, next) ? shade (scene, ray, next, samplers, depth + 1) : escaped (scene, ray);
+}
+
+Vec3Df RayTracer::escaped (const Scene & scene, const Ray & ray) const {
+    const Environment * world = scene.getEnvironment ().get ();
+    return world && debugMode == DebugMode::LIT ? world->sample (ray.getDirection ()) : backgroundColor;
 }
 
 Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats) const {
@@ -548,7 +573,7 @@ Vec3Df RayTracer::trace (const Scene & scene, const Ray & ray, Stats & stats, Pi
     stats.rays++;
     Hit hit;
     if (!closestHit (scene, ray, hit))
-        return backgroundColor;
+        return escaped (scene, ray);
     stats.hits++;
     if (stats.hits == 1 || hit.distance < stats.minHitDist)
         stats.minHitDist = hit.distance;

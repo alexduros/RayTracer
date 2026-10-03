@@ -20,6 +20,7 @@ add_executable(raymini_tests
   TestDisplay.cpp
   TestPrimitive.cpp
   TestTexture.cpp
+  TestEnvironment.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -71,6 +72,11 @@ add_test(NAME cli_texture COMMAND raymini-cli spot --size 32x32 --ground --textu
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_texture.png)
 add_test(NAME cli_uv_mode COMMAND raymini-cli spot --size 32x32 --mode uv --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_uv.png)
+# A bare name resolves in models/, as a model's does.
+add_test(NAME cli_environment COMMAND raymini-cli teapot --size 32x32 --reflectivity 1
+         --environment venice_sunset --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_environment.png)
+add_test(NAME cli_bad_environment COMMAND raymini-cli teapot --environment no_such_world.hdr --quiet)
+set_tests_properties(cli_bad_environment PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_threads COMMAND raymini-cli teapot --size 32x32 --threads 3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_threads.png)
 add_test(NAME cli_bad_threads COMMAND raymini-cli teapot --threads many --quiet)

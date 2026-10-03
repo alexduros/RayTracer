@@ -14,7 +14,7 @@ with the raytracer split into a library that builds without any GL dependency.
 
 - Loads OFF (colour columns and comments tolerated) and OBJ meshes. An OBJ
   may reference an MTL file: each material becomes its own object (`Kd`
-  colour, `Ks` specular, `Ns` shininess); texture maps are not used yet.
+  colour, `Ks` specular, `Ns` shininess, `map_Kd` texture).
   Polygons are fan-triangulated; normals come from the file or are
   recomputed. Models are stood upright on load (see Notes).
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
@@ -40,6 +40,10 @@ with the raytracer split into a library that builds without any GL dependency.
   unwrapping.
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
+- Environment map: a panorama around the scene (`--environment`), read by
+  every ray that escapes, where it points. The backdrop, the mirrors and
+  the glass show a place instead of black; a Radiance `.hdr` map keeps the
+  sun brighter than white.
 - CLI: render any model to a PNG, no display needed.
 - Tests: unit tests on synthetic geometry and golden-image regression on the
   teapot and ram models. CI runs them on Ubuntu and macOS.
@@ -129,6 +133,8 @@ build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15 \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass   # analytic spheres
 build/raymini-cli spot --ground --aa 2 --yaw -150 --pitch 12                   # textured, from her MTL
 build/raymini-cli spot --mode uv --yaw -150 --pitch 12                         # her unwrapping
+build/raymini-cli teapot --reflectivity 1 --environment venice_sunset --aa 2 --yaw 25 --pitch 20   # chrome, in a world
+build/raymini-cli ram --transparency 1 --environment venice_sunset --aa 2 --yaw -35 --pitch 15     # glass, in the same
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -142,9 +148,11 @@ Viewer controls:
   and the preview scale with it (the preview is re-rendered at the displayed
   size, so it stays sharp).
 - Controls panel, four sections: Model (picker over every `.off` and `.obj`
-  in `models/`, up axis, ground plane and how much it mirrors, the model's
-  own mirror share, glass share and index, the number of bounces, mesh
-  stats), Camera (FOV, position, target, Reset), Preview
+  in `models/`, up axis, ground plane and how much it mirrors, the world
+  around the scene (None, or an environment map among the `.hdr` files of
+  `models/`; raytraced panel only), the model's own mirror share, glass
+  share and index, the number of bounces, mesh stats), Camera (FOV,
+  position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
   jitter; shadows, specular, soft shadows and light size; occlusion and its
@@ -216,6 +224,28 @@ outside [0, 1] wrap, so a texture tiles. Only OBJ files carry coordinates —
 OFF stores none — so Spot is the model to try it on. Catmull, "A Subdivision
 Algorithm for Computer Display of Curved Surfaces", PhD thesis, University
 of Utah, 1974, chapter 6.
+
+**Environment map** (`--environment <file>`; World in the viewer;
+`src/core/Environment.h`): the world around the scene is one panoramic
+picture, and a ray that meets nothing reads it where it points. The
+direction alone picks the texel: its azimuth, atan2(x, -z), runs across the
+picture and its polar angle, acos(y), down it, so the middle of the picture
+is the direction -Z, where a camera at yaw 0 looks, +X is a quarter of the
+width to the right, and the two side edges meet behind the camera. The read
+is bilinear, closed in longitude, and never mixes the top row with the
+bottom one. Primary rays that miss show the picture as a backdrop; rays
+mirrored or bent by a surface bring it back into that surface, so a chrome
+teapot is made of nothing but the map. A Radiance `.hdr` is linear and
+keeps the sun far above white, which the display then handles; any other
+image is decoded from sRGB. Because only the direction counts, the world is
+infinitely far: its reflection does not shift when the object moves, and
+every point of a mirror's silhouette shows the texel straight behind it —
+the limit Blinn and Newell point out themselves. The map is seen, it does
+not light yet: matte surfaces are still lit by the rig alone, and the
+analysis modes keep their flat background. `models/venice_sunset.hdr` (Greg
+Zaal, Poly Haven, CC0) is the one bundled; any panorama loads by path.
+Blinn & Newell, "Texture and Reflection in Computer Generated Images",
+CACM 19(10), 1976.
 
 **Analytic primitives** (`--sphere x y z r matte|mirror|glass`, repeatable;
 `src/core/Primitive.h`): a sphere, a cylinder or a disc is an equation, not a
@@ -296,7 +326,8 @@ tests/                  raymini_tests + tests/golden/*.png
 third_party/            imgui, glad, stb
 scripts/                render-evolution.sh, which renders docs/evolution/
 docs/evolution/         the README's pictures, one per experiment
-models/                 six shapes and why each is there (models/README.md), orientation.txt
+models/                 six shapes and why each is there (models/README.md), a texture,
+                        an environment map, orientation.txt
 claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
 .github/workflows/      CI: build + tests + sample renders on Ubuntu and macOS
 ```

@@ -39,6 +39,9 @@ public:
     /// Radiance RGBE (.hdr). False on failure.
     bool save (const std::string & filename) const;
     bool load (const std::string & filename);
+    /// True when the file starts as a Radiance picture does, whatever its
+    /// name; false as well when it cannot be opened.
+    static bool isRadiance (const std::string & filename);
 
 private:
     inline size_t index (int x, int y) const { return (static_cast<size_t> (y) * w + x) * 3; }

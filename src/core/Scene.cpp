@@ -203,5 +203,6 @@ void Scene::setLightRadius (float fraction) {
 void Scene::clear () {
     objects.clear ();
     lights.clear ();
+    environment.reset ();
     bbox = BoundingBox ();
 }

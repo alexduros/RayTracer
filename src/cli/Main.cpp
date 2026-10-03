@@ -13,7 +13,9 @@
 #include <exception>
 #include <filesystem>
 #include <chrono>
+#include <initializer_list>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
@@ -28,6 +30,7 @@
 
 #include "Camera.h"
 #include "Display.h"
+#include "Environment.h"
 #include "HdrImage.h"
 #include "Image.h"
 #include "Orientation.h"
@@ -108,6 +111,10 @@ Options:
   --texture <file>       image read through the model's texture coordinates (PNG, JPEG...),
                          tinted by its colour; only OBJ files carry coordinates, and
                          --mode uv shows them
+  --environment <file>   the world around the scene: a latitude-longitude panorama (Radiance
+                         .hdr, PNG, JPEG...) read by every ray that leaves the scene, where
+                         it points. It shows behind the model and in mirrors and glass, in
+                         lit mode; a bare name resolves in models/, like a model's
   --specular <k>         the model's highlight strength
   --shininess <n>        the model's Blinn-Phong exponent
   --fov <deg>            vertical field of view (default 45)
@@ -148,6 +155,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << texture.principle << "\n"
         << "      Read: " << texture.reading << "\n"
         << "      Ref:  " << texture.reference << "\n";
+    const RayTracer::ModeInfo& world = RayTracer::environmentInfo();
+    out << "\n--environment  " << world.name << "\n"
+        << "      " << world.principle << "\n"
+        << "      Read: " << world.reading << "\n"
+        << "      Ref:  " << world.reference << "\n";
     const RayTracer::ModeInfo& tone = RayTracer::toneMappingInfo();
     out << "\n--exposure / --tonemap / --white / --gamma  " << tone.name << "\n"
         << "      " << tone.principle << "\n"
@@ -217,6 +229,7 @@ struct Options {
     std::vector<SphereSpec> spheres;
     std::optional<Vec3Df> color;
     std::string texture;
+    std::string environment;
     std::optional<float> specularStrength, shininess;
     std::optional<UpAxis> up;  // empty = auto
     bool quiet = false;
@@ -415,6 +428,9 @@ bool parseArgs(int argc, char** argv, Options& o) {
         } else if (a == "--texture") {
             if (!(v = value(i, "--texture"))) return false;
             o.texture = v;
+        } else if (a == "--environment") {
+            if (!(v = value(i, "--environment"))) return false;
+            o.environment = v;
         } else if (a == "--specular") {
             if (!(v = value(i, "--specular"))) return false;
             o.specularStrength = static_cast<float>(std::atof(v));
@@ -554,7 +570,9 @@ bool parseArgs(int argc, char** argv, Options& o) {
 // given. Looked for beside the current directory and beside the executable
 // (where the release archive keeps them), then in the directory this binary
 // was built against, which only exists on the machine that built it.
-std::string resolveModel(const std::string& given, const char* argv0) {
+// `extensions` are tried in order on a bare name: a model's, or a map's.
+std::string resolveBundled(const std::string& given, const char* argv0,
+                           std::initializer_list<const char*> extensions) {
     namespace fs = std::filesystem;
     if (fs::exists(given)) return given;
 
@@ -571,7 +589,7 @@ std::string resolveModel(const std::string& given, const char* argv0) {
 
     for (const fs::path& dir : dirs) {
         if (dir.empty()) continue;
-        for (const char* ext : {"", ".off", ".obj"}) {
+        for (const char* ext : extensions) {
             const fs::path candidate = dir / (given + ext);
             if (fs::exists(candidate)) return candidate.string();
         }
@@ -585,7 +603,8 @@ int main(int argc, char** argv) {
     Options o;
     if (!parseArgs(argc, argv, o)) return 2;
 
-    const std::string path = resolveModel(o.model, argc > 0 ? argv[0] : nullptr);
+    const char* argv0 = argc > 0 ? argv[0] : nullptr;
+    const std::string path = resolveBundled(o.model, argv0, {"", ".off", ".obj"});
     if (o.out.empty()) {
         o.out = "renders/" + std::filesystem::path(path).stem().string() + "_" + o.modeName + ".png";
     }
@@ -661,6 +680,14 @@ int main(int argc, char** argv) {
     }
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
     scene.setGroundReflectivity(o.groundReflectivity);
+    // The world the rays escape into. It is not oriented with the model: its
+    // up is the scene's.
+    if (!o.environment.empty()) {
+        const std::shared_ptr<const Environment> world =
+            Environment::load(resolveBundled(o.environment, argv0, {"", ".hdr"}));
+        if (!world) return 1;
+        scene.setEnvironment(world);
+    }
 
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
@@ -727,6 +754,10 @@ int main(int argc, char** argv) {
         std::printf("camera  pos (%.3f, %.3f, %.3f) dir (%.3f, %.3f, %.3f) fov %.1f yaw %.1f pitch %.1f\n",
                     camera.pos[0], camera.pos[1], camera.pos[2], camera.dir[0], camera.dir[1], camera.dir[2],
                     o.fovDeg, o.yaw, o.pitch);
+        if (const std::shared_ptr<const Environment>& world = scene.getEnvironment())
+            std::printf("world   %s: %dx%d latitude-longitude map%s\n", world->path().c_str(), world->width(),
+                        world->height(),
+                        o.mode == RayTracer::DebugMode::LIT ? "" : " (not shown: the analysis modes keep a flat background)");
         std::string effects = o.shadowSamples > 1 ? ", " + std::to_string(o.shadowSamples * o.shadowSamples) +
                                                      " shadow rays/light"
                                                : "";

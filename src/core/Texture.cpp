@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 
+#include "HdrImage.h"
 #include "Image.h"
 
 namespace {
@@ -22,12 +23,29 @@ inline int wrap (int i, int n) {
 } // namespace
 
 std::shared_ptr<const Texture> Texture::load (const std::string & filename) {
-    Image image;
-    if (!image.load (filename)) {
+    const std::shared_ptr<const Texture> texture = read (filename);
+    if (!texture)
         std::cerr << "warning: cannot read the texture " << filename << " (keeping the material's colour)"
                   << std::endl;
-        return nullptr;
+    return texture;
+}
+
+std::shared_ptr<const Texture> Texture::read (const std::string & filename) {
+    if (HdrImage::isRadiance (filename)) {
+        // Floats, linear, and not limited to 1: nothing to decode.
+        HdrImage hdr;
+        if (!hdr.load (filename))
+            return nullptr;
+        const int w = hdr.width (), h = hdr.height ();
+        std::vector<Vec3Df> texels (static_cast<size_t> (w) * h);
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x)
+                texels[static_cast<size_t> (y) * w + x] = hdr.get (x, y);
+        return std::shared_ptr<const Texture> (new Texture (w, h, std::move (texels), filename));
     }
+    Image image;
+    if (!image.load (filename))
+        return nullptr;
     const int w = image.width (), h = image.height ();
     std::vector<Vec3Df> texels (static_cast<size_t> (w) * h);
     for (int y = 0; y < h; ++y)
