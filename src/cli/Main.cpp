@@ -622,6 +622,23 @@ int main(int argc, char** argv) {
     std::string upSource = "option";
     const UpAxis up = o.up ? *o.up : resolveUpAxis(path, scene, &upSource);
     scene.setUpAxis(up);
+    // What the options say of the model goes on the model alone, before
+    // anything else joins the scene: a sphere added below keeps the material
+    // it was given, and a ground plane has its own option.
+    scene.setModelReflectivity(o.reflectivity);
+    // Glass only when asked: an OBJ's MTL may already make some of it glass.
+    // A texture given here replaces the one the MTL may have loaded.
+    const std::shared_ptr<const Texture> texture = o.texture.empty() ? nullptr : Texture::load(o.texture);
+    if (!o.texture.empty() && !texture) return 1;
+    for (Object& object : scene.getObjects()) {
+        Material& m = object.getMaterial();
+        if (o.transparency) m.setTransparency(*o.transparency);
+        if (o.ior) m.setIor(*o.ior);
+        if (o.color) m.setColor(*o.color);
+        if (!o.texture.empty()) m.setDiffuseMap(texture);
+        if (o.specularStrength) m.setSpecular(*o.specularStrength);
+        if (o.shininess) m.setShininess(*o.shininess);
+    }
     addSpheres(o.spheres);
     scene.addDefaultLights();
     if (o.lightRadius >= 0.f) scene.setLightRadius(o.lightRadius);
@@ -643,22 +660,7 @@ int main(int argc, char** argv) {
         }
     }
     if (o.ground) scene.addGroundPlane();  // a backdrop: framing below still follows the model
-    scene.setModelReflectivity(o.reflectivity);
     scene.setGroundReflectivity(o.groundReflectivity);
-    // Glass only when asked: an OBJ's MTL may already make some of it glass.
-    // A texture given here replaces the one the MTL may have loaded.
-    const std::shared_ptr<const Texture> texture = o.texture.empty() ? nullptr : Texture::load(o.texture);
-    if (!o.texture.empty() && !texture) return 1;
-    for (Object& object : scene.getObjects()) {
-        if (object.isBackdrop()) continue;
-        Material& m = object.getMaterial();
-        if (o.transparency) m.setTransparency(*o.transparency);
-        if (o.ior) m.setIor(*o.ior);
-        if (o.color) m.setColor(*o.color);
-        if (!o.texture.empty()) m.setDiffuseMap(texture);
-        if (o.specularStrength) m.setSpecular(*o.specularStrength);
-        if (o.shininess) m.setShininess(*o.shininess);
-    }
 
     const BoundingBox& bbox = scene.getBoundingBox();
     const float size = bbox.getSize();
@@ -730,9 +732,13 @@ int main(int argc, char** argv) {
                                                : "";
         if (o.aoSamples > 0)
             effects += ", " + std::to_string(o.aoSamples * o.aoSamples) + " occlusion rays/hit";
-        bool glassy = false;
-        for (const Object& object : scene.getObjects()) glassy = glassy || object.getMaterial().getTransparency() > 0.f;
-        if ((o.reflectivity > 0.f || o.groundReflectivity > 0.f || glassy) && o.maxDepth > 0)
+        // From the scene, not the options: a --sphere brings its own mirror or glass.
+        bool glassy = false, mirrors = false;
+        for (const Object& object : scene.getObjects()) {
+            glassy = glassy || object.getMaterial().getTransparency() > 0.f;
+            mirrors = mirrors || object.getMaterial().getReflectivity() > 0.f;
+        }
+        if ((mirrors || glassy) && o.maxDepth > 0)
             effects += std::string(", ") + (glassy ? "glass and reflections" : "reflections") + " up to depth " +
                        std::to_string(o.maxDepth);
         std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, %u thread%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",

@@ -11,6 +11,17 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--sphere ... mirror` is a mirror.** The options that describe the model
+  were applied after the spheres had joined the scene, so `--reflectivity`,
+  0 unless given, wiped the mirror off every sphere, and `--transparency`,
+  `--color`, `--texture`, `--specular` and `--shininess` reached them too.
+  The gallery's step 11 showed a dark ball, and its caption blamed the black
+  sky. Those options now touch the model alone, and the render line lists
+  the mirrors and the glass the scene really holds (ctest
+  `cli_mirror_sphere`). Since v0.2.0.
+
 ## [0.5.0] - 2026-09-20
 
 Step 12 of the timeline: E. Catmull, "A Subdivision Algorithm for Computer

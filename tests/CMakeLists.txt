@@ -61,6 +61,11 @@ add_test(NAME cli_bad_tonemap COMMAND raymini-cli teapot --tonemap filmic --quie
 set_tests_properties(cli_bad_tonemap PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_bad_light COMMAND raymini-cli teapot --light 5 0 1 0 1 1 1 1 --quiet)
 set_tests_properties(cli_bad_light PROPERTIES WILL_FAIL TRUE)
+# A mirror sphere stays a mirror: the model's --reflectivity (0 here, by
+# default) is the model's alone. The render line lists what the scene holds.
+add_test(NAME cli_mirror_sphere COMMAND raymini-cli teapot --size 32x32 --sphere 1.5 0 0 0.4 mirror
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_mirror_sphere.png)
+set_tests_properties(cli_mirror_sphere PROPERTIES PASS_REGULAR_EXPRESSION "reflections up to depth 8")
 add_test(NAME cli_texture COMMAND raymini-cli spot --size 32x32 --ground --texture
          ${CMAKE_CURRENT_SOURCE_DIR}/../models/spot_texture.png --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_texture.png)
