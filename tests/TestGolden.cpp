@@ -10,6 +10,7 @@
 
 #include "Camera.h"
 #include "Display.h"
+#include "Environment.h"
 #include "Fixtures.h"
 #include "Primitive.h"
 #include "Image.h"
@@ -203,6 +204,27 @@ TEST_CASE("golden: Spot with her texture, and her coordinates") {
     compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_textured_lit.png");
     rt.setDebugMode(RayTracer::DebugMode::UV);
     compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_uv.png");
+}
+
+TEST_CASE("golden: a chrome teapot in the Venice sunset") {
+    // The teapot as a perfect mirror in the bundled panorama, as in Blinn &
+    // Newell's figure 8: not one pixel of this picture is the teapot's own,
+    // each is the map, behind the model or reflected in it. Through the
+    // filmic display: the map is brighter than white where the sun is.
+    Scene scene;
+    scene.addObjectsFromFile(test::modelPath("teapot"));
+    scene.setUpAxis(resolveUpAxis(test::modelPath("teapot"), scene));
+    scene.addDefaultLights();
+    scene.setModelReflectivity(1.f);
+    const std::shared_ptr<const Environment> world = Environment::load(test::modelPath("venice_sunset.hdr"));
+    REQUIRE(world != nullptr);
+    CHECK_EQ(world->width(), 1024);
+    CHECK_EQ(world->height(), 512);
+    scene.setEnvironment(world);
+    const Camera camera = Camera::frame(scene.getBoundingBox(), kPi / 4.f, 1.f, 2.f, 25.f, 20.f);
+    RayTracer rt;
+    rt.setDisplay(Display::filmic());
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "teapot_chrome_venice_lit.png");
 }
 
 TEST_CASE("golden: analytic spheres on a ground plane") {

@@ -38,3 +38,7 @@ bool HdrImage::load (const std::string & filename) {
     stbi_image_free (data);
     return true;
 }
+
+bool HdrImage::isRadiance (const std::string & filename) {
+    return stbi_is_hdr (filename.c_str ()) != 0;
+}

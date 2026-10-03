@@ -89,6 +89,8 @@ public:
     static const ModeInfo & toneMappingInfo ();
     /// ... and for textures.
     static const ModeInfo & textureInfo ();
+    /// ... and for the environment map.
+    static const ModeInfo & environmentInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
@@ -185,10 +187,11 @@ public:
     /// maxDistance` would, through the BVH or not.
     bool occluded (const Scene & scene, const Ray & ray, float maxDistance) const;
 
-    /// Color of one ray in linear [0,1] RGB (background if nothing is hit),
-    /// counting it in `stats`; `samplers` feed the soft shadows and the
-    /// occlusion. Const and reentrant: safe from several threads, each with
-    /// its own samplers.
+    /// Color of one ray in linear RGB, counting it in `stats`; `samplers`
+    /// feed the soft shadows and the occlusion. If nothing is hit: the
+    /// scene's environment along the ray in Lit mode (Scene::setEnvironment),
+    /// else the background colour. Const and reentrant: safe from several
+    /// threads, each with its own samplers.
     Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats, PixelSamplers & samplers) const;
     /// Same with fixed-seed samplers: reproducible, for probing single rays.
     Vec3Df trace (const Scene & scene, const Ray & ray, Stats & stats) const;
@@ -236,8 +239,12 @@ private:
     Vec3Df directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
                         const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const;
     /// Colour a secondary ray brings back from a hit at `depth`: what it
-    /// meets, shaded one bounce deeper, or the background.
+    /// meets, shaded one bounce deeper, or what lies beyond the scene.
     Vec3Df bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const;
+    /// What a ray that meets nothing brings back: the environment where it
+    /// points, in Lit mode, the background colour in the analysis modes
+    /// (their pixels are values, not light) and when the scene has no map.
+    Vec3Df escaped (const Scene & scene, const Ray & ray) const;
 
     DebugMode debugMode = DebugMode::LIT;
     float depthNear = 0.f;

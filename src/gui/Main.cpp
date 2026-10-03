@@ -33,6 +33,7 @@
 
 #include "Camera.h"
 #include "Display.h"
+#include "Environment.h"
 #include "HdrImage.h"
 #include "Image.h"
 #include "Mesh.h"
@@ -164,6 +165,21 @@ std::vector<std::filesystem::path> listModels(const std::filesystem::path& dir) 
         std::string ext = entry.path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
         if (ext == ".off" || ext == ".obj") out.push_back(entry.path());
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// Every Radiance panorama (*.hdr) in `dir`, sorted by name: the worlds a
+// scene can sit in (Environment.h).
+std::vector<std::filesystem::path> listWorlds(const std::filesystem::path& dir) {
+    std::vector<std::filesystem::path> out;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        if (!entry.is_regular_file(ec)) continue;
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (ext == ".hdr") out.push_back(entry.path());
     }
     std::sort(out.begin(), out.end());
     return out;
@@ -515,6 +531,11 @@ int main(int argc, char** argv) {
     const int maxThreads = static_cast<int>(RenderJob::defaultThreadCount());
     int rtThreads = maxThreads;  // worker threads for the next render
     bool showGround = true;  // ground plane under the model, in both views
+    // The world around the scene, in the raytraced panel: one of the *.hdr
+    // panoramas of the models directory, or none (the flat background).
+    const std::vector<std::filesystem::path> worldPaths = listWorlds(modelsDirectory(givenModel));
+    std::shared_ptr<const Environment> world;
+    int worldIndex = 0;  // 0 = none, else worldPaths[worldIndex - 1]
     // Up axis of the model file: 0 = Auto (orientation.txt, else heuristic), else kUpChoices[choice - 1].
     static const char* kUpLabels[] = {"Auto", "+Y", "+Z", "-Z", "+X", "-X", "-Y"};
     static const UpAxis kUpChoices[] = {UpAxis::PosY, UpAxis::PosZ, UpAxis::NegZ,
@@ -732,6 +753,7 @@ int main(int argc, char** argv) {
             // file says (an MTL can make some materials glass already).
             Scene toRender = scene;
             if (rtGlass > 0.f) toRender.setModelGlass(rtGlass, rtIor);
+            toRender.setEnvironment(world);
             renderJob = std::make_unique<RenderJob>(rt, toRender, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f),
                                                     static_cast<unsigned int>(rtThreads));
@@ -936,6 +958,26 @@ int main(int argc, char** argv) {
             ImGui::SliderFloat("##groundmirror", &rtGroundReflectivity, 0.f, 1.f, "mirror %.2f");
             ImGui::EndDisabled();
             itemTooltip("Reflectivity of the ground: 0 = matte, 1 = perfect mirror (raytraced panel only).");
+            rowLabel("World");
+            ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+            const std::string worldName = worldIndex == 0 ? "None" : worldPaths[worldIndex - 1].stem().string();
+            if (ImGui::BeginCombo("##world", worldName.c_str())) {
+                for (int i = 0; i <= static_cast<int>(worldPaths.size()); ++i) {
+                    const std::string label = i == 0 ? "None" : worldPaths[i - 1].stem().string();
+                    if (ImGui::Selectable(label.c_str(), i == worldIndex) && i != worldIndex) {
+                        // A map that cannot be read leaves the choice where it was.
+                        const std::shared_ptr<const Environment> picked =
+                            i == 0 ? nullptr : Environment::load(worldPaths[i - 1].string());
+                        if (i == 0 || picked) {
+                            world = picked;
+                            worldIndex = i;
+                        }
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            helpMarker(RayTracer::environmentInfo());
             rowLabel("Mirror");
             ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
             ImGui::SliderFloat("##modelmirror", &rtModelReflectivity, 0.f, 1.f, "%.2f");

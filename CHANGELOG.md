@@ -11,6 +11,54 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-03
+
+Step 13 of the timeline: J. F. Blinn & M. E. Newell, "Texture and Reflection
+in Computer Generated Images", Communications of the ACM 19(10), 1976 — the
+direction of a reflected ray, instead of a position on the surface, picks
+the texel.
+
+### Added
+
+- **Environment maps.** The world around the scene is one panoramic
+  picture, `--environment <file>`: every ray that leaves the scene reads it
+  where it points, azimuth across and polar angle down, bilinearly
+  (`src/core/Environment.h`). It shows behind the model, and in every
+  mirror and every glass, which until now reflected a black sky. Direction
+  alone picks the texel, so the world is infinitely far, as in the paper.
+  Lit mode only: the analysis modes keep their flat background, and a scene
+  with no map renders exactly as before.
+- **Radiance maps keep their range.** A `.hdr` panorama is taken as the
+  linear radiance it holds, the sun far above 1, and goes through the
+  display like any other radiance; other formats are decoded from sRGB.
+  `Texture` reads `.hdr` the same way.
+- **A world to try it in**: `models/venice_sunset.hdr`, Greg Zaal's Venice
+  Sunset from Poly Haven (CC0), 1024 x 512, 1.4 MB. A bare name resolves in
+  `models/` like a model's: `--environment venice_sunset`.
+- **A World picker in the viewer**, over the `.hdr` files of the models
+  directory.
+- Golden `teapot_chrome_venice_lit`, the chrome teapot of the paper's
+  figure 8; ctest `cli_environment`, `cli_bad_environment`.
+
+Not yet: the map is seen, it does not light. Matte surfaces are still lit by
+the rig alone; lighting by the map is step 46.
+
+### Fixed
+
+- **`--sphere ... mirror` is a mirror.** The options that describe the model
+  were applied after the spheres had joined the scene, so `--reflectivity`,
+  0 unless given, wiped the mirror off every sphere, and `--transparency`,
+  `--color`, `--texture`, `--specular` and `--shininess` reached them too.
+  The gallery's step 11 showed a dark ball, and its caption blamed the black
+  sky. Those options now touch the model alone, and the render line lists
+  the mirrors and the glass the scene really holds (ctest
+  `cli_mirror_sphere`). Since v0.2.0.
+- **The release archive ships Spot's texture.** `scripts/package.sh` copied
+  the meshes and their MTL files and no picture, so the Spot of the v0.5.0
+  archive came out untextured, with a warning and exit 0. It copies
+  `models/*.png` too, and CI renders Spot from the unpacked archive and
+  fails on any warning.
+
 ## [0.5.0] - 2026-09-20
 
 Step 12 of the timeline: E. Catmull, "A Subdivision Algorithm for Computer
@@ -139,7 +187,8 @@ framework, modernised to C++17, GLFW and Dear ImGui).
   physical property or an invariant, plus 42 golden images, run on Ubuntu and
   macOS by the CI.
 
-[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/alexduros/RayTracer/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.6.0
 [0.5.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.5.0
 [0.4.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alexduros/RayTracer/releases/tag/v0.3.0

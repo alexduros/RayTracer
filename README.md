@@ -14,7 +14,7 @@ with the raytracer split into a library that builds without any GL dependency.
 
 - Loads OFF (colour columns and comments tolerated) and OBJ meshes. An OBJ
   may reference an MTL file: each material becomes its own object (`Kd`
-  colour, `Ks` specular, `Ns` shininess); texture maps are not used yet.
+  colour, `Ks` specular, `Ns` shininess, `map_Kd` texture).
   Polygons are fan-triangulated; normals come from the file or are
   recomputed. Models are stood upright on load (see Notes).
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
@@ -40,6 +40,10 @@ with the raytracer split into a library that builds without any GL dependency.
   unwrapping.
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
+- Environment map: a panorama around the scene (`--environment`), read by
+  every ray that escapes, where it points. The backdrop, the mirrors and
+  the glass show a place instead of black; a Radiance `.hdr` map keeps the
+  sun brighter than white.
 - CLI: render any model to a PNG, no display needed.
 - Tests: unit tests on synthetic geometry and golden-image regression on the
   teapot and ram models. CI runs them on Ubuntu and macOS.
@@ -60,8 +64,10 @@ regenerates them and the timings.
 | ![Soft shadows](docs/evolution/06-soft-shadows.png)<br>**6. Soft shadows** (`--shadow-samples 8`): each light a disk, 64 shadow rays; sharp at the feet, penumbra further out. | ![Mirror reflections](docs/evolution/07-reflections.png)<br>**7. Mirror reflections** (`--ground-reflectivity 0.4`): the ram shows upside down in the floor, which darkens where it mirrors the black sky. |
 | ![Ambient occlusion](docs/evolution/08-occlusion.png)<br>**8. Ambient occlusion** (`--ao 8`): 64 hemisphere rays per hit; the creases under the horn, the belly's reflection and the floor at the feet darken. | ![Ambient occlusion mode](docs/evolution/08-occlusion-ao.png)<br>**8, the occlusion itself** (`--mode ao`): the open share of each point's hemisphere, white = open. |
 | ![Refraction](docs/evolution/07b-refraction.png)<br>**7b. Refraction** (`--transparency 1`), the stretch of experiment 7, done after 8: the ram in clear glass bends the floor behind it, catches reflections at its rims and turns dark where light reflects entirely inside. | ![Glass teapot](docs/evolution/07b-teapot.png)<br>**7b, on the teapot**, whose smooth body reads better: the floor shows through, shifted and bent, the lid and the handle stay visible by their rims. |
+| ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
 | ![Texture](docs/evolution/12-texture.png)<br>**12. Textures** (Spot, from her MTL): the picture follows the surface through the coordinates the file carries. The rams and the teapot cannot have this: OFF stores no coordinates. | ![UV](docs/evolution/12-uv.png)<br>**12, the coordinates themselves** (`--mode uv`): u in red, v in green. The seams of the unwrapping show as hard edges. |
-| ![Analytic primitives](docs/evolution/11-primitives.png)<br>**11. Analytic primitives** (`--sphere`): a mirror sphere and a glass one, given by their equation, stand beside the mesh. Their silhouettes are exact circles; the mirror is dark because it reflects a black sky. | ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
+| ![Analytic primitives](docs/evolution/11-primitives.png)<br>**11. Analytic primitives** (`--sphere`): a mirror sphere and a glass one, given by their equation, stand beside the mesh. Their silhouettes are exact circles; the mirror shows the ground and the ram, under a sky that is still black. | ![Environment map](docs/evolution/13-environment.png)<br>**13. Environment map** (`--environment venice_sunset`): the composition of step 11 without its floor, in a world. Every ray that leaves the scene reads a panorama where it points, so the backdrop, the mirror ball and the glass one show Venice where they showed black. The ram is still lit by the rig alone: the map is seen, it does not light yet. |
+| ![Chrome ram](docs/evolution/13-chrome.png)<br>**13, a perfect mirror** (`--reflectivity 1`): not one pixel of the ram is its own. Each is the panorama, read along the ray mirrored about the normal. | ![Chrome teapot](docs/evolution/13-teapot.png)<br>**13, as the paper showed it**: the chrome teapot of Blinn and Newell's figure 8, with the buildings behind the camera bent over its body. |
 
 Steps 3 and 4 change the time, not the picture (the script checks the
 pixels are identical). **3. BVH**: the picture of step 2 on one thread,
@@ -69,7 +75,8 @@ pixels are identical). **3. BVH**: the picture of step 2 on one thread,
 of step 6, 2.8 s on one thread -> 0.49 s on ten cores (4 performance + 6
 efficiency). Steps 1 and 2 shipped together, and anti-aliasing (5) came
 first; the gallery follows the experiment numbers, except 7b, which came
-after 8 and builds on it.
+after 8 and builds on it, and 11, which sits beside 13: the same
+composition before and after the sky had a picture.
 
 ## Build
 
@@ -129,6 +136,8 @@ build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15 \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass   # analytic spheres
 build/raymini-cli spot --ground --aa 2 --yaw -150 --pitch 12                   # textured, from her MTL
 build/raymini-cli spot --mode uv --yaw -150 --pitch 12                         # her unwrapping
+build/raymini-cli teapot --reflectivity 1 --environment venice_sunset --aa 2 --yaw 25 --pitch 20   # chrome, in a world
+build/raymini-cli ram --transparency 1 --environment venice_sunset --aa 2 --yaw -35 --pitch 15     # glass, in the same
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
 build/raymini-cli --help                              # all options
 ```
@@ -142,9 +151,11 @@ Viewer controls:
   and the preview scale with it (the preview is re-rendered at the displayed
   size, so it stays sharp).
 - Controls panel, four sections: Model (picker over every `.off` and `.obj`
-  in `models/`, up axis, ground plane and how much it mirrors, the model's
-  own mirror share, glass share and index, the number of bounces, mesh
-  stats), Camera (FOV, position, target, Reset), Preview
+  in `models/`, up axis, ground plane and how much it mirrors, the world
+  around the scene (None, or an environment map among the `.hdr` files of
+  `models/`; raytraced panel only), the model's own mirror share, glass
+  share and index, the number of bounces, mesh stats), Camera (FOV,
+  position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
   jitter; shadows, specular, soft shadows and light size; occlusion and its
@@ -216,6 +227,28 @@ outside [0, 1] wrap, so a texture tiles. Only OBJ files carry coordinates —
 OFF stores none — so Spot is the model to try it on. Catmull, "A Subdivision
 Algorithm for Computer Display of Curved Surfaces", PhD thesis, University
 of Utah, 1974, chapter 6.
+
+**Environment map** (`--environment <file>`; World in the viewer;
+`src/core/Environment.h`): the world around the scene is one panoramic
+picture, and a ray that meets nothing reads it where it points. The
+direction alone picks the texel: its azimuth, atan2(x, -z), runs across the
+picture and its polar angle, acos(y), down it, so the middle of the picture
+is the direction -Z, where a camera at yaw 0 looks, +X is a quarter of the
+width to the right, and the two side edges meet behind the camera. The read
+is bilinear, closed in longitude, and never mixes the top row with the
+bottom one. Primary rays that miss show the picture as a backdrop; rays
+mirrored or bent by a surface bring it back into that surface, so a chrome
+teapot is made of nothing but the map. A Radiance `.hdr` is linear and
+keeps the sun far above white, which the display then handles; any other
+image is decoded from sRGB. Because only the direction counts, the world is
+infinitely far: its reflection does not shift when the object moves, and
+every point of a mirror's silhouette shows the texel straight behind it —
+the limit Blinn and Newell point out themselves. The map is seen, it does
+not light yet: matte surfaces are still lit by the rig alone, and the
+analysis modes keep their flat background. `models/venice_sunset.hdr` (Greg
+Zaal, Poly Haven, CC0) is the one bundled; any panorama loads by path.
+Blinn & Newell, "Texture and Reflection in Computer Generated Images",
+CACM 19(10), 1976.
 
 **Analytic primitives** (`--sphere x y z r matte|mirror|glass`, repeatable;
 `src/core/Primitive.h`): a sphere, a cylinder or a disc is an equation, not a
@@ -296,7 +329,8 @@ tests/                  raymini_tests + tests/golden/*.png
 third_party/            imgui, glad, stb
 scripts/                render-evolution.sh, which renders docs/evolution/
 docs/evolution/         the README's pictures, one per experiment
-models/                 six shapes and why each is there (models/README.md), orientation.txt
+models/                 six shapes and why each is there (models/README.md), a texture,
+                        an environment map, orientation.txt
 claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
 .github/workflows/      CI: build + tests + sample renders on Ubuntu and macOS
 ```

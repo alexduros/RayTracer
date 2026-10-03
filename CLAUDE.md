@@ -10,8 +10,9 @@ tests that prove each one.
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
   Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Optics (reflect,
-  Snell, Fresnel), Primitive (sphere, cylinder, disc), Image (stb). No GL, no
-  GLFW: it links anywhere.
+  Snell, Fresnel), Primitive (sphere, cylinder, disc), Texture, Environment
+  (the panorama around the scene), Image (stb). No GL, no GLFW: it links
+  anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
 - `src/cli/Main.cpp` — `raymini-cli`: OFF in, PNG out. What the tests, CI and
@@ -24,7 +25,9 @@ tests that prove each one.
   triangles, the heavy one), `cube.obj`/`cube.mtl` (six materials),
   `spot.obj` + `spot_texture.png` (the only UVs, CC0, for texture mapping)
   and `belly.obj`/`belly.mtl` (the mascot, five materials, 74k triangles).
-  `orientation.txt` gives the up axis of each.
+  `orientation.txt` gives the up axis of each. `venice_sunset.hdr` (CC0,
+  1024x512) is the one environment map; `scripts/package.sh` ships every
+  `*.png` and `*.hdr` beside the meshes.
 - `claudedocs/RENDERING_ROADMAP.md` — every rendering mode the raytracer
   could offer next, one-sentence principle each; mirrored by
   `RayTracer::plannedMode()` (greyed out in the viewer's mode menu, printed
@@ -163,6 +166,19 @@ build/raymini-cli --help
   at load. `Material::getColorAt(u, v)` is the colour to shade with — never
   `getColor()` in the shading path. MTL `map_Kd`, CLI `--texture`, mode
   `uv`. Only OBJ carries coordinates; OFF models read (0, 0) everywhere.
+- Environment map (`src/core/Environment.h`, step 13): `Scene::setEnvironment`
+  holds a latitude-longitude panorama (shared, immutable), and
+  `RayTracer::escaped` returns it for every ray that meets nothing in Lit
+  mode, primary or bounced; the analysis modes and a scene without one keep
+  `backgroundColor`, so nothing else moved. `Environment::toMap`: u = 1/2 +
+  atan2(x, -z) / 2pi across (the middle is -Z, where a camera at yaw 0
+  looks; +X is to its right), v = acos(y) / pi down from the top row.
+  `sample` is `Texture::sample` with v held half a texel inside, so
+  longitude wraps and the poles do not mix. A Radiance `.hdr` loads as
+  linear floats (`HdrImage::isRadiance`, also for `Texture::load`), anything
+  else through the sRGB decode. It is seen, not a light: lighting by the
+  map is step 46. CLI `--environment <file>` (a bare name resolves in
+  `models/`), GUI World picker over `models/*.hdr`.
 - The display (filmic) applies to Lit only: the analysis modes show values,
   not light, so the CLI and the viewer render them through
   `Display::linear()`.
@@ -172,7 +188,9 @@ build/raymini-cli --help
   and its normal is geometric, so `Hit::backFace` comes straight from it.
   They live in scene coordinates: `Scene::setUpAxis` leaves them alone, so
   add them after orienting the model. CLI `--sphere x y z r
-  matte|mirror|glass`.
+  matte|mirror|glass`; the CLI applies the model's options (`--reflectivity`,
+  `--transparency`, `--color`, `--texture`...) before the spheres join the
+  scene, so they keep their own material (they did not until v0.6.0).
 - Glass: `Material::transparency` / `ior` (MTL `d`, `Tr`, `Ni`), CLI
   `--transparency g --ior n` (only when given), GUI Glass / Index. Rays
   inside an object are two-sided (`Ray(o, d, true)`: `Ray::hit` skips back-face
@@ -238,8 +256,10 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- No textures yet; glass is clear and casts opaque shadows (no caustics). See `claudedocs/EXPERIMENTS.md`. MTL `map_Kd` textures are ignored;
-  OBJ texture coordinates are parsed but not stored.
+- Glass is clear and casts opaque shadows (no caustics): timeline step 15.
+  Textures are read bilinearly with no filtering at a distance (step 19).
+  The environment map is seen but lights nothing (step 46), and the GL
+  preview does not show it.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it
   before `addDefaultLights`. `Orientation.h` resolves "Auto" from

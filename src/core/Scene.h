@@ -8,9 +8,11 @@
 #ifndef SCENE_H
 #define SCENE_H
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "Environment.h"
 #include "Object.h"
 #include "Light.h"
 #include "BoundingBox.h"
@@ -18,9 +20,9 @@
 /// Which axis of a model file's coordinates points up (see Orientation.h).
 enum class UpAxis { PosX, NegX, PosY, NegY, PosZ, NegZ };
 
-/// Objects + lights. Plain value type: the GUI, the CLI and the tests each
-/// build their own. The scene is Y-up: the floor is horizontal and the
-/// camera orbits about Y.
+/// Objects + lights, and the world around them. Plain value type: the GUI,
+/// the CLI and the tests each build their own. The scene is Y-up: the floor
+/// is horizontal and the camera orbits about Y.
 class Scene {
 public:
     Scene () {}
@@ -85,6 +87,14 @@ public:
     /// turns the model into glass.
     void setModelGlass (float transparency, float ior);
 
+    /// The world around the scene (Environment.h): what a ray that meets
+    /// nothing sees, in Lit mode. None by default, and then such a ray
+    /// returns the tracer's background colour. The map is shared and never
+    /// modified, so copies of the scene share it too. It does not light
+    /// anything yet: the lights do.
+    inline void setEnvironment (const std::shared_ptr<const Environment> & e) { environment = e; }
+    inline const std::shared_ptr<const Environment> & getEnvironment () const { return environment; }
+
     void clear ();
 
     static Material defaultMaterial () { return Material (1.f, 1.f, Vec3Df (1.f, .6f, .2f)); }
@@ -93,6 +103,7 @@ public:
 private:
     std::vector<Object> objects;
     std::vector<Light> lights;
+    std::shared_ptr<const Environment> environment;
     BoundingBox bbox;
     UpAxis upAxis = UpAxis::PosY;  // file axis currently mapped to scene +Y
 };

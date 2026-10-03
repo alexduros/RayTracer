@@ -78,13 +78,26 @@ Surfaces", PhD thesis, University of Utah, 1974 (chapter 6).
 **✓ 1975, 1977** · B. T. Phong, CACM 18(6); J. Blinn, SIGGRAPH 1977.
 Experiment 2.
 
-### 13 · 1976 · Environment maps ★
+### 13 · 1976 · Environment maps ★ (done, v0.6.0)
 J. Blinn & M. Newell, "Texture and Reflection in Computer Generated
-Images", CACM 19(10), 1976.
-- **Here:** a latitude-longitude image returned by every ray that escapes,
-  so mirrors and glass reflect a world instead of black.
-- **Proof:** a ray leaving along d reads the texel at (atan2, acos) of d; a
-  mirror sphere shows the map mirrored as predicted.
+Images", CACM 19(10), 1976. The direction of the reflected ray, instead of
+a position on the surface, picks the texel: azimuth across, polar angle
+down.
+- **Here:** `src/core/Environment.h` — a latitude-longitude panorama on the
+  `Scene`, read bilinearly by every ray that escapes in Lit mode, primary
+  (the backdrop) or bounced (mirrors, glass), so they reflect a world
+  instead of black. Closed in longitude, poles kept apart; a Radiance
+  `.hdr` is taken as linear radiance, above 1 included, anything else
+  decoded from sRGB. CLI `--environment <file>`, the viewer's World
+  picker, and `models/venice_sunset.hdr` (CC0) to try it in.
+- **Proof:** a ray leaving along d reads the texel at (atan2, acos) of d,
+  for each of eight texels; the seam behind the camera averages the
+  picture's two edges and the zenith never bleeds into the nadir; a mirror
+  sphere whose normal is at angle a reads the map at 2a, and its whole
+  silhouette the texel opposite the eye, the paper's own remark; glass of
+  index 1 lets the map through untouched, real glass passes 0.96² of it
+  head-on; a texel at 50 stays 50; the analysis modes keep their flat
+  background. Golden `teapot_chrome_venice_lit`.
 - **S** · effect. Lighting by the same map comes in 46.
 
 ### 14 · 1978 · Bump mapping

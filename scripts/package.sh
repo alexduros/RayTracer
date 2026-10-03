@@ -33,18 +33,21 @@ mkdir -p "$staging/bin" "$staging/models"
 cp "$build/raymini-cli" "$staging/bin/"
 # The viewer is optional: a build with -DRAYMINI_BUILD_GUI=OFF has none.
 [ -x "$build/raymini" ] && cp "$build/raymini" "$staging/bin/"
-cp models/*.off models/*.obj models/*.mtl models/orientation.txt "$staging/models/"
+# With the pictures the materials name (spot.mtl points at spot_texture.png)
+# and the world --environment resolves by name.
+cp models/*.off models/*.obj models/*.mtl models/*.png models/*.hdr models/orientation.txt "$staging/models/"
 cp README.md CHANGELOG.md "$staging/"
 
 cat > "$staging/RUNNING.txt" <<TXT
 raymini $version — $os $(uname -m)
 
   bin/raymini-cli teapot --ground --aa 2 --out teapot.png
+  bin/raymini-cli teapot --reflectivity 1 --environment venice_sunset --aa 2 --out chrome.png
   bin/raymini-cli --help
 
 raymini-cli needs nothing else: it renders to a PNG without a display, and a
 bare model name (teapot, ram, ram_HD, spot, cube.obj) resolves inside models/ when
-you run it from this directory.
+you run it from this directory, and so does the environment map's.
 
 bin/raymini, the viewer, is here only when the archive was built with it, and
 it needs GLFW and GLM installed (brew install glfw glm, or apt-get install

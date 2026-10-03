@@ -28,6 +28,7 @@ the implementation order with tests; this page is the map.
 | Tone mapping and exposure | Radiance stays in floats; a metered exposure, a tone curve and sRGB map it to the screen last. |
 | Analytic primitives | A sphere, a cylinder or a disc is an equation: the ray meets it at the root of a polynomial, exactly, at any zoom. |
 | Textures | The material's colour is read from an image through the coordinates the surface carries, bilinearly. |
+| Environment map | The world around the scene is a panoramic picture read by direction: a ray that escapes brings back the texel where it points. |
 
 ## 1. Local shading
 
@@ -69,9 +70,9 @@ Needs: an emission colour on `Material`, light sampling over triangles. Test: an
 **Principle:** Each pixel averages many random light paths bouncing through the scene, converging on the rendering equation with indirect light and colour bleeding.
 Needs: emissive materials, many samples per pixel; the BVH and the progressive display are done. Test: a white furnace converges to the emission, a Cornell box shows red and green bleeding on the white walls. Reference: Kajiya, "The Rendering Equation", SIGGRAPH 1986.
 
-### Environment lighting (HDR sky)
-**Principle:** A panoramic image lights the scene: rays that miss geometry return the sky's colour and diffuse surfaces integrate it over the hemisphere.
-Needs: HDR loading (stb reads `.hdr`), equirectangular lookup, hemisphere sampling. Test: a uniform white environment lights a sphere evenly, a single bright texel behaves like a distant point light. Reference: Debevec, "Rendering Synthetic Objects into Real Scenes", SIGGRAPH 1998.
+### Environment map (done) and environment lighting (to come)
+**Principle:** A panoramic image surrounds the scene. Seen: a ray that misses geometry returns the picture where it points, so the backdrop, the mirrors and the glass show a place. Lighting: diffuse surfaces integrate the same picture over the hemisphere.
+Done for the seen half (timeline step 13, v0.6.0): `Environment` on the `Scene`, a latitude-longitude lookup (azimuth across, polar angle down, closed in longitude, poles kept apart), `.hdr` read as linear radiance, `--environment`, the viewer's World picker, and Venice Sunset to try it in. Tests: each of eight texels comes back along its own direction, a mirror sphere reads the map at twice the angle of its normal, glass of index 1 lets it through untouched, a texel at 50 stays 50. Lighting waits for timeline step 46: it needs the hemisphere sampled against the map. Test then: a uniform white environment lights a sphere evenly, a single bright texel behaves like a distant point light. Reference: Blinn & Newell, CACM 19(10), 1976; Debevec, "Rendering Synthetic Objects into Real Scenes", SIGGRAPH 1998.
 
 ## 3. Materials and textures (for complex models)
 
