@@ -11,6 +11,14 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A greyscale picture loads as what it is.** `Image::load` kept the single
+  channel of a grey PNG and called it RGB, so every pixel was read three
+  bytes at a time and two thirds of them past the end of the buffer: such a
+  file as `--texture` gave coloured stripes. stb now spreads the grey over
+  the three channels. No bundled picture was grey, so nothing showed it.
+
 ## [0.6.0] - 2026-10-03
 
 Step 13 of the timeline: J. F. Blinn & M. E. Newell, "Texture and Reflection

@@ -128,8 +128,13 @@ bool Image::save(const std::string& filename) const {
 }
 
 bool Image::load(const std::string& filename) {
-    int width, height, channels;
-    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+    // A file may hold one channel (grey), two (grey + alpha), three or four.
+    // Image holds three or four: ask stb for the one that keeps what is
+    // there, and it spreads a grey over R, G and B.
+    int width = 0, height = 0, fileChannels = 0;
+    stbi_info(filename.c_str(), &width, &height, &fileChannels);
+    const int channels = (fileChannels == 2 || fileChannels == 4) ? 4 : 3;
+    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &fileChannels, channels);
 
     if (!data) {
         std::cerr << "Failed to load image: " << filename << std::endl;
@@ -140,7 +145,7 @@ bool Image::load(const std::string& filename) {
     m_height = height;
     m_format = (channels == 4) ? RGBA8888 : RGB888;
 
-    size_t dataSize = width * height * channels;
+    size_t dataSize = static_cast<size_t>(width) * height * channels;
     m_data.resize(dataSize);
     std::memcpy(m_data.data(), data, dataSize);
 
