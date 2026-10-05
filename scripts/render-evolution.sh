@@ -75,6 +75,22 @@ printf '%-18s ' 13-teapot
 "$cli" teapot --yaw 25 --pitch 20 --size 384x256 "${world[@]}" --reflectivity 1 \
     --out "$out/13-teapot.png" | sed -n 's/^render  //p'
 
+# Step 14: Spot again, the model with coordinates. The picture of step 12
+# with a height map over her skin, the tilted normals themselves, the same
+# dimples in chrome in the Venice panorama, and a close-up with the height
+# doubled, where the smooth silhouette gives the trick away.
+spot=(spot --yaw -150 --pitch 12 --size 384x256 --aa 2 --bump dimples)
+printf '%-18s ' 14-bump
+"$cli" "${spot[@]}" --ground --shadow-samples 8 --ao 8 --out "$out/14-bump.png" | sed -n 's/^render  //p'
+printf '%-18s ' 14-normals
+"$cli" "${spot[@]}" --mode normals --out "$out/14-normals.png" | sed -n 's/^render  //p'
+printf '%-18s ' 14-chrome
+"$cli" "${spot[@]}" --distance 1.5 --reflectivity 1 --environment venice_sunset --out "$out/14-chrome.png" |
+    sed -n 's/^render  //p'
+printf '%-18s ' 14-silhouette
+"$cli" spot --yaw -115 --pitch 5 --distance 0.9 --size 384x256 --aa 3 --bump dimples --bump-scale 0.02 --ground \
+    --shadow-samples 8 --out "$out/14-silhouette.png" | sed -n 's/^render  //p'
+
 timed() {
     local label=$1 png=$2
     shift 2

@@ -7,6 +7,7 @@
 
 #include "RayTracer.h"
 
+#include "Bump.h"
 #include "Optics.h"
 
 #include <algorithm>
@@ -89,8 +90,8 @@ const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
      "much of the pixel the object covers.",
      "T. Porter & T. Duff, \"Compositing Digital Images\", SIGGRAPH 1984: alpha as pixel coverage."},
     {"normals", "Normals",
-     "The interpolated surface normal at the hit, remapped from [-1, 1] to [0, 1] per axis: x to red, y to "
-     "green, z to blue.",
+     "The interpolated surface normal at the hit, tilted by the bump map where the material has one, remapped "
+     "from [-1, 1] to [0, 1] per axis: x to red, y to green, z to blue.",
      "A face pointing at the camera (+z) is light violet (0.5, 0.5, 1); one pointing up (+y) is light green. "
      "Smooth gradients mean smooth shading normals, flat patches mean hard edges (as on cube.obj).",
      "The encoding used by normal maps: J. Cohen, M. Olano & D. Manocha, \"Appearance-Preserving "
@@ -209,6 +210,20 @@ const RayTracer::ModeInfo kEnvironmentInfo = {
     "J. F. Blinn & M. E. Newell, \"Texture and Reflection in Computer Generated Images\", Communications of the "
     "ACM 19(10), 1976."};
 
+const RayTracer::ModeInfo kBumpInfo = {
+    "bump", "Bump mapping (wrinkled surfaces)",
+    "A grey picture read through the surface's coordinates is taken as a height, white above black, and the "
+    "surface is shaded as if it had been pushed out by that much along its normal: N' = N + (Fu (N x Pv) - "
+    "Fv (N x Pu)) / |N|, with Pu, Pv the surface's tangents along its coordinates (from each triangle's corners) "
+    "and Fu, Fv the slopes of the height (differences of neighbouring texels). Only that normal changes; the "
+    "surface itself does not move. Lambert, the highlight, mirror and glass rays all use it.",
+    "Dents and ridges appear, lit from the side the lights are on: a slope of s tilts the normal by atan(s), away "
+    "from the rise. The Normals mode shows the tilted normals themselves. The lie shows where geometry matters: "
+    "the silhouette stays smooth, bumps cast no shadows on each other and hide nothing behind them, and a height "
+    "too large for the map turns the shading harsh. Needs texture coordinates, so an OBJ model; a flat map "
+    "changes nothing.",
+    "J. F. Blinn, \"Simulation of Wrinkled Surfaces\", SIGGRAPH 1978."};
+
 const RayTracer::ModeInfo kToneMappingInfo = {
     "display", "Exposure, tone mapping and encoding",
     "The tracer computes linear radiance in floats, above 1 wherever lights add up; the display maps it to the "
@@ -256,6 +271,10 @@ const RayTracer::ModeInfo & RayTracer::textureInfo () {
 
 const RayTracer::ModeInfo & RayTracer::environmentInfo () {
     return kEnvironmentInfo;
+}
+
+const RayTracer::ModeInfo & RayTracer::bumpInfo () {
+    return kBumpInfo;
 }
 
 namespace {
@@ -431,17 +450,33 @@ float RayTracer::ambientOcclusion (const Scene & scene, const Vec3Df & p, const 
     return static_cast<float> (open) / static_cast<float> (count * count);
 }
 
+Vec3Df RayTracer::shadingNormal (const Scene & scene, const Hit & hit) const {
+    Vec3Df n = hit.vertex.getNormal ();
+    n.normalize ();
+    const Object & object = scene.getObjects ()[hit.objectIndex];
+    const Material & mat = object.getMaterial ();
+    const Texture * heights = mat.getBumpMap ().get ();
+    if (!bumpMapping || !heights || object.getPrimitive ())
+        return n;
+    const Mesh & mesh = object.getMesh ();
+    const Triangle & triangle = mesh.getTriangles ()[hit.triangleIndex];
+    Vec3Df pu, pv;
+    if (!bump::tangents (mesh.getVertices ()[triangle.getVertex (0)], mesh.getVertices ()[triangle.getVertex (1)],
+                         mesh.getVertices ()[triangle.getVertex (2)], pu, pv))
+        return n;
+    float fu = 0.f, fv = 0.f;
+    heights->heightGradient (hit.vertex.getU (), hit.vertex.getV (), fu, fv);
+    return bump::perturb (n, pu, pv, mat.getBumpScale () * fu, mat.getBumpScale () * fv);
+}
+
 Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, PixelSamplers & samplers,
                          unsigned int depth) const {
     const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
     switch (debugMode) {
         case DebugMode::HIT_MASK:
             return Vec3Df (1.f, 1.f, 1.f);
-        case DebugMode::NORMALS: {
-            Vec3Df n = hit.vertex.getNormal ();
-            n.normalize ();
-            return 0.5f * (n + Vec3Df (1.f, 1.f, 1.f));
-        }
+        case DebugMode::NORMALS:
+            return 0.5f * (shadingNormal (scene, hit) + Vec3Df (1.f, 1.f, 1.f));
         case DebugMode::DEPTH: {
             // z-buffer look: white at near, dark grey at far (never black, so
             // a far surface still reads against the black background).
@@ -472,13 +507,18 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
             // pass on from elsewhere. No attenuation.
             Vec3Df n = hit.vertex.getNormal ();
             n.normalize ();
+            // What light is computed with: n, or n tilted by a bump map. The
+            // surface has not moved, so wherever a ray must leave it (its
+            // offset, its side) n still decides.
+            Vec3Df ns = shadingNormal (scene, hit);
+            const bool bumped = ns != n;
             const Vec3Df & p = hit.vertex.getPos ();
             const float k = mat.getReflectivity (), glass = mat.getTransparency ();
             const bool bounces = (k > 0.f || glass > 0.f) && depth < maxDepth;
             // A perfect mirror or clear glass shows nothing of its own: skip
             // its shadow and occlusion rays.
             const Vec3Df own = !bounces || (1.f - k) * (1.f - glass) > 0.f
-                                   ? directLight (scene, mat, p, n,
+                                   ? directLight (scene, mat, p, n, ns,
                                                   Vec3Df (hit.vertex.getU (), hit.vertex.getV (), 0.f), ray,
                                                   samplers)
                                    : Vec3Df (0.f, 0.f, 0.f);
@@ -492,10 +532,18 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
             // it must be two-sided to find its way out.
             Vec3Df d = ray.getDirection ();
             d.normalize ();
-            if (Vec3Df::dotProduct (d, n) > 0.f)
+            if (Vec3Df::dotProduct (d, n) > 0.f) {
                 n = -n;
+                ns = -ns;
+            }
             const float bias = surfaceBias (scene);
-            Vec3Df r = optics::reflect (d, n);
+            Vec3Df r = optics::reflect (d, ns);
+            // Mirrored about a tilted normal, a ray can point below the real
+            // surface, where a wrinkle would have caught it and sent it back
+            // up: fold it about the surface instead of letting it meet the
+            // very point it left.
+            if (bumped && Vec3Df::dotProduct (r, n) < 0.f)
+                r = optics::reflect (r, n);
             r.normalize ();
             const Vec3Df mirrored = bounce (scene, Ray (p + n * bias, r, hit.backFace), samplers, depth);
 
@@ -505,9 +553,12 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
                 // from air into the object at a front face, out at a back one.
                 const float n1 = hit.backFace ? mat.getIor () : 1.f;
                 const float n2 = hit.backFace ? 1.f : mat.getIor ();
-                const float f = optics::fresnel (-Vec3Df::dotProduct (d, n), n1, n2);
+                const float f = optics::fresnel (-Vec3Df::dotProduct (d, ns), n1, n2);
                 Vec3Df through (0.f, 0.f, 0.f), t;
-                if (f < 1.f && optics::refract (d, n, n1 / n2, t)) {
+                if (f < 1.f && optics::refract (d, ns, n1 / n2, t)) {
+                    // ... and a bent ray must still cross the surface.
+                    if (bumped && Vec3Df::dotProduct (t, n) > 0.f)
+                        t = optics::reflect (t, n);
                     t.normalize ();
                     through = bounce (scene, Ray (p - n * bias, t, !hit.backFace), samplers, depth);
                 }
@@ -521,7 +572,8 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
 }
 
 Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
-                               const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const {
+                               const Vec3Df & ns, const Vec3Df & uv, const Ray & ray,
+                               PixelSamplers & samplers) const {
     // Lambert diffuse + Blinn-Phong highlight, each light scaled by how much
     // of it the point sees (hard or soft shadows), ambient and diffuse by how
     // open its surroundings are (occlusion).
@@ -534,9 +586,11 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
     for (const Light & light : scene.getLights ()) {
         Vec3Df l = light.getPos () - p;
         l.normalize ();
-        const float nDotL = Vec3Df::dotProduct (n, l);
-        if (nDotL <= 0.f)
-            continue;  // light behind the surface
+        const float nDotL = Vec3Df::dotProduct (ns, l);
+        // Behind the surface as it is shaded, or behind the surface itself:
+        // a bump cannot catch a light the ground it sits on hides.
+        if (nDotL <= 0.f || Vec3Df::dotProduct (n, l) <= 0.f)
+            continue;
         const float visibility = shadows ? lightVisibility (scene, p, n, light, samplers.shadows) : 1.f;
         if (visibility <= 0.f)
             continue;  // the whole light is blocked
@@ -545,7 +599,7 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
         if (specularEnabled && mat.getSpecular () > 0.f) {
             Vec3Df h = l + v;
             h.normalize ();
-            const float nDotH = std::max (0.f, Vec3Df::dotProduct (n, h));
+            const float nDotH = std::max (0.f, Vec3Df::dotProduct (ns, h));
             color += (visibility * mat.getSpecular () * light.getIntensity () *
                       std::pow (nDotH, mat.getShininess ())) *
                      light.getColor ();

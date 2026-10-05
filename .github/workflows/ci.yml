@@ -53,6 +53,7 @@ jobs:
           build/raymini-cli ram    --mode lit     --size 512x512 --yaw -35 --pitch 15 --out renders/ram_lit.png
           build/raymini-cli cube   --mode lit     --size 512x512 --yaw 25  --pitch 20 --out renders/cube_lit.png
           build/raymini-cli teapot --reflectivity 1 --environment venice_sunset --aa 2 --size 512x512 --yaw 25 --pitch 20 --out renders/teapot_chrome.png
+          build/raymini-cli spot --bump dimples --ground --aa 2 --size 512x512 --yaw -150 --pitch 12 --out renders/spot_dimpled.png
 
       # The release archive, built on every push and pull request so a tag
       # never discovers packaging problems (.github/workflows/release.yml
@@ -77,6 +78,10 @@ jobs:
           # ... and the world to put them in.
           ./bin/raymini-cli teapot --size 64x64 --reflectivity 1 --environment venice_sunset --quiet --out chrome.png
           test -s chrome.png
+          # ... and the height map to wrinkle them with.
+          ./bin/raymini-cli spot --size 64x64 --bump dimples --quiet --out dimpled.png 2> bump.err
+          cat bump.err
+          test ! -s bump.err
 
       - name: Upload the package
         uses: actions/upload-artifact@v4

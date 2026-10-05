@@ -1,4 +1,6 @@
 #include <cstring>
+#include <fstream>
+#include <string>
 
 #include "Image.h"
 #include "Test.h"
@@ -52,4 +54,31 @@ TEST_CASE("image: PNG round trip") {
 
     CHECK_MSG(!img.save(test::outputDir() + "/unsupported.bmp"), "unsupported extension is refused");
     CHECK_MSG(!back.load(test::outputDir() + "/missing.png"), "missing file is reported");
+}
+
+TEST_CASE("image: a greyscale file loads as RGB, each grey spread over the three channels") {
+    // A binary PGM is the simplest one-channel file stb reads: a header and
+    // one byte per pixel. Height maps are grey pictures (Bump.h).
+    const std::string path = test::outputDir() + "/grey.pgm";
+    const unsigned char greys[6] = {0, 50, 100, 150, 200, 255};  // 3 x 2
+    {
+        std::ofstream out(path, std::ios::binary);
+        out << "P5\n3 2\n255\n";
+        out.write(reinterpret_cast<const char*>(greys), sizeof(greys));
+    }
+    Image img;
+    REQUIRE(img.load(path));
+    CHECK_EQ(img.width(), 3);
+    CHECK_EQ(img.height(), 2);
+    CHECK_EQ(img.channels(), 3);
+    CHECK_EQ(img.sizeInBytes(), 18u);  // not the file's 6: getPixel reads three bytes per pixel
+    for (int y = 0; y < 2; ++y)
+        for (int x = 0; x < 3; ++x) {
+            unsigned char r = 1, g = 2, b = 3;
+            img.getPixel(x, y, r, g, b);
+            const int expected = greys[y * 3 + x];
+            CHECK_EQ(int(r), expected);
+            CHECK_EQ(int(g), expected);
+            CHECK_EQ(int(b), expected);
+        }
 }

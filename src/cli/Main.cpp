@@ -111,6 +111,13 @@ Options:
   --texture <file>       image read through the model's texture coordinates (PNG, JPEG...),
                          tinted by its colour; only OBJ files carry coordinates, and
                          --mode uv shows them
+  --bump <file>          height map read through the same coordinates, as numbers: white
+                         stands above black, and the model is shaded as if its surface
+                         were wrinkled that way. Its shape does not change; --mode normals
+                         shows the tilted normals. A bare name resolves in models/
+  --bump-scale <f>       how high white stands above black, as a fraction of the model
+                         size (default 0.01 with --bump, else the file's, MTL -bm)
+  --no-bump              ignore every bump map, the file's included
   --environment <file>   the world around the scene: a latitude-longitude panorama (Radiance
                          .hdr, PNG, JPEG...) read by every ray that leaves the scene, where
                          it points. It shows behind the model and in mirrors and glass, in
@@ -155,6 +162,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << texture.principle << "\n"
         << "      Read: " << texture.reading << "\n"
         << "      Ref:  " << texture.reference << "\n";
+    const RayTracer::ModeInfo& bump = RayTracer::bumpInfo();
+    out << "\n--bump / --bump-scale / --no-bump  " << bump.name << "\n"
+        << "      " << bump.principle << "\n"
+        << "      Read: " << bump.reading << "\n"
+        << "      Ref:  " << bump.reference << "\n";
     const RayTracer::ModeInfo& world = RayTracer::environmentInfo();
     out << "\n--environment  " << world.name << "\n"
         << "      " << world.principle << "\n"
@@ -229,6 +241,9 @@ struct Options {
     std::vector<SphereSpec> spheres;
     std::optional<Vec3Df> color;
     std::string texture;
+    std::string bump;                 // height map for the model; empty: as the file says
+    std::optional<float> bumpScale;   // fraction of the model size
+    bool bumpMapping = true;
     std::string environment;
     std::optional<float> specularStrength, shininess;
     std::optional<UpAxis> up;  // empty = auto
@@ -428,6 +443,14 @@ bool parseArgs(int argc, char** argv, Options& o) {
         } else if (a == "--texture") {
             if (!(v = value(i, "--texture"))) return false;
             o.texture = v;
+        } else if (a == "--bump") {
+            if (!(v = value(i, "--bump"))) return false;
+            o.bump = v;
+        } else if (a == "--bump-scale") {
+            if (!(v = value(i, "--bump-scale"))) return false;
+            o.bumpScale = static_cast<float>(std::atof(v));
+        } else if (a == "--no-bump") {
+            o.bumpMapping = false;
         } else if (a == "--environment") {
             if (!(v = value(i, "--environment"))) return false;
             o.environment = v;
@@ -649,15 +672,35 @@ int main(int argc, char** argv) {
     // A texture given here replaces the one the MTL may have loaded.
     const std::shared_ptr<const Texture> texture = o.texture.empty() ? nullptr : Texture::load(o.texture);
     if (!o.texture.empty() && !texture) return 1;
+    // A height map likewise, read as numbers. Its scale is given in model
+    // sizes, so the same option suits a model of any size.
+    std::shared_ptr<const Texture> heights;
+    if (!o.bump.empty()) {
+        const std::string bumpPath = resolveBundled(o.bump, argv0, {"", ".png"});
+        heights = Texture::readData(bumpPath);
+        if (!heights) {
+            std::cerr << "cannot read the bump map " << bumpPath << "\n";
+            return 1;
+        }
+        if (!o.bumpScale) o.bumpScale = 0.01f;
+    }
+    bool coordinates = false;
     for (Object& object : scene.getObjects()) {
         Material& m = object.getMaterial();
         if (o.transparency) m.setTransparency(*o.transparency);
         if (o.ior) m.setIor(*o.ior);
         if (o.color) m.setColor(*o.color);
         if (!o.texture.empty()) m.setDiffuseMap(texture);
+        if (heights) m.setBumpMap(heights);
+        if (o.bumpScale) m.setBumpScale(*o.bumpScale * scene.getBoundingBox().getSize());
         if (o.specularStrength) m.setSpecular(*o.specularStrength);
         if (o.shininess) m.setShininess(*o.shininess);
+        for (const Vertex& vertex : object.getMesh().getVertices())
+            coordinates = coordinates || vertex.getU() != 0.f || vertex.getV() != 0.f;
     }
+    if (heights && !coordinates)
+        std::cerr << "warning: " << path << " carries no texture coordinates (an OBJ file can, an OFF file "
+                  << "cannot), so --bump has nothing to follow: the surface stays smooth\n";
     addSpheres(o.spheres);
     scene.addDefaultLights();
     if (o.lightRadius >= 0.f) scene.setLightRadius(o.lightRadius);
@@ -702,6 +745,7 @@ int main(int argc, char** argv) {
     rt.setShadows(o.shadows);
     rt.setShadowSamples(o.shadowSamples);
     rt.setSpecularEnabled(o.specular);
+    rt.setBumpMapping(o.bumpMapping);
     rt.setMaxDepth(o.maxDepth);
     // The ao mode with no --ao would be all white: give it the occlusion it shows.
     if (o.aoSamples < 0) o.aoSamples = o.mode == RayTracer::DebugMode::AMBIENT_OCCLUSION ? 8 : 0;
@@ -763,12 +807,15 @@ int main(int argc, char** argv) {
                                                : "";
         if (o.aoSamples > 0)
             effects += ", " + std::to_string(o.aoSamples * o.aoSamples) + " occlusion rays/hit";
-        // From the scene, not the options: a --sphere brings its own mirror or glass.
-        bool glassy = false, mirrors = false;
+        // From the scene, not the options: a --sphere brings its own mirror or
+        // glass, an MTL its own bump map.
+        bool glassy = false, mirrors = false, wrinkled = false;
         for (const Object& object : scene.getObjects()) {
             glassy = glassy || object.getMaterial().getTransparency() > 0.f;
             mirrors = mirrors || object.getMaterial().getReflectivity() > 0.f;
+            wrinkled = wrinkled || (object.getMaterial().getBumpMap() && object.getMaterial().getBumpScale() != 0.f);
         }
+        if (wrinkled && o.bumpMapping && coordinates) effects += ", bump map";
         if ((mirrors || glassy) && o.maxDepth > 0)
             effects += std::string(", ") + (glassy ? "glass and reflections" : "reflections") + " up to depth " +
                        std::to_string(o.maxDepth);

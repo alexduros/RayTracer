@@ -1,7 +1,7 @@
 # Models
 
 Six shapes, each earning its place, the texture that comes with one of
-them, and one world to put them in. `raymini-cli <name>` and the viewer's
+them, a height map to wrinkle them and one world to put them in. `raymini-cli <name>` and the viewer's
 pickers resolve a bare name here.
 
 | File | Triangles | Why it is here |
@@ -14,6 +14,7 @@ pickers resolve a bare name here.
 | `spot.obj` | 5 856 | Spot, with texture coordinates and a texture map: what the teapot and the rams cannot have, since OFF stores no UVs. |
 | `spot_texture.png` | — | Spot's texture, read through her coordinates. |
 | `spot.mtl` | — | Ties the two together: Keenan Crane ships the mesh and the texture as unrelated files, so this `map_Kd` is ours. |
+| `dimples.png` | — | A height map: round pits in a flat skin, white high and black deep, tiling. What bump mapping reads, `--bump dimples`, on a model that carries texture coordinates (Spot, Belly). |
 | `venice_sunset.hdr` | — | The world around the scene: a 1024 x 512 latitude-longitude panorama in linear radiance, the sun far brighter than white. What mirrors and glass reflect, `--environment venice_sunset`. |
 
 `models/orientation.txt` says which axis of each file points up; without it,
@@ -32,6 +33,8 @@ Spot is laid on her side by the flattest-side heuristic.
   file here is the 1k Radiance download, `venice_sunset_1k.hdr`, renamed so
   a bare name resolves it. 1.4 MB: the 2k version is sharper behind the
   model and four times the size, and any other panorama loads by path.
+- **The dimples** are computed, not drawn: `scripts/make-dimples.py` writes
+  the file, 512 x 512 in 8-bit grey, 8 KB.
 - **Belly** is Alexandre Duros's mascot, exported from three-d-stage.
 - **The teapot, the rams and the cube** come with Tamy Boubekeur's raymini
   teaching framework, which this project started from in 2013. The teapot is

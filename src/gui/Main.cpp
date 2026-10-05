@@ -34,6 +34,7 @@
 #include "Camera.h"
 #include "Display.h"
 #include "Environment.h"
+#include "Texture.h"
 #include "HdrImage.h"
 #include "Image.h"
 #include "Mesh.h"
@@ -170,20 +171,24 @@ std::vector<std::filesystem::path> listModels(const std::filesystem::path& dir) 
     return out;
 }
 
-// Every Radiance panorama (*.hdr) in `dir`, sorted by name: the worlds a
-// scene can sit in (Environment.h).
-std::vector<std::filesystem::path> listWorlds(const std::filesystem::path& dir) {
+// Every file of `dir` with the extension `wanted` (lower case, with its dot),
+// sorted by name.
+std::vector<std::filesystem::path> listFiles(const std::filesystem::path& dir, const char* wanted) {
     std::vector<std::filesystem::path> out;
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
         if (!entry.is_regular_file(ec)) continue;
         std::string ext = entry.path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
-        if (ext == ".hdr") out.push_back(entry.path());
+        if (ext == wanted) out.push_back(entry.path());
     }
     std::sort(out.begin(), out.end());
     return out;
 }
+
+// Every Radiance panorama (*.hdr) in `dir`: the worlds a scene can sit in
+// (Environment.h).
+std::vector<std::filesystem::path> listWorlds(const std::filesystem::path& dir) { return listFiles(dir, ".hdr"); }
 
 // Where the picker looks: next to a model given on the command line, else the
 // bundled models/ directory known at build time, else ./models.
@@ -536,6 +541,14 @@ int main(int argc, char** argv) {
     const std::vector<std::filesystem::path> worldPaths = listWorlds(modelsDirectory(givenModel));
     std::shared_ptr<const Environment> world;
     int worldIndex = 0;  // 0 = none, else worldPaths[worldIndex - 1]
+    // The height map that wrinkles the model, in the raytraced panel: what
+    // its file says (an MTL map_bump), none at all, or one of the *.png
+    // pictures of the models directory, white standing rtBumpScale x the
+    // model's size above black.
+    const std::vector<std::filesystem::path> bumpPaths = listFiles(modelsDirectory(givenModel), ".png");
+    std::shared_ptr<const Texture> bumpMap;
+    int bumpIndex = 0;  // 0 = as in the file, 1 = none, else bumpPaths[bumpIndex - 2]
+    float rtBumpScale = 0.01f;
     // Up axis of the model file: 0 = Auto (orientation.txt, else heuristic), else kUpChoices[choice - 1].
     static const char* kUpLabels[] = {"Auto", "+Y", "+Z", "-Z", "+X", "-X", "-Y"};
     static const UpAxis kUpChoices[] = {UpAxis::PosY, UpAxis::PosZ, UpAxis::NegZ,
@@ -736,6 +749,7 @@ int main(int argc, char** argv) {
             rt.setShadows(rtShadows);
             rt.setShadowSamples(static_cast<unsigned int>(rtShadowSamples));
             rt.setSpecularEnabled(rtSpecular);
+            rt.setBumpMapping(bumpIndex != 1);
             rt.setMaxDepth(static_cast<unsigned int>(rtMaxDepth));
             // The AO mode with occlusion off would be all white: show it at 4x4.
             const bool aoMode = static_cast<RayTracer::DebugMode>(rtMode) == RayTracer::DebugMode::AMBIENT_OCCLUSION;
@@ -753,6 +767,13 @@ int main(int argc, char** argv) {
             // file says (an MTL can make some materials glass already).
             Scene toRender = scene;
             if (rtGlass > 0.f) toRender.setModelGlass(rtGlass, rtIor);
+            // A picked height map likewise: back to "as in the file" restores the file's.
+            if (bumpMap)
+                for (Object& object : toRender.getObjects())
+                    if (!object.isBackdrop()) {
+                        object.getMaterial().setBumpMap(bumpMap);
+                        object.getMaterial().setBumpScale(rtBumpScale * scene.getBoundingBox().getSize());
+                    }
             toRender.setEnvironment(world);
             renderJob = std::make_unique<RenderJob>(rt, toRender, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f),
@@ -978,6 +999,33 @@ int main(int argc, char** argv) {
             }
             ImGui::SameLine();
             helpMarker(RayTracer::environmentInfo());
+            rowLabel("Bumps");
+            ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+            const auto bumpLabel = [&bumpPaths](int i) {
+                return i == 0 ? std::string("As in the file") : i == 1 ? std::string("None") : bumpPaths[i - 2].stem().string();
+            };
+            if (ImGui::BeginCombo("##bump", bumpLabel(bumpIndex).c_str())) {
+                for (int i = 0; i < static_cast<int>(bumpPaths.size()) + 2; ++i) {
+                    if (ImGui::Selectable(bumpLabel(i).c_str(), i == bumpIndex) && i != bumpIndex) {
+                        // A picture that cannot be read leaves the choice where it was.
+                        const std::shared_ptr<const Texture> picked =
+                            i < 2 ? nullptr : Texture::readData(bumpPaths[i - 2].string());
+                        if (i < 2 || picked) {
+                            bumpMap = picked;
+                            bumpIndex = i;
+                        }
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            helpMarker(RayTracer::bumpInfo());
+            if (bumpIndex >= 2) {
+                rowWidget("Height");
+                ImGui::SliderFloat("##bumpscale", &rtBumpScale, -0.05f, 0.05f, "%.3f");
+                itemTooltip("How high white stands above black, in model sizes; negative digs where the map rises.\n"
+                            "Needs texture coordinates: an OBJ model (raytraced panel only).");
+            }
             rowLabel("Mirror");
             ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
             ImGui::SliderFloat("##modelmirror", &rtModelReflectivity, 0.f, 1.f, "%.2f");

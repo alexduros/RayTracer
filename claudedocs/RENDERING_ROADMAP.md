@@ -29,6 +29,7 @@ the implementation order with tests; this page is the map.
 | Analytic primitives | A sphere, a cylinder or a disc is an equation: the ray meets it at the root of a polynomial, exactly, at any zoom. |
 | Textures | The material's colour is read from an image through the coordinates the surface carries, bilinearly. |
 | Environment map | The world around the scene is a panoramic picture read by direction: a ray that escapes brings back the texel where it points. |
+| Bump mapping | A grey picture read as a height tilts the normal the light is computed with; the surface itself does not move. |
 
 ## 1. Local shading
 
@@ -80,9 +81,9 @@ Done for the seen half (timeline step 13, v0.6.0): `Environment` on the `Scene`,
 **Principle:** The material colour becomes a function of the hit: a checker or noise of the position, or a bitmap looked up through interpolated texture coordinates.
 Done for images (timeline step 12, v0.5.0): `vt` kept from OBJ, `map_Kd` from MTL, barycentric interpolation, bilinear read, sRGB decoded, wrapping, a `uv` mode, and Spot with her texture. Tests: each texel owns its quadrant, the read between two texels is their mean, 188 decodes to 0.5, a seam keeps its two vertices. Procedural patterns (a checker of the position, then Perlin noise) wait for timeline step 25. Reference: Catmull 1974; Perlin, "An Image Synthesizer", SIGGRAPH 1985.
 
-### Normal and bump mapping
+### Bump mapping (done) and normal mapping (to come)
 **Principle:** A texture perturbs the shading normal per pixel to fake fine surface detail without adding geometry.
-Needs: textures, tangent frames per triangle. Test: a flat quad with a bumped normal map shades as if grooved, a flat map leaves it flat. Reference: Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978; Cohen, Olano & Manocha, SIGGRAPH 1998.
+Done for height maps (timeline step 14, v0.7.0): `Material::setBumpMap` and its scale, Blinn's perturbed normal in `src/core/Bump.h` from per-triangle tangents and texel differences, used by Lit (Lambert, highlight, mirror and glass rays) and shown by the Normals mode, `--bump`, MTL `map_bump -bm`, the viewer's Bumps picker, `models/dimples.png`. Tests: a flat map changes no pixel, a ramp of slope s tilts the normal by atan(s), a mirror turns its reflection by twice the tilt and never under the surface. To come: normal maps, which store the tilted normal itself in tangent space instead of a height (Cohen, Olano & Manocha), need the same tangents interpolated per vertex; coordinates on the ground plane and the primitives. Reference: Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978; Cohen, Olano & Manocha, SIGGRAPH 1998.
 
 ## 4. Camera and image
 
