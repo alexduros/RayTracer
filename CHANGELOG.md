@@ -11,6 +11,41 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-05
+
+Step 14 of the timeline: J. F. Blinn, "Simulation of Wrinkled Surfaces",
+SIGGRAPH 1978 — a height map does not move the surface, it tilts the normal
+the light is computed with, and the eye reads the shading as relief.
+
+### Added
+
+- **Bump mapping.** `--bump <file>` reads a grey picture through the model's
+  texture coordinates as a height, white above black, and shades the model
+  as if its surface had been pushed out by that much: Blinn's perturbed
+  normal, N' = N + (Fu (N x Pv) - Fv (N x Pu)) / |N| (`src/core/Bump.h`),
+  with the tangents Pu, Pv taken from each triangle's corners and the slopes
+  Fu, Fv from neighbouring texels. Lambert, the highlight, mirror and glass
+  rays all use the tilted normal; shadow and occlusion rays still leave the
+  real surface. `--bump-scale <f>` sets how high white stands, in model
+  sizes (0.01 by default, negative digs), `--no-bump` ignores every map,
+  and `--mode normals` shows the tilted normals. A material without a map
+  renders exactly as before, and so does a flat map, to the last bit.
+- **MTL `map_bump` and `bump`**, with `-bm` as the height in the model's
+  units. Height maps are read as numbers, byte / 255, not decoded from sRGB
+  as colours are.
+- **A height map to try it with**: `models/dimples.png`, a golf ball's skin,
+  512 x 512 and 8 KB, written by `scripts/make-dimples.py`. A bare name
+  resolves in `models/`: `raymini-cli spot --bump dimples`.
+- **A Bumps picker in the viewer**, over the `.png` files of the models
+  directory (or the file's own map, or none), with the height beside it.
+- Goldens `spot_dimpled_lit` and `spot_dimpled_normals`; ctest `cli_bump`,
+  `cli_bump_normals`, `cli_bad_bump`, `cli_bump_without_coordinates`.
+
+Not yet: the surface does not move, so silhouettes stay smooth and bumps
+neither shadow nor hide each other, the limit the paper states itself. Only
+OBJ meshes carry the coordinates a map follows: the teapot, the rams, the
+ground plane and the analytic spheres stay smooth, and `--bump` says so.
+
 ### Fixed
 
 - **A greyscale picture loads as what it is.** `Image::load` kept the single

@@ -2,6 +2,7 @@
 #include "ObjLoader.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -92,6 +93,32 @@ struct Group {
     }
 };
 
+/// The file a map statement names, resolved beside the MTL file `mtl`.
+/// Options (-s, -o, -bm...) come before the name; the name is what is left,
+/// and may contain spaces. `bumpMultiplier`, when given, receives -bm.
+std::string mapFile (const std::string & statement, const std::string & mtl, float * bumpMultiplier) {
+    std::string file = trim (statement);
+    while (!file.empty () && file[0] == '-') {
+        const size_t space = file.find (' ');
+        if (space == std::string::npos)
+            break;
+        const size_t next = file.find_first_not_of (' ', space);
+        if (next == std::string::npos)
+            break;
+        // Skip the option and its value, whatever the value is.
+        const size_t after = file.find (' ', next);
+        if (bumpMultiplier && file.compare (0, space, "-bm") == 0)
+            *bumpMultiplier = static_cast<float> (std::atof (file.substr (next, after - next).c_str ()));
+        file = after == std::string::npos ? std::string () : trim (file.substr (after));
+    }
+    if (file.empty ())
+        return file;
+    const std::filesystem::path p = std::filesystem::path (file).is_absolute ()
+                                        ? std::filesystem::path (file)
+                                        : std::filesystem::path (mtl).parent_path () / file;
+    return p.string ();
+}
+
 } // namespace
 
 std::map<std::string, Material> loadMTL (const std::string & filename) {
@@ -138,27 +165,25 @@ std::map<std::string, Material> loadMTL (const std::string & filename) {
             if (ss >> ni)
                 materials[current].setIor (ni);
         } else if (key == "map_Kd") {
-            // Options (-s, -o, -bm...) come before the file name; the name is
-            // what is left, and may contain spaces.
             std::string rest;
             std::getline (ss, rest);
-            std::string file = trim (rest);
-            while (!file.empty () && file[0] == '-') {
-                const size_t space = file.find (' ');
-                if (space == std::string::npos)
-                    break;
-                size_t next = file.find_first_not_of (' ', space);
-                if (next == std::string::npos)
-                    break;
-                // Skip the option and its value, whatever the value is.
-                const size_t after = file.find (' ', next);
-                file = after == std::string::npos ? std::string () : trim (file.substr (after));
-            }
+            const std::string file = mapFile (rest, filename, nullptr);
+            if (!file.empty ())
+                materials[current].setDiffuseMap (Texture::load (file));
+        } else if (key == "map_bump" || key == "map_Bump" || key == "bump") {
+            // A height map, read as numbers (no sRGB decode); -bm scales it:
+            // white stands that many units of the model above black.
+            std::string rest;
+            std::getline (ss, rest);
+            float multiplier = 1.f;
+            const std::string file = mapFile (rest, filename, &multiplier);
             if (!file.empty ()) {
-                const std::filesystem::path p = std::filesystem::path (file).is_absolute ()
-                                                    ? std::filesystem::path (file)
-                                                    : std::filesystem::path (filename).parent_path () / file;
-                materials[current].setDiffuseMap (Texture::load (p.string ()));
+                const std::shared_ptr<const Texture> heights = Texture::readData (file);
+                if (!heights)
+                    std::cerr << "warning: cannot read the bump map " << file << " (the surface stays smooth)"
+                              << std::endl;
+                materials[current].setBumpMap (heights);
+                materials[current].setBumpScale (multiplier);
             }
         }
         // Ka, illum, other map_*: not represented by Material yet.

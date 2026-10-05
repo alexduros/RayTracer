@@ -10,8 +10,9 @@ tests that prove each one.
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
   Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Optics (reflect,
-  Snell, Fresnel), Primitive (sphere, cylinder, disc), Texture, Environment
-  (the panorama around the scene), Image (stb). No GL, no GLFW: it links
+  Snell, Fresnel), Primitive (sphere, cylinder, disc), Texture, Bump (the
+  perturbed normal), Environment (the panorama around the scene), Image
+  (stb). No GL, no GLFW: it links
   anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
   (right), controls (bottom).
@@ -26,8 +27,10 @@ tests that prove each one.
   `spot.obj` + `spot_texture.png` (the only UVs, CC0, for texture mapping)
   and `belly.obj`/`belly.mtl` (the mascot, five materials, 74k triangles).
   `orientation.txt` gives the up axis of each. `venice_sunset.hdr` (CC0,
-  1024x512) is the one environment map; `scripts/package.sh` ships every
-  `*.png` and `*.hdr` beside the meshes.
+  1024x512) is the one environment map, `dimples.png` the one height map
+  (written by `scripts/make-dimples.py`; 8-bit grey, so `Image::load`
+  expands grey to RGB); `scripts/package.sh` ships every `*.png` and
+  `*.hdr` beside the meshes.
 - `claudedocs/RENDERING_ROADMAP.md` — every rendering mode the raytracer
   could offer next, one-sentence principle each; mirrored by
   `RayTracer::plannedMode()` (greyed out in the viewer's mode menu, printed
@@ -77,8 +80,9 @@ build/raymini-cli --help
 ## Rendering pipeline as it exists today
 
 - Formats: OFF (one object with the default material) and OBJ, optionally
-  with MTL (one object per material, `Kd` -> colour, mean `Ks` -> specular;
-  `vt` is parsed but dropped, `map_*` ignored). `Scene::addObjectsFromFile`
+  with MTL (one object per material, `Kd` -> colour, mean `Ks` -> specular,
+  `map_Kd` -> texture, `map_bump` / `bump` -> height map with `-bm` as its
+  scale; `vt` kept). `Scene::addObjectsFromFile`
   dispatches on the extension, case-insensitively.
 - `Camera::primaryRay` -> `RayTracer::closestHit` (each object's BVH, back
   faces culled) -> `RayTracer::shade` by mode.
@@ -97,7 +101,8 @@ build/raymini-cli --help
   law, `src/core/Optics.h`), and on a material of reflectivity k, (1 - k) x
   that + k x what the ray mirrored about the normal sees, recursively while
   depth < `setMaxDepth` (default 8, 0 = off bit for bit)),
-  `ambient`, `hitmask`, `normals`, `depth`
+  `ambient`, `hitmask`, `normals` (the shading normal, so a bump map
+  shows), `depth`
   (z-buffer grey: white near, dark grey far, black = miss), `objectid`
   (golden-ratio hue palette by object index), `ao` (the open share of the
   hemisphere as grey; all white when occlusion is off), `uv` (texture
@@ -166,6 +171,22 @@ build/raymini-cli --help
   at load. `Material::getColorAt(u, v)` is the colour to shade with — never
   `getColor()` in the shading path. MTL `map_Kd`, CLI `--texture`, mode
   `uv`. Only OBJ carries coordinates; OFF models read (0, 0) everywhere.
+- Bump mapping (`src/core/Bump.h`, step 14): `Material::setBumpMap` holds
+  a height map (a `Texture` read with `Texture::readData`: byte / 255, no
+  sRGB decode) and `setBumpScale` the world height of white above black.
+  `RayTracer::shadingNormal(scene, hit)` returns the interpolated normal
+  tilted by Blinn's formula (`bump::perturb`), with Pu, Pv from the hit
+  triangle's corners (`bump::tangents`, false without coordinates) and the
+  slopes from `Texture::heightGradient` (neighbour differences, bilinear,
+  exactly 0 on a flat map). Lit uses it for Lambert, the highlight and the
+  mirror / glass directions; `directLight` takes both normals, because
+  shadow and occlusion rays, offsets and the back-face flip keep the
+  surface's own; a mirrored or bent ray on the wrong side of the surface is
+  folded about it, only when bumped. No map, a flat map, scale 0 or
+  `setBumpMapping(false)` are bit for bit the smooth picture. Meshes with
+  UVs only (OBJ): primitives and the ground plane carry none. CLI `--bump
+  <file>` (bare name in `models/`) `--bump-scale f` (fraction of the model
+  size, 0.01) `--no-bump`, GUI Bumps / Height.
 - Environment map (`src/core/Environment.h`, step 13): `Scene::setEnvironment`
   holds a latitude-longitude panorama (shared, immutable), and
   `RayTracer::escaped` returns it for every ray that meets nothing in Lit
@@ -259,7 +280,9 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
 - Glass is clear and casts opaque shadows (no caustics): timeline step 15.
   Textures are read bilinearly with no filtering at a distance (step 19).
   The environment map is seen but lights nothing (step 46), and the GL
-  preview does not show it.
+  preview does not show it. Bump maps tilt normals only (smooth
+  silhouettes, no shadows between bumps), need an OBJ's coordinates, and
+  are read unfiltered like textures.
 - Up axis: the scene is Y-up and `Scene::setUpAxis` rotates a model on
   load (exact axis permutation) so its own up axis becomes +Y; call it
   before `addDefaultLights`. `Orientation.h` resolves "Auto" from

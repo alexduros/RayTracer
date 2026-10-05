@@ -14,7 +14,8 @@ with the raytracer split into a library that builds without any GL dependency.
 
 - Loads OFF (colour columns and comments tolerated) and OBJ meshes. An OBJ
   may reference an MTL file: each material becomes its own object (`Kd`
-  colour, `Ks` specular, `Ns` shininess, `map_Kd` texture).
+  colour, `Ks` specular, `Ns` shininess, `map_Kd` texture, `map_bump`
+  height map).
   Polygons are fan-triangulated; normals come from the file or are
   recomputed. Models are stood upright on load (see Notes).
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
@@ -40,6 +41,10 @@ with the raytracer split into a library that builds without any GL dependency.
   unwrapping.
   Every mode explains itself in the UI and in `--help`, with the study it
   comes from; see "Render modes" below.
+- Bump mapping: a grey picture read as a height (`--bump`, or `map_bump`
+  in an MTL) tilts the normal the light is computed with, so a smooth
+  surface is shaded as if it were dimpled or wrinkled. The shape does not
+  change; the Normals mode shows the tilted normals.
 - Environment map: a panorama around the scene (`--environment`), read by
   every ray that escapes, where it points. The backdrop, the mirrors and
   the glass show a place instead of black; a Radiance `.hdr` map keeps the
@@ -136,6 +141,8 @@ build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15 \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass   # analytic spheres
 build/raymini-cli spot --ground --aa 2 --yaw -150 --pitch 12                   # textured, from her MTL
 build/raymini-cli spot --mode uv --yaw -150 --pitch 12                         # her unwrapping
+build/raymini-cli spot --bump dimples --ground --aa 2 --yaw -150 --pitch 12    # her skin dimpled like a golf ball's
+build/raymini-cli spot --bump dimples --mode normals --yaw -150 --pitch 12     # the tilted normals themselves
 build/raymini-cli teapot --reflectivity 1 --environment venice_sunset --aa 2 --yaw 25 --pitch 20   # chrome, in a world
 build/raymini-cli ram --transparency 1 --environment venice_sunset --aa 2 --yaw -35 --pitch 15     # glass, in the same
 build/raymini-cli teapot --up +y                       # override the file's up axis (auto: orientation.txt)
@@ -153,8 +160,10 @@ Viewer controls:
 - Controls panel, four sections: Model (picker over every `.off` and `.obj`
   in `models/`, up axis, ground plane and how much it mirrors, the world
   around the scene (None, or an environment map among the `.hdr` files of
-  `models/`; raytraced panel only), the model's own mirror share, glass
-  share and index, the number of bounces, mesh stats), Camera (FOV,
+  `models/`; raytraced panel only), the model's bumps (the height map its
+  file names, none, or one of the `.png` files of `models/`, and how high
+  it stands), its own mirror share, glass share and index, the number of
+  bounces, mesh stats), Camera (FOV,
   position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
@@ -180,7 +189,7 @@ The same text is shown under the render in the viewer and printed by
 | **Lit (Lambert + Blinn-Phong, shadows)** | Per light: material colour × light colour × max(0, n·l) (Lambert), a white highlight where the half-vector between light and view aligns with the normal, raised to the shininess (Blinn-Phong), both scaled by the fraction of the light that shadow rays find unblocked (one ray: all or nothing; soft shadows: a grid over the light's disk); plus a constant ambient term. With ambient occlusion on, the ambient and diffuse terms are scaled by how open the surroundings are. On a reflective material, blended with what the mirrored ray sees; on a transparent one, with what the glass reflects and lets through. | Brighter where a surface faces a light; tight bright spots are highlights; blocked lights leave only the ambient term, and with soft shadows the edge fades across a penumbra. Colour is material × light, so the cyan key light tints the orange default material green. Turn on the ground plane to see shadows fall, and give it some reflectivity to see the model mirrored in it. | J. H. Lambert, *Photometria* (1760); J. Blinn, "Models of Light Reflection for Computer Synthesized Pictures", SIGGRAPH 1977; shadow rays: A. Appel, AFIPS 1968, T. Whitted, CACM 23(6), 1980 |
 | **Ambient (albedo)** | The material's base colour (Kd) at the hit, unlit. | Flat silhouettes per material; checks materials and outlines, shows no shape. | Ambient term of B. T. Phong, "Illumination for Computer Generated Pictures", CACM 18(6), 1975 |
 | **Hit mask (coverage)** | White where the primary ray hits geometry, black where it escapes. | A binary silhouette; with anti-aliasing, edge pixels turn grey in proportion to coverage. | T. Porter & T. Duff, "Compositing Digital Images", SIGGRAPH 1984 |
-| **Normals** | Surface normal remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
+| **Normals** | Surface normal, tilted by the bump map where the material has one, remapped from [-1, 1] to [0, 1]: x→red, y→green, z→blue. | A face pointing at the camera is light violet, one pointing up light green; flat patches are hard edges. | Normal-map encoding: Cohen, Olano & Manocha, "Appearance-Preserving Simplification", SIGGRAPH 1998; Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978 |
 | **Depth** | Eye-to-hit distance mapped between near and far: white at near, dark grey at far, black = nothing hit. | Brighter is closer; tighten near/far around the model if it is all one shade. | The z-buffer: E. Catmull, PhD thesis, University of Utah, 1974 |
 | **Object id** | One palette colour per object (per material group for OBJ). | Same colour = same object; a one-colour OFF model is expected. | The item buffer: Weghorst, Hooper & Greenberg, "Improved Computational Methods for Ray Tracing", ACM TOG 3(1), 1984 |
 | **Texture coordinates (uv)** | The (u, v) the surface carries, interpolated over the triangle: u → red, v → green. | Smooth gradients are a continuous unwrapping, hard edges are seams; black means the file carries none (every OFF here). | Catmull, PhD thesis, University of Utah, 1974 |
@@ -249,6 +258,29 @@ analysis modes keep their flat background. `models/venice_sunset.hdr` (Greg
 Zaal, Poly Haven, CC0) is the one bundled; any panorama loads by path.
 Blinn & Newell, "Texture and Reflection in Computer Generated Images",
 CACM 19(10), 1976.
+
+**Bump mapping** (`--bump <file>`, `--bump-scale f`, `--no-bump`, or
+`map_bump -bm` in an MTL; Bumps / Height in the viewer;
+`src/core/Bump.h`): a grey picture read through the surface's texture
+coordinates is taken as a height F, white above black, and the surface is
+shaded as if it had been pushed out by F along its normal. It is not: only
+the normal is recomputed, to first order in F, N' = N + (Fu (N x Pv) -
+Fv (N x Pu)) / |N|, where Pu and Pv are the surface's tangents along its
+coordinates (constant over a triangle, from its three corners) and Fu, Fv
+the slopes of the height (each texel's is the difference of its two
+neighbours, blended bilinearly). A slope of s tilts the normal by atan(s),
+away from the rise. Lambert, the highlight, and mirror and glass rays use
+the tilted normal; shadow and occlusion rays still leave the real surface,
+and a mirrored ray that would dive under it is folded back above. The
+height is `--bump-scale` model sizes between black and white (0.01 by
+default; negative digs where the map rises), or `-bm` units of the model in
+an MTL. The map is read as numbers, not decoded from sRGB like a colour.
+The lie shows where geometry matters, as Blinn says himself: the silhouette
+stays smooth, and bumps neither shadow nor hide one another. It needs
+texture coordinates, so an OBJ model (Spot, Belly): the teapot and the rams
+stay smooth, and the CLI says so. `models/dimples.png` is the one bundled;
+any picture loads by path. Blinn, "Simulation of Wrinkled Surfaces",
+SIGGRAPH 1978.
 
 **Analytic primitives** (`--sphere x y z r matte|mirror|glass`, repeatable;
 `src/core/Primitive.h`): a sphere, a cylinder or a disc is an equation, not a
@@ -327,10 +359,11 @@ src/gui/Main.cpp        raymini (GLFW + Dear ImGui viewer)
 src/cli/Main.cpp        raymini-cli (headless renderer)
 tests/                  raymini_tests + tests/golden/*.png
 third_party/            imgui, glad, stb
-scripts/                render-evolution.sh, which renders docs/evolution/
+scripts/                render-evolution.sh, which renders docs/evolution/;
+                        make-dimples.py, which writes the bundled height map
 docs/evolution/         the README's pictures, one per experiment
 models/                 six shapes and why each is there (models/README.md), a texture,
-                        an environment map, orientation.txt
+                        a height map, an environment map, orientation.txt
 claudedocs/             EXPERIMENTS.md (next steps), MODERNIZATION_ROADMAP.md
 .github/workflows/      CI: build + tests + sample renders on Ubuntu and macOS
 ```

@@ -43,6 +43,13 @@ public:
     }
     inline const std::shared_ptr<const Texture> & getDiffuseMap () const { return diffuseMap; }
     inline void setDiffuseMap (const std::shared_ptr<const Texture> & map) { diffuseMap = map; }
+    /// The height map that wrinkles the surface (MTL map_bump), read through
+    /// the same coordinates: white stands `bumpScale` world units above
+    /// black. Only the shading normal follows it (Bump.h); none by default.
+    inline const std::shared_ptr<const Texture> & getBumpMap () const { return bumpMap; }
+    inline void setBumpMap (const std::shared_ptr<const Texture> & map) { bumpMap = map; }
+    inline float getBumpScale () const { return bumpScale; }
+    inline void setBumpScale (float s) { bumpScale = s; }
     inline float getShininess () const { return shininess; }
     inline float getReflectivity () const { return reflectivity; }
     inline float getTransparency () const { return transparency; }
@@ -64,6 +71,8 @@ private:
     Vec3Df color;
     float shininess;
     std::shared_ptr<const Texture> diffuseMap;  // MTL map_Kd, shared and never modified
+    std::shared_ptr<const Texture> bumpMap;     // MTL map_bump, read as data (Texture::readData)
+    float bumpScale = 1.f;                      // MTL -bm
     float reflectivity = 0.f;
     float transparency = 0.f;
     float ior = 1.5f;

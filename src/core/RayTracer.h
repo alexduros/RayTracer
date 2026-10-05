@@ -91,6 +91,8 @@ public:
     static const ModeInfo & textureInfo ();
     /// ... and for the environment map.
     static const ModeInfo & environmentInfo ();
+    /// ... and for bump mapping.
+    static const ModeInfo & bumpInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
@@ -152,6 +154,13 @@ public:
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
     inline void setSpecularEnabled (bool on) { specularEnabled = on; }
     inline bool isSpecularEnabled () const { return specularEnabled; }
+    /// Bump mapping (Lit and Normals modes): a material with a height map
+    /// (Material::setBumpMap) is shaded with its normal tilted by the map's
+    /// slopes, as `shadingNormal` returns it. On by default, and a material
+    /// without a map is not concerned; off, every normal is the surface's
+    /// own again, bit for bit.
+    inline void setBumpMapping (bool on) { bumpMapping = on; }
+    inline bool isBumpMapping () const { return bumpMapping; }
     /// Traverse each object's BVH instead of testing every triangle. Same
     /// hits, same pixels; turn it off only to compare against the brute-force
     /// reference.
@@ -202,6 +211,13 @@ public:
     Vec3Df shade (const Scene & scene, const Ray & ray, const Hit & hit, PixelSamplers & samplers,
                   unsigned int depth = 0) const;
 
+    /// The unit normal a hit is lit with: the surface's own, interpolated
+    /// over the triangle, or, on a material with a bump map, that normal
+    /// tilted by the slopes of the map where the hit reads it (Bump.h). The
+    /// tangents come from the triangle's corners, so a mesh without texture
+    /// coordinates, and a primitive, keep their normal.
+    Vec3Df shadingNormal (const Scene & scene, const Hit & hit) const;
+
     /// Fraction of `light` seen from the surface point `p` with unit normal
     /// `n`, in [0, 1]: one shadow ray toward its centre (0 or 1), or
     /// getShadowSamplesPerAxis ()^2 rays over its disk. The part of the disk
@@ -235,9 +251,11 @@ public:
 
 private:
     /// Lit mode's own shading of a surface point: ambient, and per light
-    /// Lambert and Blinn-Phong, scaled by shadows and occlusion.
+    /// Lambert and Blinn-Phong about the shading normal `ns`, scaled by
+    /// shadows and occlusion, whose rays leave the surface itself: they keep
+    /// its own normal `n` (the two differ under a bump map only).
     Vec3Df directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
-                        const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const;
+                        const Vec3Df & ns, const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const;
     /// Colour a secondary ray brings back from a hit at `depth`: what it
     /// meets, shaded one bounce deeper, or what lies beyond the scene.
     Vec3Df bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const;
@@ -262,6 +280,7 @@ private:
     unsigned int aoSamplesPerAxis = 0;
     float aoRadius = 1.f;
     bool specularEnabled = true;
+    bool bumpMapping = true;
     bool bvhEnabled = true;
     Stats lastStats;
 };

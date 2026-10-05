@@ -100,12 +100,32 @@ down.
   background. Golden `teapot_chrome_venice_lit`.
 - **S** · effect. Lighting by the same map comes in 46.
 
-### 14 · 1978 · Bump mapping
-J. Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978.
-- **Here:** perturb the shading normal from a height map (12) or noise (25).
-- **Proof:** a flat height map changes no pixel; a ramp tilts the normal by
-  atan(slope).
-- **S** · effect.
+### 14 · 1978 · Bump mapping (done, v0.7.0)
+J. Blinn, "Simulation of Wrinkled Surfaces", SIGGRAPH 1978. A surface
+pushed out along its normal by a small height F has, to first order, the
+normal N' = N + (Fu (N x Pv) - Fv (N x Pu)) / |N|: compute that, shade with
+it, and leave the surface where it is.
+- **Here:** `src/core/Bump.h` — a height map on the `Material` (a grey
+  picture read as numbers through the texture coordinates of 12, white
+  above black by a scale in world units), Pu and Pv from each triangle's
+  corners, Fu and Fv from neighbouring texels, and
+  `RayTracer::shadingNormal` for Lambert, the highlight, mirror and glass
+  rays, and the Normals mode. Shadow and occlusion rays keep the real
+  surface, and a mirrored ray that would dive under it is folded back. CLI
+  `--bump <file> --bump-scale f --no-bump`, MTL `map_bump -bm`, the
+  viewer's Bumps picker, and `models/dimples.png` to try it with. Noise as
+  the height comes with 25.
+- **Proof:** a flat height map changes no pixel, bit for bit, and neither
+  does scale 0 or the off switch; a ramp of slope s tilts the normal by
+  atan(s), away from the rise, on quads of several sizes, along u and along
+  v, the other way under mirrored coordinates; the perturbed normal equals
+  the cross product of the displaced tangents; a slope lit along its tilted
+  normal is fully lit and one lit from behind it is black; a mirror tilted
+  by a turns its reflection by 2a and never sends it under the surface;
+  glass bends about the tilted normal; depth, hit mask, occlusion and uv do
+  not see the map. Goldens `spot_dimpled_lit`, `spot_dimpled_normals`.
+- **S** · effect. Meshes with coordinates only: the ground plane and the
+  primitives carry none yet.
 
 ### 15 · 1979 · Tinted glass and shadows through it
 D. S. Kay & D. Greenberg, "Transparency for Computer Synthesized Images",

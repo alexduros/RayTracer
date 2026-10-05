@@ -4,10 +4,9 @@
 // Mesh + one Material per Object", so a file is split into one Object per
 // material used, in first-use order (faces of the same material in separate
 // runs merge into the same object). Vertices are de-duplicated per object on
-// (position, normal). Texture coordinates are parsed for validation but not
-// kept: there are no textures yet. Normals from the file are honoured; if any
-// face corner of an object lacks one, smooth normals are recomputed for that
-// object.
+// (position, texture coordinate, normal), so a seam of the unwrapping keeps
+// its two vertices. Normals from the file are honoured; if any face corner
+// of an object lacks one, smooth normals are recomputed for that object.
 #ifndef OBJLOADER_H
 #define OBJLOADER_H
 
@@ -20,8 +19,10 @@
 
 /// Materials of an MTL file by name. Kd -> colour, mean(Ks) -> specular,
 /// Ns -> shininess, d (dissolve) -> transparency 1 - d, Tr -> transparency,
-/// Ni -> index of refraction; everything else (Ka, illum, map_*) is ignored
-/// for now. A material without Kd is light grey. Throws std::runtime_error if
+/// Ni -> index of refraction, map_Kd -> the colour's texture, map_bump or
+/// bump -> the height map and -bm its scale (Bump.h); everything else (Ka,
+/// illum, other map_*) is ignored for now. A material without Kd is light
+/// grey. Throws std::runtime_error if
 /// the file cannot be opened.
 std::map<std::string, Material> loadMTL (const std::string & filename);
 

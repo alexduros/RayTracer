@@ -18,6 +18,7 @@
 #include "RayTracer.h"
 #include "Scene.h"
 #include "Test.h"
+#include "Texture.h"
 
 namespace {
 
@@ -204,6 +205,29 @@ TEST_CASE("golden: Spot with her texture, and her coordinates") {
     compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_textured_lit.png");
     rt.setDebugMode(RayTracer::DebugMode::UV);
     compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_uv.png");
+}
+
+TEST_CASE("golden: Spot dimpled by the bundled height map, and her tilted normals") {
+    // The scene of the golden above, shaded as if her skin were a golf
+    // ball's: models/dimples.png, white standing 1 % of her size above
+    // black, as --bump dimples does. Her silhouette is the smooth one.
+    Scene scene;
+    scene.addObjectsFromFile(test::modelPath("spot.obj"));
+    scene.setUpAxis(resolveUpAxis(test::modelPath("spot.obj"), scene));
+    const std::shared_ptr<const Texture> heights = Texture::readData(test::modelPath("dimples.png"));
+    REQUIRE(heights != nullptr);
+    CHECK_EQ(heights->width(), 512);
+    for (Object& object : scene.getObjects()) {
+        object.getMaterial().setBumpMap(heights);
+        object.getMaterial().setBumpScale(0.01f * scene.getBoundingBox().getSize());
+    }
+    scene.addDefaultLights();
+    scene.addGroundPlane();
+    const Camera camera = Camera::frame(scene.getBoundingBox(), kPi / 4.f, 1.f, 2.f, -150.f, 12.f);
+    RayTracer rt;
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_dimpled_lit.png");
+    rt.setDebugMode(RayTracer::DebugMode::NORMALS);
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "spot_dimpled_normals.png");
 }
 
 TEST_CASE("golden: a chrome teapot in the Venice sunset") {

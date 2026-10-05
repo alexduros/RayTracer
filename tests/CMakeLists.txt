@@ -21,6 +21,7 @@ add_executable(raymini_tests
   TestPrimitive.cpp
   TestTexture.cpp
   TestEnvironment.cpp
+  TestBump.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -77,6 +78,18 @@ add_test(NAME cli_environment COMMAND raymini-cli teapot --size 32x32 --reflecti
          --environment venice_sunset --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_environment.png)
 add_test(NAME cli_bad_environment COMMAND raymini-cli teapot --environment no_such_world.hdr --quiet)
 set_tests_properties(cli_bad_environment PROPERTIES WILL_FAIL TRUE)
+# A height map from models/ by its bare name; the render line says it is in use.
+add_test(NAME cli_bump COMMAND raymini-cli spot --size 32x32 --bump dimples --bump-scale 0.02
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_bump.png)
+set_tests_properties(cli_bump PROPERTIES PASS_REGULAR_EXPRESSION "bump map")
+add_test(NAME cli_bump_normals COMMAND raymini-cli spot --size 32x32 --bump dimples --no-bump --mode normals
+         --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_bump_normals.png)
+add_test(NAME cli_bad_bump COMMAND raymini-cli spot --bump no_such_heights.png --quiet)
+set_tests_properties(cli_bad_bump PROPERTIES WILL_FAIL TRUE)
+# An OFF model has no coordinates for the map to follow: said, not silent.
+add_test(NAME cli_bump_without_coordinates COMMAND raymini-cli teapot --size 32x32 --bump dimples --quiet
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_bump_teapot.png)
+set_tests_properties(cli_bump_without_coordinates PROPERTIES PASS_REGULAR_EXPRESSION "no texture coordinates")
 add_test(NAME cli_threads COMMAND raymini-cli teapot --size 32x32 --threads 3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_threads.png)
 add_test(NAME cli_bad_threads COMMAND raymini-cli teapot --threads many --quiet)
