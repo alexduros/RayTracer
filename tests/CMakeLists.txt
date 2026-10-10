@@ -22,6 +22,7 @@ add_executable(raymini_tests
   TestTexture.cpp
   TestEnvironment.cpp
   TestBump.cpp
+  TestAbsorption.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -51,6 +52,15 @@ add_test(NAME cli_ao_mode COMMAND raymini-cli teapot --size 32x32 --mode ao --qu
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_ao_mode.png)
 add_test(NAME cli_glass COMMAND raymini-cli ram --size 32x32 --ground --transparency 1 --ior 1.33
          --max-depth 6 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_glass.png)
+# A tint makes the model glass by itself; the render line says what it traced.
+add_test(NAME cli_tint COMMAND raymini-cli teapot --size 32x32 --ground --tint 0.9 0.5 0.1 --tint-depth 0.3
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_tint.png)
+set_tests_properties(cli_tint PROPERTIES PASS_REGULAR_EXPRESSION "tinted glass and reflections up to depth 8")
+add_test(NAME cli_opaque_shadows COMMAND raymini-cli teapot --size 32x32 --ground --transparency 1 --opaque-shadows
+         --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_opaque_shadows.png)
+set_tests_properties(cli_opaque_shadows PROPERTIES PASS_REGULAR_EXPRESSION "opaque shadows under glass")
+add_test(NAME cli_bad_tint COMMAND raymini-cli teapot --tint 1.5 0.5 0.1 --quiet)
+set_tests_properties(cli_bad_tint PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_bad_ior COMMAND raymini-cli ram --ior 0.5 --quiet)
 set_tests_properties(cli_bad_ior PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_display COMMAND raymini-cli teapot --size 32x32 --display linear --tonemap reinhard --white 4

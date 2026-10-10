@@ -80,6 +80,13 @@ Options:
                          mirror share of the ground plane, 0..1 (implies --ground)
   --transparency <g>     glass share of the model's materials, 0..1 (default: the file's, MTL d)
   --ior <n>              index of refraction of that glass, 1..4 (default: the file's Ni, else 1.5)
+  --tint <r> <g> <b>     colour of the glass: what white light keeps after crossing
+                         --tint-depth of it, 0..1 per channel. Thick parts come out darker
+                         and more saturated than thin ones (implies --transparency 1)
+  --tint-depth <f>       that depth, as a fraction of the model size (default 0.25)
+  --opaque-shadows       glass blocks shadow rays entirely, as before v0.8.0, instead of
+                         filtering them (the default: a pale shadow under clear glass, a
+                         coloured one under tinted glass)
   --max-depth <n>        mirror and glass bounces followed per ray, 0..16 (default 8; 0 = none)
   --no-bvh               test every triangle (brute force) instead of the BVH, to compare
                          timings; the picture is identical
@@ -182,6 +189,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << glass.principle << "\n"
         << "      Read: " << glass.reading << "\n"
         << "      Ref:  " << glass.reference << "\n";
+    const RayTracer::ModeInfo& tint = RayTracer::absorptionInfo();
+    out << "\n--tint / --tint-depth / --opaque-shadows  " << tint.name << "\n"
+        << "      " << tint.principle << "\n"
+        << "      Read: " << tint.reading << "\n"
+        << "      Ref:  " << tint.reference << "\n";
     out << "\nPlanned modes, not available yet (map: claudedocs/RENDERING_ROADMAP.md):\n";
     for (int i = 0; i < RayTracer::kPlannedModeCount; ++i) {
         const RayTracer::ModeInfo& p = RayTracer::plannedMode(i);
@@ -215,6 +227,9 @@ struct Options {
     float groundReflectivity = 0.f;  // the ground plane
     std::optional<float> transparency;  // model objects; empty: as the file says
     std::optional<float> ior;
+    std::optional<Vec3Df> tint;  // what white light keeps after tintDepth inside the model's glass
+    float tintDepth = 0.25f;     // fraction of the model size
+    bool transparentShadows = true;
     unsigned int maxDepth = 8;
     bool bvh = true;
     unsigned int threads = 0;  // 0 = one per core
@@ -504,6 +519,29 @@ bool parseArgs(int argc, char** argv, Options& o) {
                 std::cerr << "--ior must be between 1 and 4\n";
                 return false;
             }
+        } else if (a == "--tint") {
+            if (i + 3 >= argc) {
+                std::cerr << "--tint needs <r> <g> <b>\n";
+                return false;
+            }
+            Vec3Df c;
+            for (int k = 0; k < 3; ++k) c[k] = static_cast<float>(std::atof(argv[++i]));
+            for (int k = 0; k < 3; ++k) {
+                if (c[k] < 0.f || c[k] > 1.f) {
+                    std::cerr << "--tint: each channel must be between 0 and 1\n";
+                    return false;
+                }
+            }
+            o.tint = c;
+        } else if (a == "--tint-depth") {
+            if (!(v = value(i, "--tint-depth"))) return false;
+            o.tintDepth = static_cast<float>(std::atof(v));
+            if (o.tintDepth <= 0.f) {
+                std::cerr << "--tint-depth must be more than 0\n";
+                return false;
+            }
+        } else if (a == "--opaque-shadows") {
+            o.transparentShadows = false;
         } else if (a == "--max-depth") {
             if (!(v = value(i, "--max-depth"))) return false;
             const int n = std::atoi(v);
@@ -684,11 +722,14 @@ int main(int argc, char** argv) {
         }
         if (!o.bumpScale) o.bumpScale = 0.01f;
     }
+    // A tint is a colour of glass: the model becomes glass unless told how much.
+    if (o.tint && !o.transparency) o.transparency = 1.f;
     bool coordinates = false;
     for (Object& object : scene.getObjects()) {
         Material& m = object.getMaterial();
         if (o.transparency) m.setTransparency(*o.transparency);
         if (o.ior) m.setIor(*o.ior);
+        if (o.tint) m.setAbsorption(Material::absorptionFor(*o.tint, o.tintDepth * scene.getBoundingBox().getSize()));
         if (o.color) m.setColor(*o.color);
         if (!o.texture.empty()) m.setDiffuseMap(texture);
         if (heights) m.setBumpMap(heights);
@@ -744,6 +785,7 @@ int main(int argc, char** argv) {
     rt.setAntiAliasing(o.aa, o.jitter);
     rt.setShadows(o.shadows);
     rt.setShadowSamples(o.shadowSamples);
+    rt.setTransparentShadows(o.transparentShadows);
     rt.setSpecularEnabled(o.specular);
     rt.setBumpMapping(o.bumpMapping);
     rt.setMaxDepth(o.maxDepth);
@@ -809,16 +851,18 @@ int main(int argc, char** argv) {
             effects += ", " + std::to_string(o.aoSamples * o.aoSamples) + " occlusion rays/hit";
         // From the scene, not the options: a --sphere brings its own mirror or
         // glass, an MTL its own bump map.
-        bool glassy = false, mirrors = false, wrinkled = false;
+        bool glassy = false, mirrors = false, wrinkled = false, tinted = false;
         for (const Object& object : scene.getObjects()) {
             glassy = glassy || object.getMaterial().getTransparency() > 0.f;
+            tinted = tinted || (object.getMaterial().getTransparency() > 0.f && object.getMaterial().absorbs());
             mirrors = mirrors || object.getMaterial().getReflectivity() > 0.f;
             wrinkled = wrinkled || (object.getMaterial().getBumpMap() && object.getMaterial().getBumpScale() != 0.f);
         }
         if (wrinkled && o.bumpMapping && coordinates) effects += ", bump map";
         if ((mirrors || glassy) && o.maxDepth > 0)
-            effects += std::string(", ") + (glassy ? "glass and reflections" : "reflections") + " up to depth " +
-                       std::to_string(o.maxDepth);
+            effects += std::string(", ") + (tinted ? "tinted " : "") + (glassy ? "glass and reflections" : "reflections") +
+                       " up to depth " + std::to_string(o.maxDepth);
+        if (glassy && o.shadows && !o.transparentShadows) effects += ", opaque shadows under glass";
         std::printf("render  %ux%u %s, %u ray%s/px%s%s, %s, %u thread%s, in %.3fs: %lu/%lu rays hit (%.1f%%), hit distance [%.3f, %.3f]\n",
                     o.width, o.height, o.modeName.c_str(), o.aa * o.aa, o.aa > 1 ? "s" : "",
                     o.jitter ? " jittered" : "", effects.c_str(), o.bvh ? "bvh" : "brute force", job.threadCount(),

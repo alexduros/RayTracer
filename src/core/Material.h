@@ -8,6 +8,7 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -54,6 +55,24 @@ public:
     inline float getReflectivity () const { return reflectivity; }
     inline float getTransparency () const { return transparency; }
     inline float getIor () const { return ior; }
+    /// What the inside of the glass absorbs, per channel and per world unit
+    /// crossed: light that travels d inside keeps exp(-absorption x d) of
+    /// itself (Beer-Lambert, optics::transmittance). 0 = clear, the default;
+    /// a thick part is darker and more saturated than a thin one.
+    inline const Vec3Df & getAbsorption () const { return absorption; }
+    inline bool absorbs () const { return absorption[0] > 0.f || absorption[1] > 0.f || absorption[2] > 0.f; }
+    /// The absorption that turns white light into `tint` after `distance`
+    /// inside: -ln(tint) / distance per channel. A channel at 0 would take an
+    /// infinite absorption and is held at 1e-4; one at 1 or more absorbs
+    /// nothing.
+    static inline Vec3Df absorptionFor (const Vec3Df & tint, float distance) {
+        Vec3Df sigma;
+        for (int c = 0; c < 3; ++c) {
+            const float kept = tint[c] < 1e-4f ? 1e-4f : (tint[c] > 1.f ? 1.f : tint[c]);
+            sigma[c] = distance > 0.f ? -std::log (kept) / distance : 0.f;
+        }
+        return sigma;
+    }
 
     inline void setDiffuse (float d) { diffuse = d; }
     inline void setSpecular (float s) { specular = s; }
@@ -64,6 +83,11 @@ public:
     /// Index of refraction relative to the air around: 1 = no bending
     /// (clamped there), 1.33 water, 1.5 glass, 2.4 diamond.
     inline void setIor (float n) { ior = n < 1.f ? 1.f : n; }
+    /// Negative channels are held at 0: glass does not amplify.
+    inline void setAbsorption (const Vec3Df & a) {
+        for (int c = 0; c < 3; ++c)
+            absorption[c] = a[c] > 0.f ? a[c] : 0.f;
+    }
 
 private:
     float diffuse;
@@ -76,6 +100,7 @@ private:
     float reflectivity = 0.f;
     float transparency = 0.f;
     float ior = 1.5f;
+    Vec3Df absorption = Vec3Df (0.f, 0.f, 0.f);  // per world unit inside; MTL Tf
 };
 
 

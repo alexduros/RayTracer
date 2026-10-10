@@ -127,17 +127,32 @@ it, and leave the surface where it is.
 - **S** · effect. Meshes with coordinates only: the ground plane and the
   primitives carry none yet.
 
-### 15 · 1979 · Tinted glass and shadows through it
+### 15 · 1979 · Tinted glass and shadows through it (done, v0.8.0)
 D. S. Kay & D. Greenberg, "Transparency for Computer Synthesized Images",
 SIGGRAPH 1979: transmission falls off with the thickness crossed.
-- **Here:** absorption along the path inside glass (Beer-Lambert, a colour
-  per unit length), and shadow rays through glass filtered by its
-  transmission instead of blocked, so glass stops casting black shadows (our
-  extension of the idea).
-- **Proof:** a slab of absorption σ and thickness d passes exp(-σd); a pane
-  of index 1 casts no shadow; clear glass at normal incidence passes
-  (1 - 0.04)².
-- **S** · effect.
+- **Here:** `Material::setAbsorption`, a colour per unit length, and
+  `optics::transmittance`, exp(-σd): `RayTracer::bounce` absorbs what a ray
+  travelling inside glass brings back, over the distance to what it meets,
+  on refracted legs and on those mirrored inside. And our extension of the
+  idea to the light: `RayTracer::transmission` replaces the yes-or-no of a
+  shadow ray by what gets through, per channel, 0 behind anything opaque,
+  and through glass the transparency x (1 - F) of each face crossed and the
+  absorption between an entry and the exit that follows. Shadow rays are
+  not bent. CLI `--tint r g b --tint-depth f --opaque-shadows`, MTL `Tf`,
+  the viewer's Tint and Through glass.
+- **Proof:** a slab of absorption σ and thickness d passes exp(-σd), and
+  d / cos crossed at an angle; with real glass, the whole series of legs
+  mirrored inside, each absorbed, matches its closed form; a pane of index
+  1 casts no shadow, to the last float of a lit floor; clear glass at
+  normal incidence passes (1 - 0.04)², water its own share, and at 60° the
+  share of that angle; tinted glass casts exp(-σd) per channel, squared
+  under twice the thickness, the product under two slabs, and a diameter's
+  worth under a glass ball; what is opaque still blocks; with the switch
+  off, and without glass, nothing changes. Goldens
+  `teapot_ground_amber_lit`, and `teapot_ground_glass_lit` and
+  `spheres_lit` regenerated; the gallery's glass pictures before this step
+  re-render byte for byte with `--opaque-shadows`.
+- **S** · effect. Caustics, the light glass focuses, wait for 27.
 
 **✓ 1980** · T. Whitted, "An Improved Illumination Model for Shaded
 Display", CACM 23(6), 1980: supersampling, mirrors, refraction (experiments

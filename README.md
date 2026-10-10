@@ -14,8 +14,8 @@ with the raytracer split into a library that builds without any GL dependency.
 
 - Loads OFF (colour columns and comments tolerated) and OBJ meshes. An OBJ
   may reference an MTL file: each material becomes its own object (`Kd`
-  colour, `Ks` specular, `Ns` shininess, `map_Kd` texture, `map_bump`
-  height map).
+  colour, `Ks` specular, `Ns` shininess, `d` and `Ni` glass, `Tf` its tint,
+  `map_Kd` texture, `map_bump` height map).
   Polygons are fan-triangulated; normals come from the file or are
   recomputed. Models are stood upright on load (see Notes).
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
@@ -26,7 +26,8 @@ with the raytracer split into a library that builds without any GL dependency.
   disk sampled by a grid of shadow rays), an optional ground plane that
   catches them, mirror reflections (a reflectivity per material, followed
   recursively up to a depth), glass (refraction by Snell's law, split with
-  reflection by the Fresnel equations), ambient occlusion (hemisphere rays that darken
+  reflection by the Fresnel equations, tinted by what its thickness absorbs,
+  and casting the shadow of what it lets through), ambient occlusion (hemisphere rays that darken
   creases and contact points), n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id,
   ambient occlusion),
@@ -135,6 +136,7 @@ build/raymini-cli ram --ground-reflectivity 0.4 --aa 2 --yaw -35 --pitch 15     
 build/raymini-cli ram --ground --ao 8 --aa 2 --yaw -35 --pitch 15               # ambient occlusion
 build/raymini-cli ram --ground --mode ao --yaw -35 --pitch 15                   # the occlusion alone
 build/raymini-cli teapot --ground --transparency 1 --aa 2 --yaw 25 --pitch 20   # a glass teapot
+build/raymini-cli teapot --ground --tint 0.95 0.55 0.1 --aa 2 --yaw 25 --pitch 20   # amber glass, and its amber shadow
 build/raymini-cli ram --ground --tonemap reinhard --exposure +0.5                 # another curve, half a stop over
 build/raymini-cli ram --ground --display linear                                   # the look before experiment 9
 build/raymini-cli ram --ground --out renders/ram.hdr                              # radiance, no display (RGBE)
@@ -164,12 +166,13 @@ Viewer controls:
   around the scene (None, or an environment map among the `.hdr` files of
   `models/`; raytraced panel only), the model's bumps (the height map its
   file names, none, or one of the `.png` files of `models/`, and how high
-  it stands), its own mirror share, glass share and index, the number of
-  bounces, mesh stats), Camera (FOV,
+  it stands), its own mirror share, glass share, index, tint and the depth
+  the tint is reached at, the number of bounces, mesh stats), Camera (FOV,
   position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
-  jitter; shadows, specular, soft shadows and light size; occlusion and its
+  jitter; shadows, whether glass filters them or blocks them, specular,
+  soft shadows and light size; occlusion and its
   radius; threads; depth range in Depth mode).
 - Left-drag in the preview to orbit, scroll to zoom.
 - Raytracer panel: Render Scene traces on worker threads (one per core by
@@ -321,12 +324,36 @@ the object that ray also meets the back of the surface, and leaves the same
 way or reflects entirely past the critical angle. The colour is (1 - g) ×
 the surface's own shading + g × (F × reflected + (1 - F) × refracted). What
 lies behind shows through, shifted and bent; rims catch reflections. The
-glass is uncoloured and its shadow opaque (light focused through it is not
-traced). Each glass hit splits a ray in two, so bounces cost: the ram in
+glass is clear unless it is given a tint (below). Each glass hit splits a ray in two, so bounces cost: the ram in
 glass at 384x256 takes 0.07 s at depth 4, 0.2 s at 8 (the default, which
 leaves few paths cut short) and 1 s at 16 on one thread. Whitted, CACM
 23(6), 1980; the Fresnel equations, Born & Wolf, *Principles of Optics*,
 section 1.5.
+
+**Tinted glass, and the shadows of glass** (`--tint r g b`,
+`--tint-depth f`, `--opaque-shadows`; Tint, Tint depth and Through glass in
+the viewer; MTL `Tf`): the inside of the glass absorbs a share of the light
+per unit of length, a different share for each channel, so that after a
+distance d inside exp(-sigma d) is left: the Beer-Lambert law
+(`optics::transmittance`). `--tint` is the colour white light has after
+`--tint-depth` of glass, a quarter of the model's size by default, and
+alone it makes the model glass. Every leg of a path inside the glass is
+charged, the ones mirrored inside too, so the colour comes from the
+thickness and not from the surface: a body is deep, a handle or a rim pale,
+and twice the glass passes the square of the share. The same law holds for
+the light on its way to a surface: a shadow ray that meets glass is
+filtered, not stopped (`RayTracer::transmission`). At each face it keeps
+the share 1 - F the Fresnel reflection leaves, 0.96 head-on for an index of
+1.5 and less at a grazing angle, and between the face it enters by and the
+face it leaves by, what the tint absorbs. Clear glass casts a pale shadow
+with a darker outline, tinted glass a coloured one, a pane of index 1 none.
+Shadow rays go straight: the light a curved glass focuses into a bright
+spot (a caustic) is not traced, so the shadow is only ever darker than its
+surroundings. `--opaque-shadows` gives back the black shadows glass cast
+until v0.7.0. Glass with holes in it, the teapot's body under its lid for
+one, is charged only for the stretches that end on a face. Kay &
+Greenberg, "Transparency for Computer Synthesized Images", SIGGRAPH 1979;
+the shadows are our extension of their idea to the light.
 
 **Mirror reflections** (`--reflectivity k` for the model,
 `--ground-reflectivity k` for the ground, `--max-depth n`; Ground mirror,

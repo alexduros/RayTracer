@@ -1,5 +1,5 @@
 // Geometric optics of a smooth surface: the mirror direction, Snell's law
-// and the Fresnel equations. Used by the mirror and glass materials in
+// and the Fresnel equations; and of what lies under it, the Beer-Lambert law. Used by the mirror and glass materials in
 // RayTracer::shade; tested on their own in tests/TestRefraction.cpp.
 //
 // Directions are unit vectors, `n` the unit normal on the side the ray comes
@@ -7,7 +7,9 @@
 //
 // References: T. Whitted, "An Improved Illumination Model for Shaded
 // Display", CACM 23(6), 1980; M. Born & E. Wolf, "Principles of Optics",
-// section 1.5 (the Fresnel equations).
+// section 1.5 (the Fresnel equations); D. S. Kay & D. Greenberg,
+// "Transparency for Computer Synthesized Images", SIGGRAPH 1979
+// (transmission that falls off with the thickness crossed).
 #ifndef OPTICS_H
 #define OPTICS_H
 
@@ -52,6 +54,14 @@ inline float fresnel (float cosi, float n1, float n2) {
     const float rs = (n1 * cosi - n2 * cost) / (n1 * cosi + n2 * cost);
     const float rp = (n2 * cosi - n1 * cost) / (n2 * cosi + n1 * cost);
     return 0.5f * (rs * rs + rp * rp);
+}
+
+/// Share of the light, per channel, left after `distance` inside a medium
+/// that absorbs `sigma` per unit length: exp(-sigma x distance), the
+/// Beer-Lambert law. Twice the thickness passes the square of the share.
+inline Vec3Df transmittance (const Vec3Df & sigma, float distance) {
+    return Vec3Df (std::exp (-sigma[0] * distance), std::exp (-sigma[1] * distance),
+                   std::exp (-sigma[2] * distance));
 }
 
 } // namespace optics

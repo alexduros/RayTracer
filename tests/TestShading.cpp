@@ -50,7 +50,7 @@ Scene penumbraScene(float radius) {
 /// fixed-seed sampler: every probe uses the same pattern over the disk.
 float visibilityAt(const RayTracer& rt, const Scene& s, float x) {
     Sampler sampler;
-    return rt.lightVisibility(s, Vec3Df(x, 0.f, 0.f), kWallNormal, s.getLights()[0], sampler);
+    return rt.lightVisibility(s, Vec3Df(x, 0.f, 0.f), kWallNormal, s.getLights()[0], sampler)[0];
 }
 
 /// Share of a unit disk with x >= c (a circular segment's area over pi).

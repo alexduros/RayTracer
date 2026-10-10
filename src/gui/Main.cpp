@@ -523,6 +523,7 @@ int main(int argc, char** argv) {
     int rtAA = 2;            // rays per pixel axis: 2 -> 4 rays per pixel
     bool rtJitter = false;
     bool rtShadows = true;
+    bool rtGlassShadows = true;  // shadow rays filtered by glass instead of stopped
     int rtShadowSamples = 4;  // shadow rays per light axis: 1 = hard shadows
     float rtLightRadius = Scene::kDefaultLightRadius;  // fraction of the model's size
     int rtAoSamples = 0;        // occlusion rays per hit axis: 0 = off
@@ -532,6 +533,8 @@ int main(int argc, char** argv) {
     float rtGroundReflectivity = 0.f;  // ... and of the ground plane
     float rtGlass = 0.f;               // transparency of the model, 0 = the file's own materials
     float rtIor = 1.5f;                // index of refraction of that glass
+    float rtTint[3] = {1.f, 1.f, 1.f}; // what white light keeps after rtTintDepth inside it: white = clear
+    float rtTintDepth = 0.25f;         // fraction of the model's size
     int rtMaxDepth = 8;                // mirror and glass bounces followed per ray
     const int maxThreads = static_cast<int>(RenderJob::defaultThreadCount());
     int rtThreads = maxThreads;  // worker threads for the next render
@@ -747,6 +750,7 @@ int main(int argc, char** argv) {
             rt.setDepthRange(rtDepthNear, rtDepthFar);
             rt.setAntiAliasing(static_cast<unsigned int>(rtAA), rtJitter);
             rt.setShadows(rtShadows);
+            rt.setTransparentShadows(rtGlassShadows);
             rt.setShadowSamples(static_cast<unsigned int>(rtShadowSamples));
             rt.setSpecularEnabled(rtSpecular);
             rt.setBumpMapping(bumpIndex != 1);
@@ -766,7 +770,13 @@ int main(int argc, char** argv) {
             // Glass goes on a copy, so setting it back to 0 restores what the
             // file says (an MTL can make some materials glass already).
             Scene toRender = scene;
-            if (rtGlass > 0.f) toRender.setModelGlass(rtGlass, rtIor);
+            if (rtGlass > 0.f) {
+                toRender.setModelGlass(rtGlass, rtIor);
+                const Vec3Df absorption = Material::absorptionFor(
+                    Vec3Df(rtTint[0], rtTint[1], rtTint[2]), rtTintDepth * scene.getBoundingBox().getSize());
+                for (Object& object : toRender.getObjects())
+                    if (!object.isBackdrop()) object.getMaterial().setAbsorption(absorption);
+            }
             // A picked height map likewise: back to "as in the file" restores the file's.
             if (bumpMap)
                 for (Object& object : toRender.getObjects())
@@ -1040,6 +1050,14 @@ int main(int argc, char** argv) {
                 rowWidget("Index");
                 ImGui::SliderFloat("##ior", &rtIor, 1.f, 2.5f, "%.2f");
                 itemTooltip("Index of refraction: 1 bends nothing, 1.33 water, 1.5 glass, 2.4 diamond.");
+                rowLabel("Tint");
+                ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+                ImGui::ColorEdit3("##tint", rtTint, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+                ImGui::SameLine();
+                helpMarker(RayTracer::absorptionInfo());
+                rowWidget("Tint depth");
+                ImGui::SliderFloat("##tintdepth", &rtTintDepth, 0.02f, 1.f, "%.2f");
+                itemTooltip("How much glass, in model sizes, turns white light into the tint: less is a deeper colour.");
             }
             bool fileGlass = false;
             for (const Object& o : scene.getObjects()) fileGlass = fileGlass || o.getMaterial().getTransparency() > 0.f;
@@ -1119,6 +1137,12 @@ int main(int argc, char** argv) {
             ImGui::Checkbox("Shadows", &rtShadows);
             ImGui::SameLine();
             ImGui::Checkbox("Specular", &rtSpecular);
+            ImGui::SameLine();
+            ImGui::BeginDisabled(!rtShadows);
+            ImGui::Checkbox("Through glass", &rtGlassShadows);
+            ImGui::EndDisabled();
+            itemTooltip("Glass filters the light that crosses it instead of blocking it:\n"
+                        "a pale shadow under clear glass, a coloured one under tinted glass.");
             rowLabel("Soft shadows");
             {
                 const char* softLabels[] = {"Off (hard)", "2x2 rays/light", "4x4 rays/light", "8x8 rays/light"};

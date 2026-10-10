@@ -11,6 +11,49 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-10
+
+Step 15 of the timeline: D. S. Kay & D. Greenberg, "Transparency for
+Computer Synthesized Images", SIGGRAPH 1979 — what a transparent object
+lets through falls off with the thickness the light crosses in it.
+
+### Added
+
+- **Tinted glass.** `--tint <r> <g> <b>` gives the model's glass a colour:
+  what white light keeps after crossing `--tint-depth` of it (a quarter of
+  the model's size by default). Inside the glass a ray loses a share of its
+  light per unit of length, a different share per channel, exp(-sigma x d)
+  after a distance d (Beer-Lambert), on every leg of its path, the ones
+  mirrored inside included. The colour therefore comes from the thickness:
+  a body is deep, a handle or a rim pale, and twice the glass passes the
+  square of the share. `Material::setAbsorption`, MTL `Tf` (what one unit
+  of the model's length lets through), Tint and Tint depth in the viewer.
+  Clear glass is untouched, to the last bit.
+- **`--tint` alone makes the model glass**: `raymini-cli teapot --ground
+  --tint 0.95 0.55 0.1` is an amber teapot.
+
+### Changed
+
+- **Glass no longer casts a black shadow.** A shadow ray that meets a
+  transparent material is filtered instead of stopped: at each face it
+  keeps the share the Fresnel reflection leaves, 0.96 head-on for an index
+  of 1.5, less at a grazing angle, and between the face it enters by and
+  the one it leaves by, what the tint absorbs. Clear glass now casts a pale
+  shadow with a darker outline, tinted glass a coloured one, and a pane of
+  index 1 none at all. Shadow rays are not bent, so no bright spot gathers
+  under a curved body: caustics are not traced. This is our extension of
+  the paper's idea to the light itself, and it changes every picture with
+  glass above a surface: `--opaque-shadows` gives the old ones back, byte
+  for byte (`RayTracer::setTransparentShadows`, Through glass in the
+  viewer). A scene without glass is unchanged either way.
+- Goldens `teapot_ground_glass_lit` and `spheres_lit` regenerated for those
+  shadows; new golden `teapot_ground_amber_lit`; ctest `cli_tint`,
+  `cli_opaque_shadows`, `cli_bad_tint`.
+
+Not yet: glass with holes in it (the teapot's lid sits on an open body) is
+absorbed only over the stretches that end on a face, and one glass object
+inside another is charged the outer one's absorption on the way in only.
+
 ## [0.7.0] - 2026-10-05
 
 Step 14 of the timeline: J. F. Blinn, "Simulation of Wrinkled Surfaces",

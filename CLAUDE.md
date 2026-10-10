@@ -217,8 +217,30 @@ build/raymini-cli --help
   inside an object are two-sided (`Ray(o, d, true)`: `Ray::hit` skips back-face
   culling), and `Hit::backFace` (from the geometric normal) says whether a
   hit leaves the object, which orders the indices. `Hit::triangleIndex` comes
-  from `nearestHit`. Every other ray still culls back faces. Glass shadows
-  are opaque; a glass hit splits a ray in two, so depth costs.
+  from `nearestHit`. Every other ray still culls back faces. A glass hit
+  splits a ray in two, so depth costs.
+- Tinted glass and glass shadows (step 15): `Material::setAbsorption` is a
+  colour per world unit (`Material::absorptionFor(tint, depth)`, MTL `Tf`
+  at depth 1), 0 = clear. `RayTracer::bounce` takes the `medium` a
+  secondary ray travels in (the hit's material when the ray stays or goes
+  inside) and the surface point it left, and multiplies what the ray brings
+  back by `optics::transmittance` over the distance to its hit; a ray that
+  escapes (open mesh) is not charged, and clear glass skips the product, so
+  its floats did not move. Shadow rays ask `RayTracer::transmission`
+  (a Vec3Df): opaque objects first (`blocked(..., opaqueOnly)`, exactly
+  the old `occluded`), then the transparent ones face by face with a
+  two-sided ray (`nearest(..., transparentOnly)`): transparency x (1 - F)
+  per face, F taken on the air side, and the absorption between a front
+  face and the back face that follows. Not bent, no caustics.
+  `lightVisibility` therefore returns a Vec3Df, and `directLight` applies
+  it per channel in the same order of products as before, so pictures
+  without glass are bit for bit the old ones. `setTransparentShadows(false)`
+  / `--opaque-shadows` is the old all-or-nothing; the gallery's pictures
+  before step 15 use it. CLI `--tint r g b` (implies `--transparency 1`)
+  `--tint-depth f` (fraction of the model size, 0.25), GUI Tint / Tint
+  depth / Through glass. Costs: the glass ram on its floor at 384x256 with
+  2x2 AA, 8x8 shadow rays and 8x8 occlusion takes 4 s on ten threads,
+  against 1.8 s with opaque shadows.
 - Display (experiment 9): the tracer writes linear radiance, above 1 kept,
   into an `HdrImage` (`renderHdr`, `renderRegion`, `RenderJob::hdrSnapshot`);
   a `Display` (`src/core/Display.h`) maps it to bytes last: exposure in stops
@@ -277,7 +299,9 @@ Golden comparison tolerates 4/255 per channel and 0.5 % of pixels differing
   model's box; backdrops are skipped by `updateBoundingBox`, so framing,
   depth defaults and the light rig keep following the model. CLI
   `--ground`, GUI "Ground" checkbox (on by default).
-- Glass is clear and casts opaque shadows (no caustics): timeline step 15.
+- Glass focuses no light (no caustics, timeline step 27): its shadow is
+  filtered along straight rays. Absorption is charged per stretch that ends
+  on a face, so open meshes and glass inside glass are approximate.
   Textures are read bilinearly with no filtering at a distance (step 19).
   The environment map is seen but lights nothing (step 46), and the GL
   preview does not show it. Bump maps tilt normals only (smooth

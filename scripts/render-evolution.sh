@@ -39,10 +39,14 @@ legacy 06-soft-shadows   --ground --aa 2 --shadow-samples 8
 legacy 07-reflections    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4
 legacy 08-occlusion      --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
 legacy 08-occlusion-ao   --ground --aa 2 --mode ao --ao 8
-# The stretch of experiment 7, done after 8: the model as clear glass.
-legacy 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1
+# The stretch of experiment 7, done after 8: the model as clear glass. Until
+# step 15 glass stopped shadow rays: the pictures before it keep that
+# (--opaque-shadows).
+legacy 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1 \
+    --opaque-shadows
 printf '%-18s ' 07b-teapot
 "$cli" teapot --yaw 25 --pitch 20 --size 384x256 --display linear --ground --aa 2 --shadow-samples 8 --transparency 1 \
+    --opaque-shadows \
     --out "$out/07b-teapot.png" | sed -n 's/^render  //p'
 
 # Experiment 9: the same picture as step 8, now through the display (auto
@@ -52,7 +56,7 @@ render 09-display        --ground --aa 2 --shadow-samples 8 --ground-reflectivit
 render 09-reinhard       --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --tonemap reinhard
 
 # Experiment 11: two spheres given by their equation stand next to the mesh.
-render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 \
+render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 --opaque-shadows \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass
 
 # Experiment 12: the only model that carries texture coordinates, with its
