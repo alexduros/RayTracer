@@ -95,6 +95,19 @@ printf '%-18s ' 14-silhouette
 "$cli" spot --yaw -115 --pitch 5 --distance 0.9 --size 384x256 --aa 3 --bump dimples --bump-scale 0.02 --ground \
     --shadow-samples 8 --out "$out/14-silhouette.png" | sed -n 's/^render  //p'
 
+# Step 15: the glass ram of step 7b through today's display, its shadow now
+# what the glass lets through; the same ram in blue glass; the teapot in
+# amber, and in the same amber reached four times deeper, so four times
+# paler: the colour is a matter of thickness.
+glass=(--ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8)
+render 15-shadow         "${glass[@]}" --transparency 1
+render 15-tint           "${glass[@]}" --tint 0.15 0.45 0.9
+amber=(teapot --yaw 25 --pitch 20 --size 384x256 --ground --aa 2 --shadow-samples 8 --tint 0.95 0.55 0.1)
+printf '%-18s ' 15-teapot
+"$cli" "${amber[@]}" --out "$out/15-teapot.png" | sed -n 's/^render  //p'
+printf '%-18s ' 15-teapot-pale
+"$cli" "${amber[@]}" --tint-depth 1 --out "$out/15-teapot-pale.png" | sed -n 's/^render  //p'
+
 timed() {
     local label=$1 png=$2
     shift 2
