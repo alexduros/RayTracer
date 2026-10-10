@@ -46,7 +46,9 @@ Material glass(float ior) {
 
 // A floor z = 0, red for x < 0 and green for x > 0, lit by a far white light
 // (so nearly uniformly), and optionally a clear glass slab z in [1, 2] over
-// it. Shadows are left off by the tests: glass casts opaque shadows here.
+// it. Shadows are left off by the tests: they are about what a ray sees
+// through the slab, not about the light the slab lets onto the floor
+// (TestAbsorption.cpp).
 Scene slabScene(bool withSlab, float ior) {
     Scene s;
     s.addObject(Object(floorPanel(-10.f, 0.f), Material(1.f, 0.f, Vec3Df(1.f, 0.f, 0.f))));

@@ -177,7 +177,8 @@ const RayTracer::ModeInfo kRefractionInfo = {
     "the maximum depth.",
     "What lies behind shows through, shifted and distorted by curved surfaces, upside down through a thick round "
     "body; rims catch reflections, and total internal reflection turns some regions into mirrors. The glass is "
-    "clear and uncoloured, and its shadow is opaque: light focused through it (caustics) is not traced. Too few "
+    "clear unless it is given a tint, and its shadow is that of what it lets through; light focused through it "
+    "(caustics) is not traced. Too few "
     "bounces cut paths short, and a surface at the depth limit shows its own shading.",
     "T. Whitted, \"An Improved Illumination Model for Shaded Display\", Communications of the ACM 23(6), 1980 "
     "(refraction in recursive ray tracing); the Fresnel equations, M. Born & E. Wolf, \"Principles of Optics\", "
@@ -223,6 +224,21 @@ const RayTracer::ModeInfo kBumpInfo = {
     "too large for the map turns the shading harsh. Needs texture coordinates, so an OBJ model; a flat map "
     "changes nothing.",
     "J. F. Blinn, \"Simulation of Wrinkled Surfaces\", SIGGRAPH 1978."};
+
+const RayTracer::ModeInfo kAbsorptionInfo = {
+    "tint", "Tinted glass, and the shadows of glass",
+    "The inside of a transparent material absorbs a share of the light per unit of length crossed, a different "
+    "share for each channel: after a distance d inside, exp(-sigma x d) is left (Beer-Lambert), so the colour of "
+    "the glass comes from its thickness and not from its surface. Shadow rays obey the same law: one that meets "
+    "glass is not stopped but filtered, by the share 1 - F each face lets through (Fresnel) and by the absorption "
+    "between the face it enters by and the face it leaves by. Shadow rays are not bent.",
+    "A thick part is darker and more saturated than a thin one, and twice the thickness passes the square of the "
+    "share: the body of a glass model is deep in colour, its thin parts and its rims pale. Glass casts the shadow "
+    "of what it lets through: pale grey under clear glass (0.92 of the light at normal incidence for an index of "
+    "1.5), coloured under tinted glass, darker where the light crosses more of it. No bright spot gathers under a "
+    "curved body: the light glass focuses (caustics) is not traced.",
+    "D. S. Kay & D. Greenberg, \"Transparency for Computer Synthesized Images\", SIGGRAPH 1979; the "
+    "Beer-Lambert law, P. Bouguer (1729), J. H. Lambert, Photometria (1760), A. Beer (1852)."};
 
 const RayTracer::ModeInfo kToneMappingInfo = {
     "display", "Exposure, tone mapping and encoding",
@@ -277,6 +293,10 @@ const RayTracer::ModeInfo & RayTracer::bumpInfo () {
     return kBumpInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::absorptionInfo () {
+    return kAbsorptionInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
@@ -327,12 +347,19 @@ const RayTracer::ModeInfo & RayTracer::plannedMode (int index) {
 }
 
 bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) const {
+    return nearest (scene, ray, best, false, std::numeric_limits<float>::max ());
+}
+
+bool RayTracer::nearest (const Scene & scene, const Ray & ray, Hit & best, bool transparentOnly,
+                         float maxDistance) const {
     bool found = false;
-    best.distance = std::numeric_limits<float>::max ();
+    best.distance = maxDistance;
     best.backFace = false;
     const std::vector<Object> & objects = scene.getObjects ();
     for (unsigned int i = 0; i < objects.size (); ++i) {
         const Object & object = objects[i];
+        if (transparentOnly && object.getMaterial ().getTransparency () <= 0.f)
+            continue;
         Vertex v;
         float t = best.distance;  // only hits closer than this are worth reporting
         unsigned int triangle = 0;
@@ -365,9 +392,15 @@ bool RayTracer::closestHit (const Scene & scene, const Ray & ray, Hit & best) co
 }
 
 bool RayTracer::occluded (const Scene & scene, const Ray & ray, float maxDistance) const {
+    return blocked (scene, ray, maxDistance, false);
+}
+
+bool RayTracer::blocked (const Scene & scene, const Ray & ray, float maxDistance, bool opaqueOnly) const {
     Vertex v;
     float t = 0.f;
     for (const Object & object : scene.getObjects ()) {
+        if (opaqueOnly && object.getMaterial ().getTransparency () > 0.f)
+            continue;
         if (const Primitive * primitive = object.getPrimitive ()) {
             float limit = maxDistance;  // intersect only reports hits closer than this
             if (primitive->intersect (ray, v, limit))
@@ -386,15 +419,59 @@ bool RayTracer::occluded (const Scene & scene, const Ray & ray, float maxDistanc
     return false;
 }
 
-float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
-                                  Sampler & sampler) const {
+Vec3Df RayTracer::transmission (const Scene & scene, const Ray & ray, float maxDistance) const {
+    const Vec3Df nothing (0.f, 0.f, 0.f);
+    Vec3Df through (1.f, 1.f, 1.f);
+    if (!transparentShadows)
+        return occluded (scene, ray, maxDistance) ? nothing : through;
+    // What is opaque stops the light, and is asked first: the cheap question.
+    if (blocked (scene, ray, maxDistance, true))
+        return nothing;
+    // Then the glass in the way, face by face, nearest first. Either side of
+    // a face counts, or the ray would enter a body and never be seen leaving.
+    const float bias = surfaceBias (scene);
+    const Vec3Df & d = ray.getDirection ();
+    Vec3Df origin = ray.getOrigin ();
+    float remaining = maxDistance;
+    bool inside = false;      // between a face entered by and the next one left by
+    float sinceEntry = 0.f;   // distance travelled since that entry
+    const unsigned int kMaxFaces = 64;  // a tangled mesh is taken as opaque past this many
+    for (unsigned int face = 0; face < kMaxFaces; ++face) {
+        Hit hit;
+        if (!nearest (scene, Ray (origin, d, true), hit, true, remaining))
+            return through;
+        const Material & mat = scene.getObjects ()[hit.objectIndex].getMaterial ();
+        Vec3Df n = hit.vertex.getNormal ();
+        n.normalize ();
+        // The reflection is taken on the air side of the face whichever way
+        // the ray crosses it: on a slab the two are the same share, and a
+        // straight ray keeps the angle it had in the air.
+        const float f = optics::fresnel (std::fabs (Vec3Df::dotProduct (d, n)), 1.f, mat.getIor ());
+        through *= mat.getTransparency () * (1.f - f);
+        sinceEntry += hit.distance;
+        if (hit.backFace && inside && mat.absorbs ())
+            through *= optics::transmittance (mat.getAbsorption (), sinceEntry);
+        if (!hit.backFace)
+            sinceEntry = 0.f;
+        inside = !hit.backFace;
+        if (through[0] <= 0.f && through[1] <= 0.f && through[2] <= 0.f)
+            return nothing;
+        origin = hit.vertex.getPos () + d * bias;
+        remaining -= hit.distance + bias;
+        sinceEntry += bias;
+    }
+    return nothing;
+}
+
+Vec3Df RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
+                                   Sampler & sampler) const {
     const Vec3Df origin = p + n * surfaceBias (scene);
     Vec3Df l = light.getPos () - p;
     const float distanceToLight = l.normalize ();
 
     const unsigned int count = shadowSamplesPerAxis;
     if (count <= 1 || light.getRadius () <= 0.f)
-        return occluded (scene, Ray (origin, l), distanceToLight) ? 0.f : 1.f;  // a point: all or nothing
+        return transmission (scene, Ray (origin, l), distanceToLight);  // a point: one ray
 
     // A disk of the light's radius facing the point, split into count x count
     // cells with one jittered sample each. Both numbers of a cell are drawn
@@ -403,7 +480,7 @@ float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const V
     l.getTwoOrthogonals (u, w);
     u.normalize ();
     w.normalize ();
-    unsigned int unblocked = 0;
+    Vec3Df received (0.f, 0.f, 0.f);
     for (unsigned int j = 0; j < count; ++j) {
         for (unsigned int i = 0; i < count; ++i) {
             const float a = (static_cast<float> (i) + sampler.next ()) / static_cast<float> (count);
@@ -413,11 +490,11 @@ float RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const V
             Vec3Df d = light.getPos () + light.getRadius () * (dx * u + dy * w) - origin;
             const float distance = d.normalize ();
             // The part of the disk below the surface's horizon is hidden.
-            if (Vec3Df::dotProduct (d, n) > 0.f && !occluded (scene, Ray (origin, d), distance))
-                ++unblocked;
+            if (Vec3Df::dotProduct (d, n) > 0.f)
+                received += transmission (scene, Ray (origin, d), distance);
         }
     }
-    return static_cast<float> (unblocked) / static_cast<float> (count * count);
+    return received / static_cast<float> (count * count);
 }
 
 float RayTracer::ambientOcclusion (const Scene & scene, const Vec3Df & p, const Vec3Df & n, Sampler & sampler) const {
@@ -545,7 +622,10 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
             if (bumped && Vec3Df::dotProduct (r, n) < 0.f)
                 r = optics::reflect (r, n);
             r.normalize ();
-            const Vec3Df mirrored = bounce (scene, Ray (p + n * bias, r, hit.backFace), samplers, depth);
+            // A ray that stays or goes inside the glass travels in it, and
+            // is absorbed on its way to whatever it meets next.
+            const Vec3Df mirrored = bounce (scene, Ray (p + n * bias, r, hit.backFace), samplers, depth,
+                                            hit.backFace ? &mat : nullptr, p);
 
             Vec3Df color = own;
             if (glass > 0.f) {
@@ -560,7 +640,8 @@ Vec3Df RayTracer::shade (const Scene & scene, const Ray & ray, const Hit & hit, 
                     if (bumped && Vec3Df::dotProduct (t, n) > 0.f)
                         t = optics::reflect (t, n);
                     t.normalize ();
-                    through = bounce (scene, Ray (p - n * bias, t, !hit.backFace), samplers, depth);
+                    through = bounce (scene, Ray (p - n * bias, t, !hit.backFace), samplers, depth,
+                                      hit.backFace ? nullptr : &mat, p);
                 }
                 color = (1.f - glass) * own + glass * (f * mirrored + (1.f - f) * through);
             }
@@ -591,26 +672,39 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
         // a bump cannot catch a light the ground it sits on hides.
         if (nDotL <= 0.f || Vec3Df::dotProduct (n, l) <= 0.f)
             continue;
-        const float visibility = shadows ? lightVisibility (scene, p, n, light, samplers.shadows) : 1.f;
-        if (visibility <= 0.f)
+        // Per channel: a light seen through tinted glass arrives coloured.
+        const Vec3Df visibility =
+            shadows ? lightVisibility (scene, p, n, light, samplers.shadows) : Vec3Df (1.f, 1.f, 1.f);
+        if (visibility[0] <= 0.f && visibility[1] <= 0.f && visibility[2] <= 0.f)
             continue;  // the whole light is blocked
-        color += (open * visibility * mat.getDiffuse () * light.getIntensity () * nDotL) *
-                 (albedo * light.getColor ());
+        Vec3Df diffuse, highlight;
+        for (int c = 0; c < 3; ++c)
+            diffuse[c] = open * visibility[c] * mat.getDiffuse () * light.getIntensity () * nDotL;
+        color += diffuse * (albedo * light.getColor ());
         if (specularEnabled && mat.getSpecular () > 0.f) {
             Vec3Df h = l + v;
             h.normalize ();
             const float nDotH = std::max (0.f, Vec3Df::dotProduct (ns, h));
-            color += (visibility * mat.getSpecular () * light.getIntensity () *
-                      std::pow (nDotH, mat.getShininess ())) *
-                     light.getColor ();
+            const float lobe = std::pow (nDotH, mat.getShininess ());
+            for (int c = 0; c < 3; ++c)
+                highlight[c] = visibility[c] * mat.getSpecular () * light.getIntensity () * lobe;
+            color += highlight * light.getColor ();
         }
     }
     return color;
 }
 
-Vec3Df RayTracer::bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const {
+Vec3Df RayTracer::bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth,
+                          const Material * medium, const Vec3Df & from) const {
     Hit next;
-    return closestHit (scene, ray, next) ? shade (scene, ray, next, samplers, depth + 1) : escaped (scene, ray);
+    if (!closestHit (scene, ray, next))
+        return escaped (scene, ray);
+    const Vec3Df seen = shade (scene, ray, next, samplers, depth + 1);
+    // Beer-Lambert over the stretch just crossed inside the glass. Clear
+    // glass is left out altogether: the same floats as before it could tint.
+    if (!medium || !medium->absorbs ())
+        return seen;
+    return seen * optics::transmittance (medium->getAbsorption (), (next.vertex.getPos () - from).getLength ());
 }
 
 Vec3Df RayTracer::escaped (const Scene & scene, const Ray & ray) const {

@@ -164,6 +164,12 @@ std::map<std::string, Material> loadMTL (const std::string & filename) {
             float ni = 1.f;
             if (ss >> ni)
                 materials[current].setIor (ni);
+        } else if (key == "Tf") {
+            // The transmission filter: the colour white light keeps after
+            // one unit of the model's length inside the material.
+            Vec3Df tf;
+            if (ss >> tf)
+                materials[current].setAbsorption (Material::absorptionFor (tf, 1.f));
         } else if (key == "map_Kd") {
             std::string rest;
             std::getline (ss, rest);

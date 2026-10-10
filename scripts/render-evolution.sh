@@ -39,10 +39,14 @@ legacy 06-soft-shadows   --ground --aa 2 --shadow-samples 8
 legacy 07-reflections    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4
 legacy 08-occlusion      --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
 legacy 08-occlusion-ao   --ground --aa 2 --mode ao --ao 8
-# The stretch of experiment 7, done after 8: the model as clear glass.
-legacy 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1
+# The stretch of experiment 7, done after 8: the model as clear glass. Until
+# step 15 glass stopped shadow rays: the pictures before it keep that
+# (--opaque-shadows).
+legacy 07b-refraction    --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --transparency 1 \
+    --opaque-shadows
 printf '%-18s ' 07b-teapot
 "$cli" teapot --yaw 25 --pitch 20 --size 384x256 --display linear --ground --aa 2 --shadow-samples 8 --transparency 1 \
+    --opaque-shadows \
     --out "$out/07b-teapot.png" | sed -n 's/^render  //p'
 
 # Experiment 9: the same picture as step 8, now through the display (auto
@@ -52,7 +56,7 @@ render 09-display        --ground --aa 2 --shadow-samples 8 --ground-reflectivit
 render 09-reinhard       --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --tonemap reinhard
 
 # Experiment 11: two spheres given by their equation stand next to the mesh.
-render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 \
+render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 --opaque-shadows \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass
 
 # Experiment 12: the only model that carries texture coordinates, with its
@@ -90,6 +94,19 @@ printf '%-18s ' 14-chrome
 printf '%-18s ' 14-silhouette
 "$cli" spot --yaw -115 --pitch 5 --distance 0.9 --size 384x256 --aa 3 --bump dimples --bump-scale 0.02 --ground \
     --shadow-samples 8 --out "$out/14-silhouette.png" | sed -n 's/^render  //p'
+
+# Step 15: the glass ram of step 7b through today's display, its shadow now
+# what the glass lets through; the same ram in blue glass; the teapot in
+# amber, and in the same amber reached four times deeper, so four times
+# paler: the colour is a matter of thickness.
+glass=(--ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8)
+render 15-shadow         "${glass[@]}" --transparency 1
+render 15-tint           "${glass[@]}" --tint 0.15 0.45 0.9
+amber=(teapot --yaw 25 --pitch 20 --size 384x256 --ground --aa 2 --shadow-samples 8 --tint 0.95 0.55 0.1)
+printf '%-18s ' 15-teapot
+"$cli" "${amber[@]}" --out "$out/15-teapot.png" | sed -n 's/^render  //p'
+printf '%-18s ' 15-teapot-pale
+"$cli" "${amber[@]}" --tint-depth 1 --out "$out/15-teapot-pale.png" | sed -n 's/^render  //p'
 
 timed() {
     local label=$1 png=$2

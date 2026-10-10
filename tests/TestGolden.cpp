@@ -185,6 +185,26 @@ TEST_CASE("golden: a glass teapot on its ground plane") {
     s.transparency = 1.f;
     goldenModel("teapot", 25.f, 20.f, s);
 }
+TEST_CASE("golden: an amber glass teapot on its ground plane, and its coloured shadow") {
+    // The glass teapot above, tinted: white light keeps (0.95, 0.55, 0.1)
+    // after a quarter of the model's size inside, as --tint does. The body
+    // is deep amber, the handle and the spout pale, and the shadow on the
+    // floor takes the colour of what the glass lets through.
+    Scene scene;
+    scene.addObjectsFromFile(test::modelPath("teapot"));
+    scene.setUpAxis(resolveUpAxis(test::modelPath("teapot"), scene));
+    scene.addDefaultLights();
+    scene.addGroundPlane();
+    scene.setModelGlass(1.f, 1.5f);
+    const float size = scene.getBoundingBox().getSize();
+    for (Object& object : scene.getObjects())
+        if (!object.isBackdrop())
+            object.getMaterial().setAbsorption(Material::absorptionFor(Vec3Df(0.95f, 0.55f, 0.1f), 0.25f * size));
+    const Camera camera = Camera::frame(scene.getBoundingBox(), kPi / 4.f, 1.f, 2.f, 25.f, 20.f);
+    RayTracer rt;
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "teapot_ground_amber_lit.png");
+}
+
 TEST_CASE("golden: teapot on its ground plane through the filmic display") {
     Settings s = withGround();
     s.filmic = true;

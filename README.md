@@ -14,8 +14,8 @@ with the raytracer split into a library that builds without any GL dependency.
 
 - Loads OFF (colour columns and comments tolerated) and OBJ meshes. An OBJ
   may reference an MTL file: each material becomes its own object (`Kd`
-  colour, `Ks` specular, `Ns` shininess, `map_Kd` texture, `map_bump`
-  height map).
+  colour, `Ks` specular, `Ns` shininess, `d` and `Ni` glass, `Tf` its tint,
+  `map_Kd` texture, `map_bump` height map).
   Polygons are fan-triangulated; normals come from the file or are
   recomputed. Models are stood upright on load (see Notes).
 - Viewer: orbit and zoom the mesh in a GL 3.3 preview, render the same camera
@@ -26,7 +26,8 @@ with the raytracer split into a library that builds without any GL dependency.
   disk sampled by a grid of shadow rays), an optional ground plane that
   catches them, mirror reflections (a reflectivity per material, followed
   recursively up to a depth), glass (refraction by Snell's law, split with
-  reflection by the Fresnel equations), ambient occlusion (hemisphere rays that darken
+  reflection by the Fresnel equations, tinted by what its thickness absorbs,
+  and casting the shadow of what it lets through), ambient occlusion (hemisphere rays that darken
   creases and contact points), n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id,
   ambient occlusion),
@@ -75,6 +76,8 @@ regenerates them and the timings.
 | ![Chrome ram](docs/evolution/13-chrome.png)<br>**13, a perfect mirror** (`--reflectivity 1`): not one pixel of the ram is its own. Each is the panorama, read along the ray mirrored about the normal. | ![Chrome teapot](docs/evolution/13-teapot.png)<br>**13, as the paper showed it**: the chrome teapot of Blinn and Newell's figure 8, with the buildings behind the camera bent over its body. |
 | ![Bump mapping](docs/evolution/14-bump.png)<br>**14. Bump mapping** (`--bump dimples`): the Spot of step 12, shaded as if her skin were a golf ball's. A grey picture read through her coordinates is taken as a height, and only the normal follows it: each pit is bright on the side that would face the light. Not a triangle has moved. | ![Tilted normals](docs/evolution/14-normals.png)<br>**14, the tilted normals** (`--mode normals`): what the height map changes, and all it changes. Around each pit the normals lean toward its centre. |
 | ![Hammered chrome](docs/evolution/14-chrome.png)<br>**14, in chrome** (`--reflectivity 1 --environment venice_sunset`): the mirror ray leaves about the tilted normal, so every dimple holds its own small picture of Venice. Hammered metal, from the smooth cow of step 12. | ![Smooth silhouette](docs/evolution/14-silhouette.png)<br>**14, where the trick shows** (`--bump-scale 0.02`, close up): the pits look deep, yet the outline of her back is the smooth one, and no pit casts a shadow into its neighbour. The surface never moved, which Blinn points out himself. |
+| ![Shadows through glass](docs/evolution/15-shadow.png)<br>**15. Shadows through glass**: the glass ram of step 7b, through today's display. Its shadow was black; it is now what the glass lets through, 0.92 of the light where it crosses two faces head-on, less where it grazes them or crosses many. No bright spot gathers under it: the light glass focuses is not traced. | ![Tinted glass](docs/evolution/15-tint.png)<br>**15, tinted glass** (`--tint 0.15 0.45 0.9`): the inside of the glass absorbs a share of the light per unit of length, most of the red here. The body is deep blue, the legs and the tips of the horns paler, and the shadow takes the colour of what got through. |
+| ![Amber teapot](docs/evolution/15-teapot.png)<br>**15, amber** (`--tint 0.95 0.55 0.1`): the same law, another colour. Deep where the body is thick, pale in the handle and the spout, with an amber shadow on the floor. | ![Paler amber](docs/evolution/15-teapot-pale.png)<br>**15, the same amber, four times paler** (`--tint-depth 1`): the tint is reached after a whole model's length of glass instead of a quarter. Colour is thickness: this is the teapot on the left, made a quarter of the size in the same glass. |
 
 Steps 3 and 4 change the time, not the picture (the script checks the
 pixels are identical). **3. BVH**: the picture of step 2 on one thread,
@@ -135,6 +138,7 @@ build/raymini-cli ram --ground-reflectivity 0.4 --aa 2 --yaw -35 --pitch 15     
 build/raymini-cli ram --ground --ao 8 --aa 2 --yaw -35 --pitch 15               # ambient occlusion
 build/raymini-cli ram --ground --mode ao --yaw -35 --pitch 15                   # the occlusion alone
 build/raymini-cli teapot --ground --transparency 1 --aa 2 --yaw 25 --pitch 20   # a glass teapot
+build/raymini-cli teapot --ground --tint 0.95 0.55 0.1 --aa 2 --yaw 25 --pitch 20   # amber glass, and its amber shadow
 build/raymini-cli ram --ground --tonemap reinhard --exposure +0.5                 # another curve, half a stop over
 build/raymini-cli ram --ground --display linear                                   # the look before experiment 9
 build/raymini-cli ram --ground --out renders/ram.hdr                              # radiance, no display (RGBE)
@@ -164,12 +168,13 @@ Viewer controls:
   around the scene (None, or an environment map among the `.hdr` files of
   `models/`; raytraced panel only), the model's bumps (the height map its
   file names, none, or one of the `.png` files of `models/`, and how high
-  it stands), its own mirror share, glass share and index, the number of
-  bounces, mesh stats), Camera (FOV,
+  it stands), its own mirror share, glass share, index, tint and the depth
+  the tint is reached at, the number of bounces, mesh stats), Camera (FOV,
   position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
-  jitter; shadows, specular, soft shadows and light size; occlusion and its
+  jitter; shadows, whether glass filters them or blocks them, specular,
+  soft shadows and light size; occlusion and its
   radius; threads; depth range in Depth mode).
 - Left-drag in the preview to orbit, scroll to zoom.
 - Raytracer panel: Render Scene traces on worker threads (one per core by
@@ -321,12 +326,36 @@ the object that ray also meets the back of the surface, and leaves the same
 way or reflects entirely past the critical angle. The colour is (1 - g) ×
 the surface's own shading + g × (F × reflected + (1 - F) × refracted). What
 lies behind shows through, shifted and bent; rims catch reflections. The
-glass is uncoloured and its shadow opaque (light focused through it is not
-traced). Each glass hit splits a ray in two, so bounces cost: the ram in
+glass is clear unless it is given a tint (below). Each glass hit splits a ray in two, so bounces cost: the ram in
 glass at 384x256 takes 0.07 s at depth 4, 0.2 s at 8 (the default, which
 leaves few paths cut short) and 1 s at 16 on one thread. Whitted, CACM
 23(6), 1980; the Fresnel equations, Born & Wolf, *Principles of Optics*,
 section 1.5.
+
+**Tinted glass, and the shadows of glass** (`--tint r g b`,
+`--tint-depth f`, `--opaque-shadows`; Tint, Tint depth and Through glass in
+the viewer; MTL `Tf`): the inside of the glass absorbs a share of the light
+per unit of length, a different share for each channel, so that after a
+distance d inside exp(-sigma d) is left: the Beer-Lambert law
+(`optics::transmittance`). `--tint` is the colour white light has after
+`--tint-depth` of glass, a quarter of the model's size by default, and
+alone it makes the model glass. Every leg of a path inside the glass is
+charged, the ones mirrored inside too, so the colour comes from the
+thickness and not from the surface: a body is deep, a handle or a rim pale,
+and twice the glass passes the square of the share. The same law holds for
+the light on its way to a surface: a shadow ray that meets glass is
+filtered, not stopped (`RayTracer::transmission`). At each face it keeps
+the share 1 - F the Fresnel reflection leaves, 0.96 head-on for an index of
+1.5 and less at a grazing angle, and between the face it enters by and the
+face it leaves by, what the tint absorbs. Clear glass casts a pale shadow
+with a darker outline, tinted glass a coloured one, a pane of index 1 none.
+Shadow rays go straight: the light a curved glass focuses into a bright
+spot (a caustic) is not traced, so the shadow is only ever darker than its
+surroundings. `--opaque-shadows` gives back the black shadows glass cast
+until v0.7.0. Glass with holes in it, the teapot's body under its lid for
+one, is charged only for the stretches that end on a face. Kay &
+Greenberg, "Transparency for Computer Synthesized Images", SIGGRAPH 1979;
+the shadows are our extension of their idea to the light.
 
 **Mirror reflections** (`--reflectivity k` for the model,
 `--ground-reflectivity k` for the ground, `--max-depth n`; Ground mirror,

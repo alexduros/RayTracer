@@ -93,6 +93,8 @@ public:
     static const ModeInfo & environmentInfo ();
     /// ... and for bump mapping.
     static const ModeInfo & bumpInfo ();
+    /// ... and for tinted glass and the shadows it casts.
+    static const ModeInfo & absorptionInfo ();
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
@@ -151,6 +153,13 @@ public:
     /// to get through a model and out.
     inline void setMaxDepth (unsigned int depth) { maxDepth = depth; }
     inline unsigned int getMaxDepth () const { return maxDepth; }
+    /// Shadows of glass: a shadow ray that meets a transparent material is
+    /// filtered instead of stopped (see `transmission`), so glass casts the
+    /// pale, tinted shadow of what it lets through. On by default; off, any
+    /// surface blocks a light entirely, as before v0.8.0, bit for bit. A
+    /// scene with no transparent material is the same either way.
+    inline void setTransparentShadows (bool on) { transparentShadows = on; }
+    inline bool getTransparentShadows () const { return transparentShadows; }
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
     inline void setSpecularEnabled (bool on) { specularEnabled = on; }
     inline bool isSpecularEnabled () const { return specularEnabled; }
@@ -196,6 +205,18 @@ public:
     /// maxDistance` would, through the BVH or not.
     bool occluded (const Scene & scene, const Ray & ray, float maxDistance) const;
 
+    /// Share of a light, per channel, that travels along `ray` as far as
+    /// `maxDistance`: what a shadow ray brings back. Nothing behind an opaque
+    /// surface (a front face, as `occluded` sees it). Through a transparent
+    /// one, at each face crossed, the material's transparency x the share
+    /// 1 - F its Fresnel reflection leaves, and between an entry and the exit
+    /// that follows, exp(-absorption x the distance inside). The ray is not
+    /// bent: the light a curved glass focuses (caustics) is not traced, and F
+    /// is taken on the air side of each face, which is exact for a slab.
+    /// (1, 1, 1) when nothing is in the way; with setTransparentShadows off,
+    /// that or (0, 0, 0), as `occluded` says.
+    Vec3Df transmission (const Scene & scene, const Ray & ray, float maxDistance) const;
+
     /// Color of one ray in linear RGB, counting it in `stats`; `samplers`
     /// feed the soft shadows and the occlusion. If nothing is hit: the
     /// scene's environment along the ray in Lit mode (Scene::setEnvironment),
@@ -218,11 +239,12 @@ public:
     /// coordinates, and a primitive, keep their normal.
     Vec3Df shadingNormal (const Scene & scene, const Hit & hit) const;
 
-    /// Fraction of `light` seen from the surface point `p` with unit normal
-    /// `n`, in [0, 1]: one shadow ray toward its centre (0 or 1), or
-    /// getShadowSamplesPerAxis ()^2 rays over its disk. The part of the disk
-    /// below the surface's horizon counts as hidden.
-    float lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
+    /// Share of `light`, per channel, that reaches the surface point `p` with
+    /// unit normal `n`, each in [0, 1]: the `transmission` of one shadow ray
+    /// toward its centre, or the mean of getShadowSamplesPerAxis ()^2 rays
+    /// over its disk. The part of the disk below the surface's horizon counts
+    /// as hidden. Grey unless tinted glass stands in the way.
+    Vec3Df lightVisibility (const Scene & scene, const Vec3Df & p, const Vec3Df & n, const Light & light,
                            Sampler & sampler) const;
 
     /// Open share of the hemisphere above the surface point `p` with unit
@@ -257,8 +279,19 @@ private:
     Vec3Df directLight (const Scene & scene, const Material & mat, const Vec3Df & p, const Vec3Df & n,
                         const Vec3Df & ns, const Vec3Df & uv, const Ray & ray, PixelSamplers & samplers) const;
     /// Colour a secondary ray brings back from a hit at `depth`: what it
-    /// meets, shaded one bounce deeper, or what lies beyond the scene.
-    Vec3Df bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth) const;
+    /// meets, shaded one bounce deeper, or what lies beyond the scene. A ray
+    /// that travels inside glass names it as `medium`, and what it brings
+    /// back is absorbed over the distance from `from`, the surface point it
+    /// left (its origin is a hair off it), to what it meets (Beer-Lambert);
+    /// a ray that meets nothing left through a hole of an open mesh, and is
+    /// not.
+    Vec3Df bounce (const Scene & scene, const Ray & ray, PixelSamplers & samplers, unsigned int depth,
+                   const Material * medium, const Vec3Df & from) const;
+    /// closestHit among every object, or among the transparent ones only,
+    /// strictly closer than `maxDistance`.
+    bool nearest (const Scene & scene, const Ray & ray, Hit & hit, bool transparentOnly, float maxDistance) const;
+    /// `occluded` by any object, or by the opaque ones only.
+    bool blocked (const Scene & scene, const Ray & ray, float maxDistance, bool opaqueOnly) const;
     /// What a ray that meets nothing brings back: the environment where it
     /// points, in Lit mode, the background colour in the analysis modes
     /// (their pixels are values, not light) and when the scene has no map.
@@ -275,6 +308,7 @@ private:
     unsigned int aaSamplesPerAxis = 1;
     bool aaJitter = false;
     bool shadows = true;
+    bool transparentShadows = true;
     unsigned int shadowSamplesPerAxis = 1;
     unsigned int maxDepth = 8;
     unsigned int aoSamplesPerAxis = 0;

@@ -19,7 +19,8 @@
 
 /// Materials of an MTL file by name. Kd -> colour, mean(Ks) -> specular,
 /// Ns -> shininess, d (dissolve) -> transparency 1 - d, Tr -> transparency,
-/// Ni -> index of refraction, map_Kd -> the colour's texture, map_bump or
+/// Ni -> index of refraction, Tf -> what a unit of length inside lets
+/// through (Material::absorptionFor), map_Kd -> the colour's texture, map_bump or
 /// bump -> the height map and -bm its scale (Bump.h); everything else (Ka,
 /// illum, other map_*) is ignored for now. A material without Kd is light
 /// grey. Throws std::runtime_error if

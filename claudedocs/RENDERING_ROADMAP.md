@@ -30,6 +30,7 @@ the implementation order with tests; this page is the map.
 | Textures | The material's colour is read from an image through the coordinates the surface carries, bilinearly. |
 | Environment map | The world around the scene is a panoramic picture read by direction: a ray that escapes brings back the texel where it points. |
 | Bump mapping | A grey picture read as a height tilts the normal the light is computed with; the surface itself does not move. |
+| Tinted glass and its shadows | Glass absorbs a share of the light per unit of length crossed, so its colour comes from its thickness; a shadow ray through it is filtered, not stopped. |
 
 ## 1. Local shading
 
@@ -62,6 +63,7 @@ Done: `Material::reflectivity`, `RayTracer::setMaxDepth` (CLI `--reflectivity`, 
 ### Refraction (glass) (done)
 **Principle:** Rays bend through transparent surfaces following Snell's law and split between reflection and transmission by the Fresnel term.
 Done: `Material::transparency` and `ior` (MTL `d`, `Tr`, `Ni`), two-sided rays inside the object so they can leave it, the exact Fresnel equations (`src/core/Optics.h`) rather than Schlick's approximation, which is not 0 between equal indices. CLI `--transparency`, `--ior`; GUI Glass, Index. Tests: Snell and the critical angle, Fresnel at normal incidence, grazing, Brewster's angle and reciprocity; a slab of index 1 is invisible; a slab shifts the edge under it by thickness x (tan i - tan t) for water, glass and diamond; what comes through is (1 - F_in)(1 - F_out) of the floor; golden `teapot_ground_glass_lit`. Reference: Whitted 1980; Born & Wolf, *Principles of Optics*. (Experiment 7)
+Tinted since timeline step 15 (v0.8.0): `Material::setAbsorption`, Beer-Lambert along every leg inside the glass, and shadow rays filtered by the glass they cross (`RayTracer::transmission`: 1 - F per face, the absorption in between, unbent) instead of stopped. `--tint`, `--tint-depth`, `--opaque-shadows`, MTL `Tf`. Tests: a slab passes exp(-σd), a pane of index 1 casts no shadow, clear glass passes (1 - 0.04)² head-on. Reference: Kay & Greenberg, SIGGRAPH 1979.
 
 ### Emissive materials and mesh lights
 **Principle:** Surfaces emit light themselves, so any mesh can be a lamp, and sampling them directly keeps soft lighting quiet.
