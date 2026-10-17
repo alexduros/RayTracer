@@ -95,6 +95,15 @@ public:
     static const ModeInfo & bumpInfo ();
     /// ... and for tinted glass and the shadows it casts.
     static const ModeInfo & absorptionInfo ();
+    /// ... and for the Cook-Torrance highlight.
+    static const ModeInfo & microfacetInfo ();
+
+    /// How a highlight is computed (Lit mode). Blinn-Phong: a lobe
+    /// (n . h)^shininess in the light's colour, the historical one.
+    /// Cook-Torrance: facets of Beckmann slopes (Material::getRoughness), the
+    /// share of them hidden by their neighbours, and the Fresnel reflectance
+    /// of the material's index, or of its colour for a metal (Microfacet.h).
+    enum class SpecularModel { BLINN_PHONG, COOK_TORRANCE };
 
     /// Modes the raytracer could offer next (claudedocs/RENDERING_ROADMAP.md
     /// is the full map): same fields, with `reading` holding what the mode
@@ -160,6 +169,9 @@ public:
     /// scene with no transparent material is the same either way.
     inline void setTransparentShadows (bool on) { transparentShadows = on; }
     inline bool getTransparentShadows () const { return transparentShadows; }
+    /// Which highlight; Blinn-Phong by default, so pictures stay as they were.
+    inline void setSpecularModel (SpecularModel m) { specularModel = m; }
+    inline SpecularModel getSpecularModel () const { return specularModel; }
     /// Blinn-Phong highlight from Material::specular / shininess (Lit mode only).
     inline void setSpecularEnabled (bool on) { specularEnabled = on; }
     inline bool isSpecularEnabled () const { return specularEnabled; }
@@ -314,6 +326,7 @@ private:
     unsigned int aoSamplesPerAxis = 0;
     float aoRadius = 1.f;
     bool specularEnabled = true;
+    SpecularModel specularModel = SpecularModel::BLINN_PHONG;
     bool bumpMapping = true;
     bool bvhEnabled = true;
     Stats lastStats;

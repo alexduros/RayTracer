@@ -129,6 +129,13 @@ Options:
                          .hdr, PNG, JPEG...) read by every ray that leaves the scene, where
                          it points. It shows behind the model and in mirrors and glass, in
                          lit mode; a bare name resolves in models/, like a model's
+  --specular-model <m>   how highlights are computed: blinn-phong (default), a lobe in the
+                         light's colour, or cook-torrance, facets of Beckmann slopes with
+                         their shadowing and the Fresnel reflectance (stronger at grazing)
+  --roughness <m>        the model's facet slope for cook-torrance, 0.01..1 (default: the one
+                         matching its shininess, sqrt(2 / (shininess + 2)))
+  --metal                the model is a metal: no diffuse light, its colour in its highlight
+                         (and, with cook-torrance, whitening at grazing angles)
   --specular <k>         the model's highlight strength
   --shininess <n>        the model's Blinn-Phong exponent
   --fov <deg>            vertical field of view (default 45)
@@ -189,6 +196,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << glass.principle << "\n"
         << "      Read: " << glass.reading << "\n"
         << "      Ref:  " << glass.reference << "\n";
+    const RayTracer::ModeInfo& facets = RayTracer::microfacetInfo();
+    out << "\n--specular-model / --roughness / --metal  " << facets.name << "\n"
+        << "      " << facets.principle << "\n"
+        << "      Read: " << facets.reading << "\n"
+        << "      Ref:  " << facets.reference << "\n";
     const RayTracer::ModeInfo& tint = RayTracer::absorptionInfo();
     out << "\n--tint / --tint-depth / --opaque-shadows  " << tint.name << "\n"
         << "      " << tint.principle << "\n"
@@ -230,6 +242,9 @@ struct Options {
     std::optional<Vec3Df> tint;  // what white light keeps after tintDepth inside the model's glass
     float tintDepth = 0.25f;     // fraction of the model size
     bool transparentShadows = true;
+    RayTracer::SpecularModel specularModel = RayTracer::SpecularModel::BLINN_PHONG;
+    std::optional<float> roughness;
+    bool metal = false;
     unsigned int maxDepth = 8;
     bool bvh = true;
     unsigned int threads = 0;  // 0 = one per core
@@ -540,6 +555,26 @@ bool parseArgs(int argc, char** argv, Options& o) {
                 std::cerr << "--tint-depth must be more than 0\n";
                 return false;
             }
+        } else if (a == "--specular-model") {
+            if (!(v = value(i, "--specular-model"))) return false;
+            const std::string m = v;
+            if (m == "blinn-phong") {
+                o.specularModel = RayTracer::SpecularModel::BLINN_PHONG;
+            } else if (m == "cook-torrance") {
+                o.specularModel = RayTracer::SpecularModel::COOK_TORRANCE;
+            } else {
+                std::cerr << "--specular-model must be blinn-phong or cook-torrance\n";
+                return false;
+            }
+        } else if (a == "--roughness") {
+            if (!(v = value(i, "--roughness"))) return false;
+            o.roughness = static_cast<float>(std::atof(v));
+            if (*o.roughness < 0.01f || *o.roughness > 1.f) {
+                std::cerr << "--roughness must be between 0.01 and 1\n";
+                return false;
+            }
+        } else if (a == "--metal") {
+            o.metal = true;
         } else if (a == "--opaque-shadows") {
             o.transparentShadows = false;
         } else if (a == "--max-depth") {
@@ -736,6 +771,8 @@ int main(int argc, char** argv) {
         if (o.bumpScale) m.setBumpScale(*o.bumpScale * scene.getBoundingBox().getSize());
         if (o.specularStrength) m.setSpecular(*o.specularStrength);
         if (o.shininess) m.setShininess(*o.shininess);
+        if (o.roughness) m.setRoughness(*o.roughness);
+        if (o.metal) m.setMetal(true);
         for (const Vertex& vertex : object.getMesh().getVertices())
             coordinates = coordinates || vertex.getU() != 0.f || vertex.getV() != 0.f;
     }
@@ -786,6 +823,7 @@ int main(int argc, char** argv) {
     rt.setShadows(o.shadows);
     rt.setShadowSamples(o.shadowSamples);
     rt.setTransparentShadows(o.transparentShadows);
+    rt.setSpecularModel(o.specularModel);
     rt.setSpecularEnabled(o.specular);
     rt.setBumpMapping(o.bumpMapping);
     rt.setMaxDepth(o.maxDepth);
@@ -859,6 +897,9 @@ int main(int argc, char** argv) {
             wrinkled = wrinkled || (object.getMaterial().getBumpMap() && object.getMaterial().getBumpScale() != 0.f);
         }
         if (wrinkled && o.bumpMapping && coordinates) effects += ", bump map";
+        if (o.specular && o.specularModel == RayTracer::SpecularModel::COOK_TORRANCE)
+            effects += ", cook-torrance highlights";
+        if (o.metal) effects += ", metal";
         if ((mirrors || glassy) && o.maxDepth > 0)
             effects += std::string(", ") + (tinted ? "tinted " : "") + (glassy ? "glass and reflections" : "reflections") +
                        " up to depth " + std::to_string(o.maxDepth);

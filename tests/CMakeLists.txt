@@ -23,6 +23,7 @@ add_executable(raymini_tests
   TestEnvironment.cpp
   TestBump.cpp
   TestAbsorption.cpp
+  TestMicrofacet.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -61,6 +62,12 @@ add_test(NAME cli_opaque_shadows COMMAND raymini-cli teapot --size 32x32 --groun
 set_tests_properties(cli_opaque_shadows PROPERTIES PASS_REGULAR_EXPRESSION "opaque shadows under glass")
 add_test(NAME cli_bad_tint COMMAND raymini-cli teapot --tint 1.5 0.5 0.1 --quiet)
 set_tests_properties(cli_bad_tint PROPERTIES WILL_FAIL TRUE)
+# Microfacet highlights on a copper teapot; the render line says so.
+add_test(NAME cli_cook_torrance COMMAND raymini-cli teapot --size 32x32 --ground --specular-model cook-torrance
+         --metal --color 0.95 0.64 0.54 --roughness 0.2 --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_cook_torrance.png)
+set_tests_properties(cli_cook_torrance PROPERTIES PASS_REGULAR_EXPRESSION "cook-torrance highlights, metal")
+add_test(NAME cli_bad_specular_model COMMAND raymini-cli teapot --specular-model phong --quiet)
+set_tests_properties(cli_bad_specular_model PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_bad_ior COMMAND raymini-cli ram --ior 0.5 --quiet)
 set_tests_properties(cli_bad_ior PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_display COMMAND raymini-cli teapot --size 32x32 --display linear --tonemap reinhard --white 4

@@ -52,6 +52,19 @@ public:
     inline float getBumpScale () const { return bumpScale; }
     inline void setBumpScale (float s) { bumpScale = s; }
     inline float getShininess () const { return shininess; }
+    /// Root mean square slope of the surface's facets, for the Cook-Torrance
+    /// highlight (Microfacet.h): 0.05 polished, 0.5 rough. Unless set, the
+    /// one whose Beckmann lobe matches the Blinn-Phong lobe of `shininess`,
+    /// sqrt(2 / (shininess + 2)), so switching models keeps the highlight's
+    /// size.
+    inline float getRoughness () const { return roughness > 0.f ? roughness : std::sqrt (2.f / (shininess + 2.f)); }
+    inline void setRoughness (float m) { roughness = m > 0.f ? m : 0.f; }
+    /// A metal reflects and does not scatter: no diffuse term, and its colour
+    /// goes into the highlight, as its reflectance head-on. Cook-Torrance
+    /// then turns that colour toward white at grazing angles, as the Fresnel
+    /// equations do for copper or gold; Blinn-Phong tints its lobe.
+    inline bool isMetal () const { return metal; }
+    inline void setMetal (bool m) { metal = m; }
     inline float getReflectivity () const { return reflectivity; }
     inline float getTransparency () const { return transparency; }
     inline float getIor () const { return ior; }
@@ -100,6 +113,8 @@ private:
     float reflectivity = 0.f;
     float transparency = 0.f;
     float ior = 1.5f;
+    float roughness = 0.f;  // 0: from the shininess
+    bool metal = false;
     Vec3Df absorption = Vec3Df (0.f, 0.f, 0.f);  // per world unit inside; MTL Tf
 };
 

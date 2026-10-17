@@ -22,7 +22,8 @@ with the raytracer split into a library that builds without any GL dependency.
   with the raytracer, save the result as PNG.
 - Raytracer: ray/triangle intersection through a bounding-volume hierarchy
   per object (back faces culled; `--no-bvh` gives the brute-force reference),
-  Lambert + Blinn-Phong shading with hard or soft shadows (each light a small
+  Lambert shading with a Blinn-Phong or a Cook-Torrance highlight (facets,
+  Fresnel, metals), hard or soft shadows (each light a small
   disk sampled by a grid of shadow rays), an optional ground plane that
   catches them, mirror reflections (a reflectivity per material, followed
   recursively up to a depth), glass (refraction by Snell's law, split with
@@ -139,6 +140,7 @@ build/raymini-cli ram --ground --ao 8 --aa 2 --yaw -35 --pitch 15               
 build/raymini-cli ram --ground --mode ao --yaw -35 --pitch 15                   # the occlusion alone
 build/raymini-cli teapot --ground --transparency 1 --aa 2 --yaw 25 --pitch 20   # a glass teapot
 build/raymini-cli teapot --ground --tint 0.95 0.55 0.1 --aa 2 --yaw 25 --pitch 20   # amber glass, and its amber shadow
+build/raymini-cli teapot --ground --specular-model cook-torrance --metal --color 0.95 0.64 0.54 --roughness 0.2   # copper
 build/raymini-cli ram --ground --tonemap reinhard --exposure +0.5                 # another curve, half a stop over
 build/raymini-cli ram --ground --display linear                                   # the look before experiment 9
 build/raymini-cli ram --ground --out renders/ram.hdr                              # radiance, no display (RGBE)
@@ -168,13 +170,15 @@ Viewer controls:
   around the scene (None, or an environment map among the `.hdr` files of
   `models/`; raytraced panel only), the model's bumps (the height map its
   file names, none, or one of the `.png` files of `models/`, and how high
-  it stands), its own mirror share, glass share, index, tint and the depth
+  it stands), whether it is a metal and the roughness of its facets, its
+  own mirror share, glass share, index, tint and the depth
   the tint is reached at, the number of bounces, mesh stats), Camera (FOV,
   position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
   jitter; shadows, whether glass filters them or blocks them, specular,
-  soft shadows and light size; occlusion and its
+  the highlight model (Blinn-Phong or Cook-Torrance), soft shadows and
+  light size; occlusion and its
   radius; threads; depth range in Depth mode).
 - Left-drag in the preview to orbit, scroll to zoom.
 - Raytracer panel: Render Scene traces on worker threads (one per core by
@@ -331,6 +335,29 @@ glass at 384x256 takes 0.07 s at depth 4, 0.2 s at 8 (the default, which
 leaves few paths cut short) and 1 s at 16 on one thread. Whitted, CACM
 23(6), 1980; the Fresnel equations, Born & Wolf, *Principles of Optics*,
 section 1.5.
+
+**Cook-Torrance highlights** (`--specular-model cook-torrance`,
+`--roughness m`, `--metal`; Highlight in Render, Metal and roughness in
+Model; `src/core/Microfacet.h`): the surface is a field of tiny mirrors
+whose slopes follow Beckmann's distribution, of root mean square slope m.
+A highlight is the light the facets turned to mirror it into the eye send
+back: f = D G F / (4 (n.l)(n.v)), where D is the share of facets facing the
+half vector, G the share of those neither shaded nor hidden by their
+neighbours (Torrance and Sparrow's V-grooves), F the Fresnel reflectance of
+one facet at its own angle. The paper divides by pi; the 4 is what its
+derivation implies once D is a density over directions (Walter et al.,
+2007), and with it a polished surface reflects exactly what a mirror would.
+Plastic shines in the light's colour, faintly head-on (4 % of a mirror for
+an index of 1.5) and more toward grazing; a metal has no diffuse light and
+shines in its colour, which is taken as its reflectance head-on and turned
+into an index per channel, Cook and Torrance's own trick, so copper
+whitens near the horizon. Roughness defaults to the slope whose lobe
+matches the Blinn-Phong one of the shininess, sqrt(2 / (shininess + 2)).
+Blinn-Phong stays the default. What it leaves out: light that bounces
+between facets more than once (a rough white metal returns about 0.8 of
+the light), and the world reflected in a metal (only the lights are).
+Cook & Torrance, "A Reflectance Model for Computer Graphics", SIGGRAPH
+1981.
 
 **Tinted glass, and the shadows of glass** (`--tint r g b`,
 `--tint-depth f`, `--opaque-shadows`; Tint, Tint depth and Through glass in

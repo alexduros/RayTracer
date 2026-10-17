@@ -8,6 +8,7 @@
 #include "RayTracer.h"
 
 #include "Bump.h"
+#include "Microfacet.h"
 #include "Optics.h"
 
 #include <algorithm>
@@ -240,6 +241,22 @@ const RayTracer::ModeInfo kAbsorptionInfo = {
     "D. S. Kay & D. Greenberg, \"Transparency for Computer Synthesized Images\", SIGGRAPH 1979; the "
     "Beer-Lambert law, P. Bouguer (1729), J. H. Lambert, Photometria (1760), A. Beer (1852)."};
 
+const RayTracer::ModeInfo kMicrofacetInfo = {
+    "cooktorrance", "Cook-Torrance highlight (microfacets)",
+    "The surface is a field of tiny mirrors whose slopes follow Beckmann's distribution, of root mean square slope "
+    "m (the roughness). A highlight is the light those facets that mirror it into the eye send back: D, the share "
+    "of facets turned the right way, x G, the share of those neither in the shadow of their neighbours nor hidden "
+    "by them, x F, the Fresnel reflectance of one facet at its own angle, / 4 (n.l)(n.v). F comes from the "
+    "material's index for plastic, and for a metal from its colour, taken as its reflectance head-on.",
+    "Plastic shines in the colour of the light, faintly head-on (4 % for an index of 1.5) and more and more toward "
+    "grazing, so rims and floors seen low catch bright reflections Blinn-Phong does not. A metal shines in its own "
+    "colour, has no diffuse light, and whitens at grazing. Larger m spreads the highlight and dims it; the same "
+    "shininess gives the same size of spot in both models. Some light is lost between the facets at large m (it "
+    "bounces more than once there): a rough white metal is a little dark.",
+    "R. L. Cook & K. E. Torrance, \"A Reflectance Model for Computer Graphics\", SIGGRAPH 1981 and ACM TOG 1(1), "
+    "1982; K. E. Torrance & E. M. Sparrow, JOSA 57(9), 1967; P. Beckmann & A. Spizzichino, The Scattering of "
+    "Electromagnetic Waves from Rough Surfaces, 1963; the factor 4: B. Walter et al., EGSR 2007."};
+
 const RayTracer::ModeInfo kToneMappingInfo = {
     "display", "Exposure, tone mapping and encoding",
     "The tracer computes linear radiance in floats, above 1 wherever lights add up; the display maps it to the "
@@ -297,6 +314,10 @@ const RayTracer::ModeInfo & RayTracer::absorptionInfo () {
     return kAbsorptionInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::microfacetInfo () {
+    return kMicrofacetInfo;
+}
+
 namespace {
 
 // The roadmap, one sentence of principle each. Order = suggested order of
@@ -316,7 +337,8 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
     {"pbr", "Physically based materials (GGX)",
      "A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and "
      "masking terms, driven by roughness and metalness.",
-     "Needs roughness and metalness on Material; supersedes Blinn-Phong.",
+     "Roughness, metals and Cook-Torrance's Beckmann facets exist (the Cook-Torrance highlight); needs the GGX "
+     "distribution, its Smith masking, and rough glass that bends through the facets.",
      "R. Cook & K. Torrance, \"A Reflectance Model for Computer Graphics\", SIGGRAPH 1981; B. Walter et al., "
      "\"Microfacet Models for Refraction through Rough Surfaces\", EGSR 2007."},
     {"dof", "Depth of field",
@@ -678,17 +700,29 @@ Vec3Df RayTracer::directLight (const Scene & scene, const Material & mat, const 
         if (visibility[0] <= 0.f && visibility[1] <= 0.f && visibility[2] <= 0.f)
             continue;  // the whole light is blocked
         Vec3Df diffuse, highlight;
-        for (int c = 0; c < 3; ++c)
-            diffuse[c] = open * visibility[c] * mat.getDiffuse () * light.getIntensity () * nDotL;
-        color += diffuse * (albedo * light.getColor ());
-        if (specularEnabled && mat.getSpecular () > 0.f) {
+        if (!mat.isMetal ()) {  // a metal scatters nothing: all it returns is its highlight
+            for (int c = 0; c < 3; ++c)
+                diffuse[c] = open * visibility[c] * mat.getDiffuse () * light.getIntensity () * nDotL;
+            color += diffuse * (albedo * light.getColor ());
+        }
+        if (specularEnabled && mat.getSpecular () > 0.f && specularModel == SpecularModel::COOK_TORRANCE) {
+            // Radiance = f x irradiance x cos: a light of intensity I gives a
+            // facing white Lambert surface I, so its irradiance is pi I.
+            const float m = mat.getRoughness ();
+            for (int c = 0; c < 3; ++c) {
+                const float ior = mat.isMetal () ? microfacet::iorFromReflectance (albedo[c]) : mat.getIor ();
+                highlight[c] = visibility[c] * mat.getSpecular () * light.getIntensity () * microfacet::kPi *
+                               microfacet::reflectance (ns, v, l, m, ior) * nDotL;
+            }
+            color += highlight * light.getColor ();
+        } else if (specularEnabled && mat.getSpecular () > 0.f) {
             Vec3Df h = l + v;
             h.normalize ();
             const float nDotH = std::max (0.f, Vec3Df::dotProduct (ns, h));
             const float lobe = std::pow (nDotH, mat.getShininess ());
             for (int c = 0; c < 3; ++c)
                 highlight[c] = visibility[c] * mat.getSpecular () * light.getIntensity () * lobe;
-            color += highlight * light.getColor ();
+            color += highlight * (mat.isMetal () ? albedo * light.getColor () : light.getColor ());
         }
     }
     return color;

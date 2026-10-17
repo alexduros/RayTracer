@@ -535,6 +535,9 @@ int main(int argc, char** argv) {
     float rtIor = 1.5f;                // index of refraction of that glass
     float rtTint[3] = {1.f, 1.f, 1.f}; // what white light keeps after rtTintDepth inside it: white = clear
     float rtTintDepth = 0.25f;         // fraction of the model's size
+    int rtSpecularModel = 0;           // 0 Blinn-Phong, 1 Cook-Torrance
+    float rtRoughness = 0.f;           // Material::roughness of the model; 0 = from its shininess
+    bool rtMetal = false;              // the model as metal: no diffuse, its colour in the highlight
     int rtMaxDepth = 8;                // mirror and glass bounces followed per ray
     const int maxThreads = static_cast<int>(RenderJob::defaultThreadCount());
     int rtThreads = maxThreads;  // worker threads for the next render
@@ -751,6 +754,8 @@ int main(int argc, char** argv) {
             rt.setAntiAliasing(static_cast<unsigned int>(rtAA), rtJitter);
             rt.setShadows(rtShadows);
             rt.setTransparentShadows(rtGlassShadows);
+            rt.setSpecularModel(rtSpecularModel == 1 ? RayTracer::SpecularModel::COOK_TORRANCE
+                                                     : RayTracer::SpecularModel::BLINN_PHONG);
             rt.setShadowSamples(static_cast<unsigned int>(rtShadowSamples));
             rt.setSpecularEnabled(rtSpecular);
             rt.setBumpMapping(bumpIndex != 1);
@@ -785,6 +790,11 @@ int main(int argc, char** argv) {
                         object.getMaterial().setBumpScale(rtBumpScale * scene.getBoundingBox().getSize());
                     }
             toRender.setEnvironment(world);
+            for (Object& object : toRender.getObjects())
+                if (!object.isBackdrop()) {
+                    if (rtRoughness > 0.f) object.getMaterial().setRoughness(rtRoughness);
+                    if (rtMetal) object.getMaterial().setMetal(true);
+                }
             renderJob = std::make_unique<RenderJob>(rt, toRender, camera, renderW, renderH, kRenderTileSize,
                                                     Vec3Df(0.12f, 0.12f, 0.12f),
                                                     static_cast<unsigned int>(rtThreads));
@@ -1036,6 +1046,15 @@ int main(int argc, char** argv) {
                 itemTooltip("How high white stands above black, in model sizes; negative digs where the map rises.\n"
                             "Needs texture coordinates: an OBJ model (raytraced panel only).");
             }
+            rowLabel("Metal");
+            ImGui::Checkbox("##metal", &rtMetal);
+            itemTooltip("No diffuse light: the model's colour goes into its highlight, as a metal's does.");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+            ImGui::SliderFloat("##roughness", &rtRoughness, 0.f, 1.f,
+                               rtRoughness > 0.f ? "roughness %.2f" : "roughness from shininess");
+            ImGui::SameLine();
+            helpMarker(RayTracer::microfacetInfo());
             rowLabel("Mirror");
             ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
             ImGui::SliderFloat("##modelmirror", &rtModelReflectivity, 0.f, 1.f, "%.2f");
@@ -1143,6 +1162,13 @@ int main(int argc, char** argv) {
             ImGui::EndDisabled();
             itemTooltip("Glass filters the light that crosses it instead of blocking it:\n"
                         "a pale shadow under clear glass, a coloured one under tinted glass.");
+            rowWidget("Highlight");
+            {
+                const char* models[] = {"Blinn-Phong", "Cook-Torrance (microfacets)"};
+                ImGui::BeginDisabled(!rtSpecular);
+                ImGui::Combo("##specularmodel", &rtSpecularModel, models, IM_ARRAYSIZE(models));
+                ImGui::EndDisabled();
+            }
             rowLabel("Soft shadows");
             {
                 const char* softLabels[] = {"Off (hard)", "2x2 rays/light", "4x4 rays/light", "8x8 rays/light"};
