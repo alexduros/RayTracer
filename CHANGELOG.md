@@ -11,6 +11,44 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-17
+
+Step 16 of the timeline: R. L. Cook & K. E. Torrance, "A Reflectance Model
+for Computer Graphics", SIGGRAPH 1981 — a highlight made of tiny mirrors,
+whose colour and strength follow the Fresnel equations.
+
+### Added
+
+- **The Cook-Torrance highlight**, `--specular-model cook-torrance`, next
+  to Blinn-Phong, which stays the default. The surface is a field of facets
+  whose slopes follow Beckmann's distribution, and a highlight is the share
+  D of facets that mirror the light into the eye, x the share G of those
+  their neighbours neither shade nor hide, x the Fresnel reflectance F of
+  one facet, / 4 (n.l)(n.v) (`src/core/Microfacet.h`). Plastic shines in
+  the light's colour, faintly head-on (4 % for an index of 1.5) and more
+  and more toward grazing.
+- **Roughness**, `--roughness m`, the root mean square slope of the facets.
+  Unless given, the one whose lobe matches the Blinn-Phong lobe of the
+  shininess, sqrt(2 / (shininess + 2)), so switching models keeps the
+  highlight's size.
+- **Metals**, `--metal`: no diffuse light, and the colour goes into the
+  highlight as the reflectance head-on, from which Cook and Torrance's own
+  trick derives an index per channel for the Fresnel equations. Copper then
+  shines copper, and whitens two degrees from the horizon. Under
+  Blinn-Phong a metal tints its lobe.
+- **In the viewer**: Highlight (Blinn-Phong or Cook-Torrance) in Render,
+  Metal and roughness in Model.
+- Goldens `teapot_ground_plastic_lit` and `teapot_ground_copper_lit`, the
+  pair of the paper's figure; ctest `cli_cook_torrance`,
+  `cli_bad_specular_model`.
+
+The paper divides by pi where the 4 of the derivation belongs; this one
+uses 4, with which a polished surface reflects exactly what a mirror would.
+Not yet: light that bounces between facets more than once is lost, so a
+rough white metal returns about 0.8 of the light (step 72), and metals
+reflect the lights only, not the world around (lighting by the
+environment is step 46).
+
 ## [0.8.0] - 2026-10-10
 
 Step 15 of the timeline: D. S. Kay & D. Greenberg, "Transparency for

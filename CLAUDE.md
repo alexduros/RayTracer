@@ -10,8 +10,8 @@ tests that prove each one.
 - `src/core/` — `raymini_core` static library. Vec3D, Vertex/Triangle/Mesh (OFF
   loader), ObjLoader (OBJ + MTL), BoundingBox, Ray (triangle + slab tests),
   Bvh, Camera, Material, Light, Object, Scene, RayTracer, Sampler, Optics (reflect,
-  Snell, Fresnel), Primitive (sphere, cylinder, disc), Texture, Bump (the
-  perturbed normal), Environment (the panorama around the scene), Image
+  Snell, Fresnel, Beer-Lambert), Microfacet (Cook-Torrance), Primitive
+  (sphere, cylinder, disc), Texture, Bump (the perturbed normal), Environment (the panorama around the scene), Image
   (stb). No GL, no GLFW: it links
   anywhere.
 - `src/gui/Main.cpp` — `raymini`: GL 3.3 preview (left), raytraced panel
@@ -219,6 +219,18 @@ build/raymini-cli --help
   hit leaves the object, which orders the indices. `Hit::triangleIndex` comes
   from `nearestHit`. Every other ray still culls back faces. A glass hit
   splits a ray in two, so depth costs.
+- Cook-Torrance (step 16, `src/core/Microfacet.h`):
+  `RayTracer::setSpecularModel(SpecularModel::COOK_TORRANCE)` swaps the
+  Blinn-Phong lobe in `directLight` for f = D G F / 4 (n.l)(n.v) (Beckmann
+  D as a density over directions, V-groove G, `optics::fresnel` on v.h),
+  radiance = ks x I x pi x f x (n.l) x visibility, since a light of
+  intensity I lights a facing white Lambert surface to I (irradiance pi I).
+  `Material::getRoughness` (set, else sqrt(2 / (shininess + 2))) and
+  `isMetal` (no diffuse; F per channel with
+  `microfacet::iorFromReflectance(albedo)`; under Blinn-Phong the lobe is
+  tinted by the albedo). Blinn-Phong is the default, so nothing moved. CLI
+  `--specular-model blinn-phong|cook-torrance --roughness m --metal`, GUI
+  Highlight / Metal / roughness. Energy between facets is lost (step 72).
 - Tinted glass and glass shadows (step 15): `Material::setAbsorption` is a
   colour per world unit (`Material::absorptionFor(tint, depth)`, MTL `Tf`
   at depth 1), 0 = clear. `RayTracer::bounce` takes the `medium` a

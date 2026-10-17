@@ -30,6 +30,7 @@ the implementation order with tests; this page is the map.
 | Textures | The material's colour is read from an image through the coordinates the surface carries, bilinearly. |
 | Environment map | The world around the scene is a panoramic picture read by direction: a ray that escapes brings back the texel where it points. |
 | Bump mapping | A grey picture read as a height tilts the normal the light is computed with; the surface itself does not move. |
+| Microfacet highlights (Cook-Torrance) | A highlight is the light that facets of random slopes mirror into the eye, minus what their neighbours hide, in the Fresnel proportions: plastic shines white, metal in its colour. |
 | Tinted glass and its shadows | Glass absorbs a share of the light per unit of length crossed, so its colour comes from its thickness; a shadow ray through it is filtered, not stopped. |
 
 ## 1. Local shading
@@ -52,7 +53,7 @@ Done: `RayTracer::setAmbientOcclusion(n, radius)`, n x n cosine-weighted rays (a
 
 ### Physically based materials (GGX)
 **Principle:** A microfacet model shapes the highlight from a statistical distribution of tiny mirrors with Fresnel and masking terms, driven by roughness and metalness.
-Needs: roughness and metalness on `Material`; supersedes Blinn-Phong. Test: energy never exceeds 1 (white furnace), roughness 0 tends to a mirror, roughness 1 to Lambert. Reference: Cook & Torrance, SIGGRAPH 1981; Walter et al., "Microfacet Models for Refraction through Rough Surfaces", EGSR 2007.
+Started (timeline step 16, v0.9.0): `Material::roughness` and `metal`, Cook-Torrance's Beckmann facets with V-groove attenuation and exact Fresnel (`src/core/Microfacet.h`, `--specular-model cook-torrance`); a polished surface tends to a mirror, none returns more than it receives. Needs still: the GGX distribution and its Smith masking, rough glass bent through the facets, and the light lost between facets (72). Test: energy never exceeds 1 (white furnace), roughness 0 tends to a mirror, roughness 1 to Lambert. Reference: Cook & Torrance, SIGGRAPH 1981; Walter et al., "Microfacet Models for Refraction through Rough Surfaces", EGSR 2007.
 
 ## 2. Light transport
 

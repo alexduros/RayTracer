@@ -108,6 +108,14 @@ printf '%-18s ' 15-teapot
 printf '%-18s ' 15-teapot-pale
 "$cli" "${amber[@]}" --tint-depth 1 --out "$out/15-teapot-pale.png" | sed -n 's/^render  //p'
 
+# Step 16: the pair of Cook and Torrance's figure, one colour and two
+# materials, under Cook-Torrance highlights and a white rig, so a highlight's
+# colour is the light's or the material's own: plastic, then copper.
+white=(--light 0 3 3 3 1 1 1 1 --light 1 -3 1 2 1 1 1 0.5 --light 2 0 2 -3 1 1 1 0.8)
+facets=(--ground --aa 2 --shadow-samples 8 --ao 8 --color 0.95 0.64 0.54 --specular-model cook-torrance --roughness 0.2)
+render 16-plastic        "${facets[@]}" "${white[@]}"
+render 16-copper         "${facets[@]}" "${white[@]}" --metal
+
 timed() {
     local label=$1 png=$2
     shift 2

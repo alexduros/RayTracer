@@ -159,14 +159,27 @@ Display", CACM 23(6), 1980: supersampling, mirrors, refraction (experiments
 5, 7, 7b). S. Rubin & T. Whitted, SIGGRAPH 1980: bounding hierarchies (see
 1986).
 
-### 16 · 1981 · Microfacet reflection ★
+### 16 · 1981 · Microfacet reflection ★ (done, v0.9.0)
 R. Cook & K. Torrance, "A Reflectance Model for Computer Graphics",
 SIGGRAPH 1981.
-- **Here:** Beckmann distribution, geometric attenuation and the Fresnel
-  term of 7b as a second specular model next to Blinn-Phong.
-- **Proof:** f(l, v) = f(v, l); the normal distribution integrates to 1
-  over the projected hemisphere; reflectance rises toward grazing.
-- **M** · effect.
+- **Here:** `src/core/Microfacet.h` — Beckmann's distribution as a density
+  over directions, the V-groove attenuation, and the Fresnel equations of
+  7b, f = D G F / 4 (n.l)(n.v) (the paper's pi replaced by the 4 its
+  derivation implies), as `RayTracer::SpecularModel::COOK_TORRANCE` next to
+  Blinn-Phong. `Material::roughness` (default: the one matching the
+  shininess) and `Material::metal` (no diffuse; the colour is the
+  reflectance head-on, turned into an index per channel as the paper
+  does). CLI `--specular-model`, `--roughness`, `--metal`; the viewer's
+  Highlight, Metal and roughness.
+- **Proof:** f(l, v) = f(v, l) over 500 random pairs; the distribution
+  integrates to 1 over the projected hemisphere at four roughnesses; the
+  attenuation is 1 head-on, symmetric, and falls toward the horizon; at the
+  mirror angle plastic sends F(t) / (4 m² cos t), rising toward grazing; a
+  polished surface reflects what a mirror would, the Fresnel share, and no
+  surface returns more than it receives; a metal's index gives its colour
+  back head-on, its channels close up at grazing, and it scatters nothing.
+  Goldens `teapot_ground_plastic_lit`, `teapot_ground_copper_lit`.
+- **M** · effect. Energy lost between facets returns with 72.
 
 ### 10 · 1981 · Depth of field (experiment 10)
 M. Potmesil & I. Chakravarty, "A Lens and Aperture Camera Model for

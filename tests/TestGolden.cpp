@@ -205,6 +205,29 @@ TEST_CASE("golden: an amber glass teapot on its ground plane, and its coloured s
     compareToGolden(rt.render(scene, camera, kSize, kSize), "teapot_ground_amber_lit.png");
 }
 
+TEST_CASE("golden: a copper teapot and a plastic one under Cook-Torrance highlights") {
+    // The pair of Cook and Torrance's figure: one colour, two materials.
+    // Plastic shines in the light's colour, copper in its own and has no
+    // diffuse light. Facets of slope 0.2, the default rig, the ground.
+    for (const bool metal : {false, true}) {
+        Scene scene;
+        scene.addObjectsFromFile(test::modelPath("teapot"));
+        scene.setUpAxis(resolveUpAxis(test::modelPath("teapot"), scene));
+        for (Object& object : scene.getObjects()) {
+            object.getMaterial().setColor(Vec3Df(0.95f, 0.64f, 0.54f));
+            object.getMaterial().setRoughness(0.2f);
+            object.getMaterial().setMetal(metal);
+        }
+        scene.addDefaultLights();
+        scene.addGroundPlane();
+        const Camera camera = Camera::frame(scene.getBoundingBox(), kPi / 4.f, 1.f, 2.f, 25.f, 20.f);
+        RayTracer rt;
+        rt.setSpecularModel(RayTracer::SpecularModel::COOK_TORRANCE);
+        compareToGolden(rt.render(scene, camera, kSize, kSize),
+                        metal ? "teapot_ground_copper_lit.png" : "teapot_ground_plastic_lit.png");
+    }
+}
+
 TEST_CASE("golden: teapot on its ground plane through the filmic display") {
     Settings s = withGround();
     s.filmic = true;
