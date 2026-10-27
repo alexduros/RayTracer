@@ -43,6 +43,16 @@ Experiment 10, at its place in the timeline: M. Potmesil & I. Chakravarty,
 - Depth of field leaves the planned modes of `--help` and the viewer's mode
   menu. Without an aperture every picture is the pinhole's, bit for bit.
 
+### Fixed
+
+- **Radiance files narrower than 8 pixels lost every row but the first**
+  when built with GCC 15 (Ubuntu 26.04, what CI's `ubuntu-latest` became on
+  October 19). stb_image reads such files in a loop that its RLE path
+  enters by a `goto` into the middle, and GCC 15's jump threading
+  miscompiles it from -O2 on. The vendored `stb_image.h` now reads them
+  through a small function instead, with no `goto`. The bundled panorama is
+  RLE-encoded and was never affected.
+
 ### Cost
 
 Each lens ray is a primary ray and everything it brings back: the ram on

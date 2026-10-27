@@ -21,7 +21,8 @@ tests that prove each one.
 - `tests/` — `raymini_tests` (tiny harness in `tests/Test.h`, no external
   dependency) plus `tests/golden/*.png`.
 - `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
-  backends), glad, stb. `models/` — six shapes and what each is for, listed
+  backends), glad, stb (`stb_image.h` patched: its flat HDR reader has no
+  `goto`, which GCC 15 miscompiled; keep the patch if stb is updated). `models/` — six shapes and what each is for, listed
   in `models/README.md`: `teapot.off`, `ram.off`, `ram_HD.off` (50k
   triangles, the heavy one), `cube.obj`/`cube.mtl` (six materials),
   `spot.obj` + `spot_texture.png` (the only UVs, CC0, for texture mapping)
