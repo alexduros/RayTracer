@@ -63,6 +63,12 @@ Options:
   --mode <mode>          one of the modes below (default lit)
   --aa <n>               anti-aliasing: n x n rays per pixel, 1..8 (default 1 = off)
   --jitter               jitter the anti-aliasing rays inside their cells
+  --aperture <f>         depth of field: the camera becomes a lens of this radius, as a
+                         fraction of the model size (default 0 = pinhole, all sharp)
+  --focus <f>            distance from the camera to the plane in focus, as a fraction of the
+                         model size (default: --distance, the model's centre)
+  --lens-samples <n>     n x n rays over the lens per pixel (or per --aa ray), 1..16
+                         (default 4); more smooth the grain out of the blur
   --up <axis>            which file axis points up: auto (orientation.txt next to the
                          model, else the flattest side is the bottom), +y, +z, -z, +x, -x, -y
   --ground               add a ground plane under the model (receives its shadows)
@@ -161,6 +167,11 @@ Modes (what each one computes, how to read it, and where it comes from):
         << "      " << aa.principle << "\n"
         << "      Read: " << aa.reading << "\n"
         << "      Ref:  " << aa.reference << "\n";
+    const RayTracer::ModeInfo& dof = RayTracer::depthOfFieldInfo();
+    out << "\n--aperture / --focus / --lens-samples  " << dof.name << "\n"
+        << "      " << dof.principle << "\n"
+        << "      Read: " << dof.reading << "\n"
+        << "      Ref:  " << dof.reference << "\n";
     const RayTracer::ModeInfo& soft = RayTracer::softShadowsInfo();
     out << "\n--shadow-samples / --light-radius  " << soft.name << "\n"
         << "      " << soft.principle << "\n"
@@ -228,6 +239,9 @@ struct Options {
     float depthNear = -1.f, depthFar = -1.f;  // < 0: automatic
     unsigned int aa = 1;
     bool jitter = false;
+    float aperture = 0.f;          // fraction of the model size; 0 = pinhole
+    std::optional<float> focus;    // fraction of the model size; empty: the distance to the centre
+    unsigned int lensSamples = 4;  // per axis
     bool ground = false;
     bool shadows = true;
     unsigned int shadowSamples = 1;
@@ -361,6 +375,28 @@ bool parseArgs(int argc, char** argv, Options& o) {
                 return false;
             }
             o.shadowSamples = static_cast<unsigned int>(n);
+        } else if (a == "--aperture") {
+            if (!(v = value(i, "--aperture"))) return false;
+            o.aperture = static_cast<float>(std::atof(v));
+            if (o.aperture < 0.f) {
+                std::cerr << "--aperture must be 0 or more\n";
+                return false;
+            }
+        } else if (a == "--focus") {
+            if (!(v = value(i, "--focus"))) return false;
+            o.focus = static_cast<float>(std::atof(v));
+            if (*o.focus <= 0.f) {
+                std::cerr << "--focus must be more than 0\n";
+                return false;
+            }
+        } else if (a == "--lens-samples") {
+            if (!(v = value(i, "--lens-samples"))) return false;
+            const int n = std::atoi(v);
+            if (n < 1 || n > 16) {
+                std::cerr << "--lens-samples must be between 1 and 16\n";
+                return false;
+            }
+            o.lensSamples = static_cast<unsigned int>(n);
         } else if (a == "--light-radius") {
             if (!(v = value(i, "--light-radius"))) return false;
             o.lightRadius = static_cast<float>(std::atof(v));
@@ -814,12 +850,15 @@ int main(int argc, char** argv) {
     const float size = bbox.getSize();
     const float camDistance = o.distance * size;
     const float fovRad = o.fovDeg * 3.14159265f / 180.f;
-    const Camera camera = Camera::frame(bbox, fovRad, static_cast<float>(o.width) / o.height,
-                                        o.distance, o.yaw, o.pitch);
+    Camera camera = Camera::frame(bbox, fovRad, static_cast<float>(o.width) / o.height,
+                                  o.distance, o.yaw, o.pitch);
+    camera.aperture = o.aperture * size;
+    if (o.focus) camera.focusDistance = *o.focus * size;
 
     RayTracer rt;
     rt.setDebugMode(o.mode);
     rt.setAntiAliasing(o.aa, o.jitter);
+    rt.setLensSamples(o.lensSamples);
     rt.setShadows(o.shadows);
     rt.setShadowSamples(o.shadowSamples);
     rt.setTransparentShadows(o.transparentShadows);
@@ -887,6 +926,12 @@ int main(int argc, char** argv) {
                                                : "";
         if (o.aoSamples > 0)
             effects += ", " + std::to_string(o.aoSamples * o.aoSamples) + " occlusion rays/hit";
+        if (camera.aperture > 0.f) {
+            char lens[128];
+            std::snprintf(lens, sizeof lens, ", depth of field (%u lens rays, aperture %.3f, focus %.3f)",
+                          o.lensSamples * o.lensSamples, camera.aperture, camera.focusDistance);
+            effects += lens;
+        }
         // From the scene, not the options: a --sphere brings its own mirror or
         // glass, an MTL its own bump map.
         bool glassy = false, mirrors = false, wrinkled = false, tinted = false;

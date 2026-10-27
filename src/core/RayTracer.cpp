@@ -40,28 +40,6 @@ Vec3Df hsvToRgb (float h, float s, float v) {
     }
 }
 
-/// Maps [0,1]^2 onto the unit disk so that equal areas stay equal and
-/// neighbouring points stay neighbours: jittered grid cells land on the disk
-/// as compact patches (P. Shirley & K. Chiu's concentric map).
-void concentricDisk (float a, float b, float & x, float & y) {
-    const float sx = 2.f * a - 1.f, sy = 2.f * b - 1.f;
-    if (sx == 0.f && sy == 0.f) {
-        x = y = 0.f;
-        return;
-    }
-    const float quarterPi = 0.78539816f;
-    float r, theta;
-    if (std::fabs (sx) > std::fabs (sy)) {
-        r = sx;
-        theta = quarterPi * (sy / sx);
-    } else {
-        r = sy;
-        theta = 2.f * quarterPi - quarterPi * (sx / sy);
-    }
-    x = r * std::cos (theta);
-    y = r * std::sin (theta);
-}
-
 const RayTracer::ModeInfo kModeInfos[RayTracer::kModeCount] = {
     {"lit", "Lit (Lambert + Blinn-Phong, shadows)",
      "For each light: material colour x light colour x max(0, n.l), the cosine between the normal and the light "
@@ -143,6 +121,18 @@ const RayTracer::ModeInfo kAntiAliasingInfo = {
     "T. Whitted, \"An Improved Illumination Model for Shaded Display\", Communications of the ACM 23(6), 1980 "
     "(supersampling in ray tracing); R. L. Cook, \"Stochastic Sampling in Computer Graphics\", ACM Transactions "
     "on Graphics 5(1), 1986 (jittered sampling)."};
+
+const RayTracer::ModeInfo kDepthOfFieldInfo = {
+    "dof", "Depth of field (thin lens)",
+    "The camera is a lens of a given radius instead of a pinhole: each primary ray leaves from a point of the lens "
+    "(n x n per pixel, one jittered point per cell of a grid mapped onto the disk) and aims at the point of the "
+    "plane in focus that the pinhole ray would meet, so every ray of a pixel converges there.",
+    "Whatever lies on the plane in focus stays sharp; a point nearer or farther spreads over a disk, the circle of "
+    "confusion, wider for a bigger lens and for a greater distance from that plane. Few lens rays leave grain in "
+    "the blur; each costs a primary ray and everything it brings back.",
+    "M. Potmesil & I. Chakravarty, \"A Lens and Aperture Camera Model for Synthetic Image Generation\", SIGGRAPH "
+    "1981; R. L. Cook, T. Porter & L. Carpenter, \"Distributed Ray Tracing\", SIGGRAPH 1984 (the lens sampled "
+    "by rays)."};
 
 const RayTracer::ModeInfo kSoftShadowsInfo = {
     "softshadows", "Soft shadows (area lights)",
@@ -282,6 +272,10 @@ const RayTracer::ModeInfo & RayTracer::antiAliasingInfo () {
     return kAntiAliasingInfo;
 }
 
+const RayTracer::ModeInfo & RayTracer::depthOfFieldInfo () {
+    return kDepthOfFieldInfo;
+}
+
 const RayTracer::ModeInfo & RayTracer::softShadowsInfo () {
     return kSoftShadowsInfo;
 }
@@ -341,12 +335,6 @@ const RayTracer::ModeInfo kPlannedModes[RayTracer::kPlannedModeCount] = {
      "distribution, its Smith masking, and rough glass that bends through the facets.",
      "R. Cook & K. Torrance, \"A Reflectance Model for Computer Graphics\", SIGGRAPH 1981; B. Walter et al., "
      "\"Microfacet Models for Refraction through Rough Surfaces\", EGSR 2007."},
-    {"dof", "Depth of field",
-     "Rays start from random points on a lens disk and converge on the focal plane, blurring whatever lies "
-     "nearer or farther.",
-     "Needs an aperture and a focus distance on Camera plus per-pixel sampling. Experiment 10.",
-     "M. Potmesil & I. Chakravarty, \"A Lens and Aperture Camera Model for Synthetic Image Generation\", SIGGRAPH "
-     "1981; Cook, Porter & Carpenter, SIGGRAPH 1984."},
     {"wireframe", "Wireframe overlay",
      "Pixels whose barycentric coordinates lie close to a triangle edge are drawn dark over the shaded image, "
      "showing the tessellation of the model.",
@@ -508,7 +496,7 @@ Vec3Df RayTracer::lightVisibility (const Scene & scene, const Vec3Df & p, const 
             const float a = (static_cast<float> (i) + sampler.next ()) / static_cast<float> (count);
             const float b = (static_cast<float> (j) + sampler.next ()) / static_cast<float> (count);
             float dx = 0.f, dy = 0.f;
-            concentricDisk (a, b, dx, dy);
+            Sampler::concentricDisk (a, b, dx, dy);
             Vec3Df d = light.getPos () + light.getRadius () * (dx * u + dy * w) - origin;
             const float distance = d.normalize ();
             // The part of the disk below the surface's horizon is hidden.
@@ -538,7 +526,7 @@ float RayTracer::ambientOcclusion (const Scene & scene, const Vec3Df & p, const 
             const float a = (static_cast<float> (i) + sampler.next ()) / static_cast<float> (count);
             const float b = (static_cast<float> (j) + sampler.next ()) / static_cast<float> (count);
             float dx = 0.f, dy = 0.f;
-            concentricDisk (a, b, dx, dy);
+            Sampler::concentricDisk (a, b, dx, dy);
             const float dz = std::sqrt (std::max (0.f, 1.f - dx * dx - dy * dy));
             Vec3Df d = dx * u + dy * w + dz * n;
             d.normalize ();
@@ -769,14 +757,34 @@ void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
                               unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1,
                               HdrImage & image, Stats & stats) const {
     const unsigned int n = std::max (1u, aaSamplesPerAxis);
+    const unsigned int m = lensSamplesPerAxis;
     for (unsigned int y = y0; y < y1; y++) {
         for (unsigned int x = x0; x < x1; x++) {
             // Seeded by the pixel: the same picture whatever the tile order.
             PixelSamplers samplers = PixelSamplers::forPixel (x, y);
+            Sampler lens = Sampler::forPixel (x, y, Sampler::Stream::LENS);
+            // What the camera sees through sub-pixel (sx, sy): the pinhole
+            // ray, or the mean of m x m rays from a jittered grid over the
+            // lens, each converging on the same point of the plane in focus.
+            auto primary = [&] (float sx, float sy) {
+                if (camera.aperture <= 0.f)
+                    return trace (scene, camera.primaryRay (x, y, width, height, sx, sy), stats, samplers);
+                Vec3Df sum;
+                for (unsigned int j = 0; j < m; j++) {
+                    for (unsigned int i = 0; i < m; i++) {
+                        const float a = (static_cast<float> (i) + lens.next ()) / static_cast<float> (m);
+                        const float b = (static_cast<float> (j) + lens.next ()) / static_cast<float> (m);
+                        float lx = 0.f, ly = 0.f;
+                        Sampler::concentricDisk (a, b, lx, ly);
+                        sum += trace (scene, camera.primaryRay (x, y, width, height, sx, sy, lx, ly), stats, samplers);
+                    }
+                }
+                return sum / static_cast<float> (m * m);
+            };
             Vec3Df color;
             if (n == 1) {
                 // One ray through the pixel centre.
-                color = trace (scene, camera.primaryRay (x, y, width, height), stats, samplers);
+                color = primary (0.5f, 0.5f);
             } else {
                 // n x n sub-pixel grid, optionally jittered inside each cell.
                 Sampler jitter = Sampler::forPixel (x, y, Sampler::Stream::PIXEL_JITTER);
@@ -786,7 +794,7 @@ void RayTracer::renderRegion (const Scene & scene, const Camera & camera,
                         const float v = aaJitter ? jitter.next () : 0.5f;
                         const float sx = (static_cast<float> (i) + u) / static_cast<float> (n);
                         const float sy = (static_cast<float> (j) + v) / static_cast<float> (n);
-                        color += trace (scene, camera.primaryRay (x, y, width, height, sx, sy), stats, samplers);
+                        color += primary (sx, sy);
                     }
                 }
                 color /= static_cast<float> (n * n);

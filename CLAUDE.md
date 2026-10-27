@@ -21,7 +21,8 @@ tests that prove each one.
 - `tests/` — `raymini_tests` (tiny harness in `tests/Test.h`, no external
   dependency) plus `tests/golden/*.png`.
 - `third_party/` — Dear ImGui 1.91.5 (trimmed to core + GLFW/OpenGL3
-  backends), glad, stb. `models/` — six shapes and what each is for, listed
+  backends), glad, stb (`stb_image.h` patched: its flat HDR reader has no
+  `goto`, which GCC 15 miscompiled; keep the patch if stb is updated). `models/` — six shapes and what each is for, listed
   in `models/README.md`: `teapot.off`, `ram.off`, `ram_HD.off` (50k
   triangles, the heavy one), `cube.obj`/`cube.mtl` (six materials),
   `spot.obj` + `spot_texture.png` (the only UVs, CC0, for texture mapping)
@@ -159,6 +160,19 @@ build/raymini-cli --help
 - `Scene::addDefaultLights()` is the original cyan/yellow/white rig, scaled
   to the model's bounding box. Cyan light on the orange default material
   gives the green tint you see on renders; that is expected.
+- Depth of field (experiment 10, `Camera.h`): `Camera::aperture` (lens
+  radius, world units, 0 = pinhole) and `Camera::focusDistance` (along
+  `dir`; `lookAt` sets it to the target's distance). `primaryRay(..., lx,
+  ly)` leaves from that point of the unit lens disk (right, up) and aims at
+  where the pinhole ray meets the plane in focus. `renderRegion` traces
+  `setLensSamples(n)` x n (default 4) lens rays per AA sample on a jittered
+  grid mapped by `Sampler::concentricDisk` (shared with soft shadows and
+  occlusion), stream `Sampler::Stream::LENS`; aperture 0 traces the single
+  pinhole ray, bit for bit. Applies to every mode. CLI `--aperture f
+  --focus f` (fractions of the model size; focus defaults to the model's
+  centre) `--lens-samples n`, GUI Aperture / Focus (x the target distance)
+  / Lens rays; the GL preview stays a pinhole. 16 lens rays: ram on its
+  floor at 384x256, one thread, 0.023 s -> 0.30 s.
 - Mirror reflections: `Material::reflectivity` (0 by default, so nothing
   changes unless asked), per-object overrides `Scene::setModelReflectivity` /
   `setGroundReflectivity`; CLI `--reflectivity k --ground-reflectivity k

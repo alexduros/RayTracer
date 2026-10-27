@@ -29,7 +29,8 @@ with the raytracer split into a library that builds without any GL dependency.
   recursively up to a depth), glass (refraction by Snell's law, split with
   reflection by the Fresnel equations, tinted by what its thickness absorbs,
   and casting the shadow of what it lets through), ambient occlusion (hemisphere rays that darken
-  creases and contact points), n x n supersampling with
+  creases and contact points), depth of field (a lens instead of a
+  pinhole: one plane sharp, the rest blurred), n x n supersampling with
   optional jitter, and analysis modes (hit mask, normals, depth, object id,
   ambient occlusion),
   traced tile by tile on every core (`--threads n`; same pixels for any count),
@@ -72,6 +73,7 @@ regenerates them and the timings.
 | ![Ambient occlusion](docs/evolution/08-occlusion.png)<br>**8. Ambient occlusion** (`--ao 8`): 64 hemisphere rays per hit; the creases under the horn, the belly's reflection and the floor at the feet darken. | ![Ambient occlusion mode](docs/evolution/08-occlusion-ao.png)<br>**8, the occlusion itself** (`--mode ao`): the open share of each point's hemisphere, white = open. |
 | ![Refraction](docs/evolution/07b-refraction.png)<br>**7b. Refraction** (`--transparency 1`), the stretch of experiment 7, done after 8: the ram in clear glass bends the floor behind it, catches reflections at its rims and turns dark where light reflects entirely inside. | ![Glass teapot](docs/evolution/07b-teapot.png)<br>**7b, on the teapot**, whose smooth body reads better: the floor shows through, shifted and bent, the lid and the handle stay visible by their rims. |
 | ![Display](docs/evolution/09-display.png)<br>**9. Exposure, tone mapping, sRGB**: step 8's radiance, now metered (−1.4 EV here), through the ACES curve and encoded in sRGB, the new default. Highlights keep their gradations; the shadows open up, and the scene, lit for the old linear bytes, looks flatter. | ![Reinhard](docs/evolution/09-reinhard.png)<br>**9, Reinhard et al.'s photographic operator** (`--tonemap reinhard`): the same metered exposure, their curve L / (1 + L) on luminance: softer, less saturated than ACES. |
+| ![Depth of field](docs/evolution/10-dof.png)<br>**10. Depth of field** (`--aperture 0.05`): step 9's camera becomes a lens a twentieth of the ram's size across, focused on its centre. The ram stays sharp; the floor softens in front of it and behind, and so does the edge of the floor against the sky. Sixteen lens rays a sample, sixteen times the work. | ![Focused on the head](docs/evolution/10-dof-head.png)<br>**10, focused nearer** (`--focus 1.5`): the plane in focus moves to the head. The eye and the horn's curl are crisp, the body and the hind legs, a little behind, already soften. |
 | ![Texture](docs/evolution/12-texture.png)<br>**12. Textures** (Spot, from her MTL): the picture follows the surface through the coordinates the file carries. The rams and the teapot cannot have this: OFF stores no coordinates. | ![UV](docs/evolution/12-uv.png)<br>**12, the coordinates themselves** (`--mode uv`): u in red, v in green. The seams of the unwrapping show as hard edges. |
 | ![Analytic primitives](docs/evolution/11-primitives.png)<br>**11. Analytic primitives** (`--sphere`): a mirror sphere and a glass one, given by their equation, stand beside the mesh. Their silhouettes are exact circles; the mirror shows the ground and the ram, under a sky that is still black. | ![Environment map](docs/evolution/13-environment.png)<br>**13. Environment map** (`--environment venice_sunset`): the composition of step 11 without its floor, in a world. Every ray that leaves the scene reads a panorama where it points, so the backdrop, the mirror ball and the glass one show Venice where they showed black. The ram is still lit by the rig alone: the map is seen, it does not light yet. |
 | ![Chrome ram](docs/evolution/13-chrome.png)<br>**13, a perfect mirror** (`--reflectivity 1`): not one pixel of the ram is its own. Each is the panorama, read along the ray mirrored about the normal. | ![Chrome teapot](docs/evolution/13-teapot.png)<br>**13, as the paper showed it**: the chrome teapot of Blinn and Newell's figure 8, with the buildings behind the camera bent over its body. |
@@ -138,6 +140,7 @@ build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15   # floor + shadows, 
 build/raymini-cli ram --ground --aa 2 --shadow-samples 8 --yaw -35 --pitch 15   # the same, soft shadows
 build/raymini-cli ram --ground-reflectivity 0.4 --aa 2 --yaw -35 --pitch 15     # on a mirror floor
 build/raymini-cli ram --ground --ao 8 --aa 2 --yaw -35 --pitch 15               # ambient occlusion
+build/raymini-cli ram --ground --aa 2 --yaw -35 --pitch 15 --aperture 0.05 --focus 1.5   # depth of field, on the head
 build/raymini-cli ram --ground --mode ao --yaw -35 --pitch 15                   # the occlusion alone
 build/raymini-cli teapot --ground --transparency 1 --aa 2 --yaw 25 --pitch 20   # a glass teapot
 build/raymini-cli teapot --ground --tint 0.95 0.55 0.1 --aa 2 --yaw 25 --pitch 20   # amber glass, and its amber shadow
@@ -177,7 +180,7 @@ Viewer controls:
   position, target, Reset), Preview
   (wireframe, back-face culling), Render (output width, mode: Lit, Ambient,
   Hit mask, Normals, Depth, Object id, Ambient occlusion; anti-aliasing and
-  jitter; shadows, whether glass filters them or blocks them, specular,
+  jitter; aperture, focus and lens rays; shadows, whether glass filters them or blocks them, specular,
   the highlight model (Blinn-Phong or Cook-Torrance), soft shadows and
   light size; occlusion and its
   radius; threads; depth range in Depth mode).
@@ -214,6 +217,22 @@ independent of tile order. One ray per pixel gives staircase edges; 2x2 or
 3x3 smooths them at 4x or 9x the cost. Whitted, "An Improved Illumination
 Model for Shaded Display", CACM 23(6), 1980; Cook, "Stochastic Sampling in
 Computer Graphics", ACM TOG 5(1), 1986.
+
+**Depth of field** (`--aperture f`, `--focus f`, `--lens-samples n`;
+Aperture / Focus / Lens rays in the viewer): the camera is a thin lens of
+radius f × the model's size instead of a pinhole. Each primary ray leaves
+from a point of the lens, n × n per pixel (4 × 4 by default, and that many
+per anti-aliasing ray) on a jittered grid mapped onto the disk, and aims at
+the point where the pinhole ray meets the plane in focus — at the model's
+centre unless `--focus` moves it (a fraction of the model's size from the
+camera). What lies on that plane stays sharp; a point nearer or farther
+spreads over a disk, the circle of confusion, of radius aperture × |1 −
+depth / focus| measured at its own depth. Few lens rays leave grain in the
+blur; each one costs a primary ray and everything it brings back (the ram
+on its floor at 384x256: 0.023 s → 0.30 s with 16 on one thread). The GL
+preview stays a pinhole. Potmesil & Chakravarty, "A Lens and Aperture
+Camera Model for Synthetic Image Generation", SIGGRAPH 1981; Cook, Porter
+& Carpenter, "Distributed Ray Tracing", SIGGRAPH 1984.
 
 **Soft shadows** (`--shadow-samples n`, `--light-radius f`; Soft shadows /
 Light size in the viewer): each light is a disk of f × the model's size (0.1

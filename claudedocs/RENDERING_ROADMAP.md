@@ -31,6 +31,7 @@ the implementation order with tests; this page is the map.
 | Environment map | The world around the scene is a panoramic picture read by direction: a ray that escapes brings back the texel where it points. |
 | Bump mapping | A grey picture read as a height tilts the normal the light is computed with; the surface itself does not move. |
 | Microfacet highlights (Cook-Torrance) | A highlight is the light that facets of random slopes mirror into the eye, minus what their neighbours hide, in the Fresnel proportions: plastic shines white, metal in its colour. |
+| Depth of field | The camera is a lens: rays from points of it converge on the plane in focus, so whatever lies nearer or farther blurs over its circle of confusion. |
 | Tinted glass and its shadows | Glass absorbs a share of the light per unit of length crossed, so its colour comes from its thickness; a shadow ray through it is filtered, not stopped. |
 
 ## 1. Local shading
@@ -90,9 +91,9 @@ Done for height maps (timeline step 14, v0.7.0): `Material::setBumpMap` and its 
 
 ## 4. Camera and image
 
-### Depth of field
+### Depth of field (done)
 **Principle:** Rays start from random points on a lens disk and converge on the focal plane, blurring whatever lies nearer or farther.
-Needs: aperture and focus distance on `Camera`, per-pixel sampling. Test: a quad on the focal plane keeps hard edges, one far from it blurs, aperture 0 reproduces the pinhole goldens. Reference: Potmesil & Chakravarty, SIGGRAPH 1981; Cook, Porter & Carpenter 1984. (Experiment 10)
+Done (v0.10.0): `Camera::aperture` and `focusDistance`, `RayTracer::setLensSamples` (n x n lens rays per sample, a sampler stream of their own), `--aperture`, `--focus`, `--lens-samples`, the viewer's Aperture / Focus / Lens rays. Tests: the plane in focus renders byte for byte as through a pinhole, an edge off it spreads exactly over the circle of confusion, aperture 0 changes nothing. Reference: Potmesil & Chakravarty, SIGGRAPH 1981; Cook, Porter & Carpenter 1984. (Experiment 10)
 
 ### Tone mapping and exposure (done)
 **Principle:** Radiance stays linear in floats and is mapped to the display range by an exposure and a tone curve before sRGB encoding, so bright scenes no longer clip.
@@ -146,7 +147,7 @@ Done as a backdrop object that the bounding box ignores. (Part of experiment 1)
 
 1. Ground plane + hard shadows, then Blinn-Phong: the scene starts to look like a scene. **Done.**
 2. BVH, then tile threads: the cat and the minion become interactive. **Done**: the minion renders in milliseconds, and threads keep the sampled effects fast.
-3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Soft shadows and ambient occlusion done**, each with its own per-pixel `Sampler` stream; depth of field will add a third.
+3. Soft shadows, ambient occlusion, depth of field: all reuse the sampling loop. **Done**, each with its own per-pixel `Sampler` stream.
 4. Reflections and refraction, then textures from OBJ UVs. **Reflections and refraction done.**
 5. Tone mapping, then environment lighting and path tracing. **Tone mapping done**; from here on, `RAY_TRACING_TIMELINE.md` sets the order.
 6. Analysis modes (wireframe, cost heatmap) now that the BVH exists; scene files and instancing when there is more than one thing to place.

@@ -11,6 +11,54 @@ publishes it as the release notes, with the binaries for macOS and Linux.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-27
+
+Experiment 10, at its place in the timeline: M. Potmesil & I. Chakravarty,
+"A Lens and Aperture Camera Model for Synthetic Image Generation", SIGGRAPH
+1981 — the camera becomes a lens, and only one plane is in focus.
+
+### Added
+
+- **Depth of field**, `--aperture f`: the camera is a thin lens of radius
+  f x the model size instead of a pinhole. Each primary ray leaves from a
+  point of the lens and aims at the point of the plane in focus that the
+  pinhole ray would meet, so what lies on that plane stays sharp, and a
+  point nearer or farther spreads over a disk, the circle of confusion,
+  wider for a bigger lens and a greater distance from the plane.
+- **The plane in focus**, `--focus f`, its distance from the camera as a
+  fraction of the model size; by default the model's centre, the point the
+  camera looks at.
+- **Lens rays**, `--lens-samples n`: n x n rays per pixel (or per `--aa`
+  ray) from a jittered grid mapped onto the lens, 4 x 4 by default. They
+  draw from a sampler stream of their own, seeded per pixel, so pictures
+  stay reproducible, identical for any tile size and thread count, and the
+  other effects keep their samples.
+- **In the viewer**: Aperture, Focus (a multiple of the distance to the
+  orbit's target) and Lens rays in Render. The GL preview stays a pinhole.
+- Golden `spheres_dof_lit`, five spheres in a row with the lens focused on
+  the middle one; ctest `cli_depth_of_field`, `cli_bad_lens_samples`.
+
+### Changed
+
+- Depth of field leaves the planned modes of `--help` and the viewer's mode
+  menu. Without an aperture every picture is the pinhole's, bit for bit.
+
+### Fixed
+
+- **Radiance files narrower than 8 pixels lost every row but the first**
+  when built with GCC 15 (Ubuntu 26.04, what CI's `ubuntu-latest` became on
+  October 19). stb_image reads such files in a loop that its RLE path
+  enters by a `goto` into the middle, and GCC 15's jump threading
+  miscompiles it from -O2 on. The vendored `stb_image.h` now reads them
+  through a small function instead, with no `goto`. The bundled panorama is
+  RLE-encoded and was never affected.
+
+### Cost
+
+Each lens ray is a primary ray and everything it brings back: the ram on
+its floor at 384x256 on one thread, 0.023 s as a pinhole, 0.30 s through a
+lens with 16 rays.
+
 ## [0.9.0] - 2026-10-17
 
 Step 16 of the timeline: R. L. Cook & K. E. Torrance, "A Reflectance Model

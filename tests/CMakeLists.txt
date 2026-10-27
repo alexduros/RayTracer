@@ -24,6 +24,7 @@ add_executable(raymini_tests
   TestBump.cpp
   TestAbsorption.cpp
   TestMicrofacet.cpp
+  TestDepthOfField.cpp
   TestOrientation.cpp
   TestGolden.cpp)
 target_link_libraries(raymini_tests PRIVATE raymini_core)
@@ -47,6 +48,11 @@ add_test(NAME cli_soft_shadows COMMAND raymini-cli teapot --size 32x32 --ground 
          --light-radius 0.2 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_soft_shadows.png)
 add_test(NAME cli_reflections COMMAND raymini-cli teapot --size 32x32 --ground-reflectivity 0.5
          --reflectivity 0.2 --max-depth 2 --quiet --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_reflections.png)
+add_test(NAME cli_depth_of_field COMMAND raymini-cli teapot --size 32x32 --aperture 0.05 --focus 1.5
+         --lens-samples 2 --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_depth_of_field.png)
+set_tests_properties(cli_depth_of_field PROPERTIES PASS_REGULAR_EXPRESSION "depth of field \\(4 lens rays")
+add_test(NAME cli_bad_lens_samples COMMAND raymini-cli teapot --lens-samples 0 --quiet)
+set_tests_properties(cli_bad_lens_samples PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_ao COMMAND raymini-cli teapot --size 32x32 --ground --ao 2 --ao-radius 0.3 --quiet
          --out ${CMAKE_CURRENT_BINARY_DIR}/out/cli_ao.png)
 add_test(NAME cli_ao_mode COMMAND raymini-cli teapot --size 32x32 --mode ao --quiet

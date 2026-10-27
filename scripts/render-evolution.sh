@@ -55,6 +55,10 @@ printf '%-18s ' 07b-teapot
 render 09-display        --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8
 render 09-reinhard       --ground --aa 2 --shadow-samples 8 --ground-reflectivity 0.4 --ao 8 --tonemap reinhard
 
+# Experiment 10, at its 1981 slot: the camera becomes a lens. Focused on the
+# model's centre, then on its head, nearer.
+render 10-dof            --ground --aa 2 --shadow-samples 8 --ao 8 --aperture 0.05
+render 10-dof-head       --ground --aa 2 --shadow-samples 8 --ao 8 --aperture 0.05 --focus 1.5
 # Experiment 11: two spheres given by their equation stand next to the mesh.
 render 11-primitives     --ground --aa 2 --shadow-samples 8 --ao 8 --opaque-shadows \
     --sphere -1.05 -0.62 0.45 0.38 mirror --sphere 1.15 -0.66 0.3 0.34 glass

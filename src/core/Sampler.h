@@ -1,5 +1,5 @@
 // Reproducible random numbers for the sampled effects: anti-aliasing jitter,
-// soft shadows, ambient occlusion, and later depth of field.
+// soft shadows, ambient occlusion, depth of field.
 //
 // A sampler is seeded from the pixel it serves, so a picture does not depend
 // on tile order or thread count, and each effect draws from its own stream,
@@ -7,11 +7,12 @@
 #ifndef SAMPLER_H
 #define SAMPLER_H
 
+#include <cmath>
 #include <random>
 
 class Sampler {
 public:
-    enum class Stream : unsigned int { PIXEL_JITTER = 0, SHADOWS = 1, AMBIENT_OCCLUSION = 2 };
+    enum class Stream : unsigned int { PIXEL_JITTER = 0, SHADOWS = 1, AMBIENT_OCCLUSION = 2, LENS = 3 };
 
     explicit Sampler (unsigned int seed = 1u) : rng (seed) {}
 
@@ -27,6 +28,28 @@ public:
     inline float next () {
         return static_cast<float> (rng () - std::minstd_rand::min ()) /
                (static_cast<float> (std::minstd_rand::max () - std::minstd_rand::min ()) + 1.f);
+    }
+
+    /// Maps [0,1]^2 onto the unit disk so that equal areas stay equal and
+    /// neighbouring points stay neighbours: jittered grid cells land on the
+    /// disk as compact patches (P. Shirley & K. Chiu's concentric map).
+    static inline void concentricDisk (float a, float b, float & x, float & y) {
+        const float sx = 2.f * a - 1.f, sy = 2.f * b - 1.f;
+        if (sx == 0.f && sy == 0.f) {
+            x = y = 0.f;
+            return;
+        }
+        const float quarterPi = 0.78539816f;
+        float r, theta;
+        if (std::fabs (sx) > std::fabs (sy)) {
+            r = sx;
+            theta = quarterPi * (sy / sx);
+        } else {
+            r = sy;
+            theta = 2.f * quarterPi - quarterPi * (sx / sy);
+        }
+        x = r * std::cos (theta);
+        y = r * std::sin (theta);
     }
 
 private:

@@ -35,8 +35,8 @@ in the step-by-step gallery.
   tool they all need. It also covers Ward's "Real Pixels" (Graphics Gems II,
   1991: HDR pixels, `.hdr` in and out) and can offer Tumblin & Rushmeier's
   operator (IEEE CG&A 13(6), 1993), the first tone reproduction paper.
-- **10 · Depth of field** (as specified) moves to its place in the timeline,
-  1981, between steps 16 and 17.
+- ✓ **10 · Depth of field** (done, v0.10.0) moved to its place in the
+  timeline, 1981, between steps 16 and 17.
 
 ## Era I · Foundations (1968–1985)
 
@@ -181,9 +181,18 @@ SIGGRAPH 1981.
   Goldens `teapot_ground_plastic_lit`, `teapot_ground_copper_lit`.
 - **M** · effect. Energy lost between facets returns with 72.
 
-### 10 · 1981 · Depth of field (experiment 10)
+### 10 · 1981 · Depth of field (experiment 10, done, v0.10.0)
 M. Potmesil & I. Chakravarty, "A Lens and Aperture Camera Model for
 Synthetic Image Generation", SIGGRAPH 1981. As specified in `EXPERIMENTS.md`.
+- **Here:** a thin lens on `Camera` (`aperture`, `focusDistance`), n x n
+  lens rays per sample from their own sampler stream. The paper blurs a
+  pinhole picture afterwards, point by point, by the circle of confusion of
+  its depth; tracing from the lens, as Cook, Porter & Carpenter did in 1984,
+  gives that circle by construction, and gets the occlusions right.
+- **Proof:** the plane in focus stays sharp to the byte; off it, an edge's
+  profile is the share of a disk of radius A |1 - z / f|; aperture 0 is the
+  pinhole bit for bit.
+- **E** · effect.
 
 ### 17 · 1982 · Constructive solid geometry
 S. D. Roth, "Ray Casting for Modeling Solids", Computer Graphics and Image

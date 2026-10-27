@@ -25,6 +25,7 @@ Camera Camera::lookAt (const Vec3Df & pos, const Vec3Df & target, const Vec3Df &
     c.up.normalize ();
     c.fovY = fovY;
     c.aspect = aspect;
+    c.focusDistance = std::max ((target - pos).getLength (), 1e-6f);
     return c;
 }
 
@@ -45,11 +46,19 @@ Camera Camera::frame (const BoundingBox & bbox, float fovY, float aspect,
 }
 
 Ray Camera::primaryRay (unsigned int x, unsigned int y, unsigned int width, unsigned int height,
-                        float sx, float sy) const {
+                        float sx, float sy, float lx, float ly) const {
     const float tanHalf = std::tan (fovY * 0.5f);
     const float ndcX = ((x + sx) / float (width)) * 2.f - 1.f;   // -1 (left) .. +1 (right)
     const float ndcY = 1.f - ((y + sy) / float (height)) * 2.f;  // +1 (top)  .. -1 (bottom)
     Vec3Df d = dir + right * (ndcX * tanHalf * aspect) + up * (ndcY * tanHalf);
     d.normalize ();
-    return Ray (pos, d);
+    if (aperture <= 0.f)
+        return Ray (pos, d);
+    // The pinhole ray meets the plane in focus at `focus`; the lens ray
+    // leaves from its point of the disk and aims there.
+    const Vec3Df focus = pos + d * (focusDistance / Vec3Df::dotProduct (d, dir));
+    const Vec3Df origin = pos + right * (aperture * lx) + up * (aperture * ly);
+    Vec3Df toFocus = focus - origin;
+    toFocus.normalize ();
+    return Ray (origin, toFocus);
 }

@@ -7155,6 +7155,20 @@ static void stbi__hdr_convert(float *output, stbi_uc *input, int req_comp)
    }
 }
 
+// raymini patch: the flat pixels from pixel `first` on, row by row. Upstream
+// reads them in a nested loop that the RLE path enters by a goto into its
+// middle; GCC 15's jump threading (-O2 and up) miscompiles that loop, and
+// every row after the first of a flat file came back unwritten.
+static void stbi__hdr_read_flat(stbi__context *s, float *hdr_data, int width, int height, int req_comp, int first)
+{
+   int k;
+   for (k = first; k < width * height; ++k) {
+      stbi_uc rgbe[4];
+      stbi__getn(s, rgbe, 4);
+      stbi__hdr_convert(hdr_data + k * req_comp, rgbe, req_comp);
+   }
+}
+
 static float *stbi__hdr_load(stbi__context *s, int *x, int *y, int *comp, int req_comp, stbi__result_info *ri)
 {
    char buffer[STBI__HDR_BUFLEN];
@@ -7215,14 +7229,7 @@ static float *stbi__hdr_load(stbi__context *s, int *x, int *y, int *comp, int re
    // image data is stored as some number of sca
    if ( width < 8 || width >= 32768) {
       // Read flat data
-      for (j=0; j < height; ++j) {
-         for (i=0; i < width; ++i) {
-            stbi_uc rgbe[4];
-           main_decode_loop:
-            stbi__getn(s, rgbe, 4);
-            stbi__hdr_convert(hdr_data + j * width * req_comp + i * req_comp, rgbe, req_comp);
-         }
-      }
+      stbi__hdr_read_flat(s, hdr_data, width, height, req_comp, 0);
    } else {
       // Read RLE-encoded data
       scanline = NULL;
@@ -7240,10 +7247,9 @@ static float *stbi__hdr_load(stbi__context *s, int *x, int *y, int *comp, int re
             rgbe[2] = (stbi_uc) len;
             rgbe[3] = (stbi_uc) stbi__get8(s);
             stbi__hdr_convert(hdr_data, rgbe, req_comp);
-            i = 1;
-            j = 0;
             STBI_FREE(scanline);
-            goto main_decode_loop; // yes, this makes no sense
+            stbi__hdr_read_flat(s, hdr_data, width, height, req_comp, 1);
+            return hdr_data;
          }
          len <<= 8;
          len |= stbi__get8(s);
