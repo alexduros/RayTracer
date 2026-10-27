@@ -362,11 +362,28 @@ CLI so the default cyan/yellow/white rig can be tuned without code changes.
 - Left: Tumblin & Rushmeier's operator (1993), Reinhard's local
   (dodge-and-burn) operator, a histogram view of the radiance.
 
-## 10. Depth of field
+## 10. Depth of field (done, v0.10.0)
 
 Thin-lens camera: `Camera::aperture` and `focusDistance`; each primary ray
 starts from a random point on the lens disk and passes through the focus
 point of the pinhole ray. Uses the sampling infrastructure from experiment 5.
+
+- Done: `Camera::primaryRay` takes a point of the unit lens disk;
+  `RayTracer::setLensSamples(n)` traces n x n of them per anti-aliasing
+  sample (default 4), on a jittered grid mapped by the concentric map, from
+  the new `Sampler::Stream::LENS`. The plane in focus is perpendicular to
+  the view direction, at `focusDistance`, which `lookAt` sets to the
+  target's distance. CLI `--aperture`, `--focus`, `--lens-samples`; GUI
+  Aperture / Focus / Lens rays.
+- Tests in `tests/TestDepthOfField.cpp`: aperture 0 is the pinhole bit for
+  bit, whatever the lens samples; every lens ray leaves the lens disk and
+  crosses the pinhole ray on the plane in focus (1e-5); an edge on that
+  plane renders byte for byte as through a pinhole, jittered AA included;
+  off it, each pixel's grey is the share of the circle of confusion, of
+  radius A |1 - z / f|, on the quad's side of the edge (within 8/255, for
+  focus behind and in front of the quad and twice the lens), and the grey
+  band is the disk's diameter; tiles and threads do not change a byte.
+  Golden `spheres_dof_lit`.
 
 - Test: a quad on the focus plane keeps hard edges (edge pixels stay 0/255);
   a quad far from it blurs (edge pixels become intermediate); aperture 0

@@ -314,3 +314,24 @@ TEST_CASE("golden: analytic spheres on a ground plane") {
     rt.setDepthRange(distance - size / 2.f, distance + size / 2.f);
     compareToGolden(rt.render(scene, camera, kSize, kSize), "spheres_lit.png");
 }
+
+TEST_CASE("golden: a row of spheres through a lens focused on the middle one") {
+    // Five spheres receding from the camera, the lens focused on the third:
+    // it stays sharp, the near and far ones blur, and so does the ground
+    // away from it. 16 lens rays a pixel.
+    const Vec3Df colours[5] = {Vec3Df(0.9f, 0.25f, 0.2f), Vec3Df(0.95f, 0.6f, 0.15f), Vec3Df(0.9f, 0.9f, 0.85f),
+                               Vec3Df(0.25f, 0.65f, 0.35f), Vec3Df(0.2f, 0.4f, 0.9f)};
+    Scene scene;
+    for (int i = 0; i < 5; ++i)
+        scene.addObject(Object(std::make_shared<Sphere>(Vec3Df(-1.2f + 0.6f * i, 0.5f, 2.f - 1.5f * i), 0.5f),
+                               Material(1.f, 0.3f, colours[i], 64.f)));
+    scene.addDefaultLights();
+    scene.addGroundPlane();
+    Camera camera = Camera::lookAt(Vec3Df(2.6f, 1.3f, 4.6f), Vec3Df(-0.4f, 0.5f, 0.2f), Vec3Df(0.f, 1.f, 0.f),
+                                   kPi / 3.f, 1.f);
+    camera.aperture = 0.2f;
+    camera.focusDistance = Vec3Df::dotProduct(Vec3Df(0.f, 0.5f, -1.f) - camera.pos, camera.dir);  // the white one
+    RayTracer rt;
+    rt.setLensSamples(4);
+    compareToGolden(rt.render(scene, camera, kSize, kSize), "spheres_dof_lit.png");
+}

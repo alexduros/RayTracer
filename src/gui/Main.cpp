@@ -522,6 +522,9 @@ int main(int argc, char** argv) {
     int rtMode = static_cast<int>(RayTracer::DebugMode::LIT);
     int rtAA = 2;            // rays per pixel axis: 2 -> 4 rays per pixel
     bool rtJitter = false;
+    float rtAperture = 0.f;   // lens radius, fraction of the model's size; 0 = pinhole
+    float rtFocus = 1.f;      // distance in focus, as a multiple of the distance to the target
+    int rtLensSamples = 4;    // lens rays per axis, for each anti-aliasing ray
     bool rtShadows = true;
     bool rtGlassShadows = true;  // shadow rays filtered by glass instead of stopped
     int rtShadowSamples = 4;  // shadow rays per light axis: 1 = hard shadows
@@ -747,8 +750,12 @@ int main(int argc, char** argv) {
             // resolution slider sets the width; the height follows the aspect.
             const int renderW = rtResolution;
             const int renderH = renderHeightFor(rtResolution);
-            const Camera camera = Camera::lookAt(toVec3Df(cameraPos), toVec3Df(cameraTarget), toVec3Df(cameraUp),
-                                                 glm::radians(fov), kViewportAspect);
+            Camera camera = Camera::lookAt(toVec3Df(cameraPos), toVec3Df(cameraTarget), toVec3Df(cameraUp),
+                                           glm::radians(fov), kViewportAspect);
+            // The preview stays a pinhole: the lens only exists in the render.
+            camera.aperture = rtAperture * scene.getBoundingBox().getSize();
+            camera.focusDistance *= rtFocus;
+            rt.setLensSamples(static_cast<unsigned int>(rtLensSamples));
             rt.setDebugMode(static_cast<RayTracer::DebugMode>(rtMode));
             rt.setDepthRange(rtDepthNear, rtDepthFar);
             rt.setAntiAliasing(static_cast<unsigned int>(rtAA), rtJitter);
@@ -1152,6 +1159,25 @@ int main(int argc, char** argv) {
             ImGui::Checkbox("##jitter", &rtJitter);
             ImGui::SameLine();
             helpMarker(RayTracer::antiAliasingInfo());
+            rowLabel("Aperture");
+            ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("(?)").x + ImGui::GetStyle().ItemSpacing.x));
+            ImGui::SliderFloat("##aperture", &rtAperture, 0.f, 0.1f, rtAperture > 0.f ? "%.3f x model" : "pinhole");
+            ImGui::SameLine();
+            helpMarker(RayTracer::depthOfFieldInfo());
+            if (rtAperture > 0.f) {
+                rowWidget("Focus");
+                ImGui::SliderFloat("##focus", &rtFocus, 0.25f, 2.f, "%.2f x target");
+                itemTooltip("Distance of the plane in focus: 1 is the point the camera orbits around,\n"
+                            "less brings it nearer, more pushes it away.");
+                rowWidget("Lens rays");
+                const char* lensLabels[] = {"2x2 per ray", "4x4 per ray", "8x8 per ray"};
+                const int lensChoices[] = {2, 4, 8};
+                int lensIndex = 1;
+                for (int i = 0; i < IM_ARRAYSIZE(lensChoices); ++i)
+                    if (lensChoices[i] == rtLensSamples) lensIndex = i;
+                if (ImGui::Combo("##lens", &lensIndex, lensLabels, IM_ARRAYSIZE(lensLabels)))
+                    rtLensSamples = lensChoices[lensIndex];
+            }
             rowLabel("Lighting");
             ImGui::Checkbox("Shadows", &rtShadows);
             ImGui::SameLine();

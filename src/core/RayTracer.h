@@ -79,6 +79,8 @@ public:
     static const ModeInfo & info (DebugMode mode);
     /// Same account for anti-aliasing, which is a setting rather than a mode.
     static const ModeInfo & antiAliasingInfo ();
+    /// ... and for depth of field.
+    static const ModeInfo & depthOfFieldInfo ();
     /// ... and for soft shadows.
     static const ModeInfo & softShadowsInfo ();
     /// ... and for mirror reflections.
@@ -109,7 +111,7 @@ public:
     /// is the full map): same fields, with `reading` holding what the mode
     /// needs. Listed greyed out in the viewer's mode menu and in --help so
     /// the roadmap is visible where the modes are chosen.
-    static constexpr int kPlannedModeCount = 6;
+    static constexpr int kPlannedModeCount = 5;
     static const ModeInfo & plannedMode (int index);
 
     RayTracer () {}
@@ -125,6 +127,17 @@ public:
     }
     inline unsigned int getAntiAliasingSamplesPerAxis () const { return aaSamplesPerAxis; }
     inline bool getAntiAliasingJitter () const { return aaJitter; }
+
+    /// Depth of field: through a camera with an aperture (Camera::aperture,
+    /// Camera::focusDistance), each primary ray, one per pixel or per
+    /// anti-aliasing sample, becomes samplesPerAxis x samplesPerAxis rays
+    /// from a jittered grid over the lens, averaged. Seeded per pixel from a
+    /// stream of their own, like the other sampled effects. A pinhole camera
+    /// (aperture 0) traces its single ray whatever this says, bit for bit the
+    /// picture before depth of field. Default 4: 16 rays, a smooth enough
+    /// blur for a preview.
+    inline void setLensSamples (unsigned int samplesPerAxis) { lensSamplesPerAxis = std::max (1u, samplesPerAxis); }
+    inline unsigned int getLensSamplesPerAxis () const { return lensSamplesPerAxis; }
 
     /// Shadows: shadow rays toward each light scale it by the fraction that
     /// gets through (Lit mode only). Hard unless setShadowSamples asks for more.
@@ -265,7 +278,8 @@ public:
     /// the radius. 1 when occlusion is off.
     float ambientOcclusion (const Scene & scene, const Vec3Df & p, const Vec3Df & n, Sampler & sampler) const;
 
-    /// Trace pixels [x0, x1) x [y0, y1) of a width x height frame into `image`
+    /// Trace pixels [x0, x1) x [y0, y1) of a width x height frame through
+    /// `camera` (its lens included) into `image`
     /// (which must already have that size) as linear radiance, accumulating
     /// `stats`. Pixels are independent, so any partition of the frame gives
     /// the same picture; this is what RenderJob calls per tile.
@@ -319,6 +333,7 @@ private:
     Display display;
     unsigned int aaSamplesPerAxis = 1;
     bool aaJitter = false;
+    unsigned int lensSamplesPerAxis = 4;
     bool shadows = true;
     bool transparentShadows = true;
     unsigned int shadowSamplesPerAxis = 1;
